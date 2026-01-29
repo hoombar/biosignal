@@ -1,0 +1,22 @@
+{
+  "userProfilePK": 67890,
+  "calendarDate": "2025-01-28",
+  "startTimestampGMT": 1706396400000,
+  "endTimestampGMT": 1706482800000,
+  "startTimestampLocal": 1706396400000,
+  "endTimestampLocal": 1706482800000,
+  "maxStressLevel": 68,
+  "avgStressLevel": 32,
+  "stressValuesArray": [
+    [0, -1],
+    [3600000, -1],
+    [7200000, -2],
+    [10800000, 18],
+    [14400000, 22],
+    [18000000, 35],
+    [21600000, 48],
+    [25200000, 52],
+    [28800000, 45]
+  ],
+  "bodyBatteryValuesArray": null
+}

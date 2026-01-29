@@ -1,0 +1,23 @@
+{
+  "userProfilePK": 67890,
+  "calendarDate": "2025-01-28",
+  "hrvSummary": {
+    "calendarDate": "2025-01-28",
+    "weeklyAvg": 52,
+    "lastNightAvg": 58,
+    "lastNight5MinHigh": 72,
+    "status": "BALANCED",
+    "createTimeStamp": 1706423400000
+  },
+  "startTimestampGMT": 1706396400000,
+  "endTimestampGMT": 1706423400000,
+  "startTimestampLocal": 1706396400000,
+  "endTimestampLocal": 1706423400000,
+  "hrvReadings": [
+    {"timestampGMT": 1706396400000, "hrv": 55},
+    {"timestampGMT": 1706398200000, "hrv": 58},
+    {"timestampGMT": 1706400000000, "hrv": 62},
+    {"timestampGMT": 1706401800000, "hrv": 59},
+    {"timestampGMT": 1706403600000, "hrv": 56}
+  ]
+}

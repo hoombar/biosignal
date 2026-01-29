@@ -1,0 +1,26 @@
+{
+  "userProfilePK": 67890,
+  "calendarDate": "2025-01-28",
+  "totalSteps": 8524,
+  "totalDistance": 6420,
+  "stepGoal": 10000,
+  "startGMT": "2025-01-28T00:00:00.0",
+  "endGMT": "2025-01-28T23:59:59.0",
+  "stepsPerHour": [
+    {"startGMT": "2025-01-28T00:00:00.0", "steps": 0},
+    {"startGMT": "2025-01-28T01:00:00.0", "steps": 0},
+    {"startGMT": "2025-01-28T06:00:00.0", "steps": 120},
+    {"startGMT": "2025-01-28T07:00:00.0", "steps": 450},
+    {"startGMT": "2025-01-28T08:00:00.0", "steps": 1200},
+    {"startGMT": "2025-01-28T09:00:00.0", "steps": 850},
+    {"startGMT": "2025-01-28T10:00:00.0", "steps": 620},
+    {"startGMT": "2025-01-28T11:00:00.0", "steps": 780},
+    {"startGMT": "2025-01-28T12:00:00.0", "steps": 340},
+    {"startGMT": "2025-01-28T13:00:00.0", "steps": 520},
+    {"startGMT": "2025-01-28T14:00:00.0", "steps": 890},
+    {"startGMT": "2025-01-28T15:00:00.0", "steps": 720},
+    {"startGMT": "2025-01-28T16:00:00.0", "steps": 650},
+    {"startGMT": "2025-01-28T17:00:00.0", "steps": 1200},
+    {"startGMT": "2025-01-28T18:00:00.0", "steps": 184}
+  ]
+}

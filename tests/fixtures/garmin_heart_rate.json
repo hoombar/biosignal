@@ -1,0 +1,23 @@
+{
+  "userProfilePK": 67890,
+  "calendarDate": "2025-01-28",
+  "startTimestampGMT": 1706396400000,
+  "endTimestampGMT": 1706482800000,
+  "startTimestampLocal": 1706396400000,
+  "endTimestampLocal": 1706482800000,
+  "maxHeartRate": 152,
+  "minHeartRate": 48,
+  "restingHeartRate": 52,
+  "lastSevenDaysAvgRestingHeartRate": 54,
+  "heartRateValues": [
+    [1706396400000, 52],
+    [1706397300000, 51],
+    [1706398200000, null],
+    [1706399100000, 54],
+    [1706400000000, 72],
+    [1706400900000, 78],
+    [1706401800000, 85],
+    [1706402700000, 92],
+    [1706403600000, 68]
+  ]
+}

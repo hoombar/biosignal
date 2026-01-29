@@ -1,0 +1,54 @@
+[
+  {
+    "activityId": 123456789,
+    "activityName": "Evening BJJ",
+    "activityType": {
+      "typeId": 142,
+      "typeKey": "brazilian_jiu_jitsu",
+      "parentTypeId": 17
+    },
+    "startTimeGMT": "2025-01-27T19:00:00.0",
+    "startTimeLocal": "2025-01-27T19:00:00.0",
+    "duration": 5400,
+    "distance": null,
+    "averageHR": 142,
+    "maxHR": 172,
+    "calories": 485,
+    "avgStress": 62,
+    "trainingEffect": 3.2,
+    "anaerobicTrainingEffect": 2.8,
+    "hrTimeInZones": {
+      "zone1": 300,
+      "zone2": 1200,
+      "zone3": 2400,
+      "zone4": 1200,
+      "zone5": 300
+    }
+  },
+  {
+    "activityId": 123456788,
+    "activityName": "Morning Run",
+    "activityType": {
+      "typeId": 1,
+      "typeKey": "running",
+      "parentTypeId": 17
+    },
+    "startTimeGMT": "2025-01-27T06:30:00.0",
+    "startTimeLocal": "2025-01-27T06:30:00.0",
+    "duration": 1800,
+    "distance": 4200,
+    "averageHR": 135,
+    "maxHR": 158,
+    "calories": 320,
+    "avgStress": 45,
+    "trainingEffect": 2.8,
+    "anaerobicTrainingEffect": 1.2,
+    "hrTimeInZones": {
+      "zone1": 180,
+      "zone2": 900,
+      "zone3": 600,
+      "zone4": 120,
+      "zone5": 0
+    }
+  }
+]

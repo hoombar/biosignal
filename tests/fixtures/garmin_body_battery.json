@@ -1,0 +1,21 @@
+[
+  {
+    "userProfilePK": 67890,
+    "calendarDate": "2025-01-28",
+    "startTimestampGMT": 1706396400000,
+    "endTimestampGMT": 1706482800000,
+    "startTimestampLocal": 1706396400000,
+    "endTimestampLocal": 1706482800000,
+    "bodyBatteryValuesArray": [
+      [1706396400000, 85, "CHARGED"],
+      [1706400000000, 92, "CHARGED"],
+      [1706403600000, 95, "CHARGED"],
+      [1706407200000, 88, "DRAINING"],
+      [1706410800000, 75, "DRAINING"],
+      [1706414400000, 62, "DRAINING"],
+      [1706418000000, 48, "DRAINING"],
+      [1706421600000, 42, "DRAINING"]
+    ],
+    "bodyBatteryVersion": "2.0"
+  }
+]
