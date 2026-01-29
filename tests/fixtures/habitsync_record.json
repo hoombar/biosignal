@@ -1,0 +1,8 @@
+{
+  "recordValue": 1.0,
+  "uuid": "record-uuid-123",
+  "habitUuid": "habit-uuid-2",
+  "epochDay": 19752,
+  "completion": true,
+  "createdAt": "2025-01-28T14:30:00.0"
+}

@@ -1,0 +1,37 @@
+[
+  {
+    "uuid": "habit-uuid-1",
+    "name": "PM Energy Slump",
+    "type": "YesNoHabit",
+    "archived": false,
+    "createdAt": "2025-01-01T00:00:00.0"
+  },
+  {
+    "uuid": "habit-uuid-2",
+    "name": "Coffee",
+    "type": "CounterHabit",
+    "archived": false,
+    "createdAt": "2025-01-01T00:00:00.0"
+  },
+  {
+    "uuid": "habit-uuid-3",
+    "name": "Alcohol",
+    "type": "CounterHabit",
+    "archived": false,
+    "createdAt": "2025-01-01T00:00:00.0"
+  },
+  {
+    "uuid": "habit-uuid-4",
+    "name": "Healthy Lunch",
+    "type": "YesNoHabit",
+    "archived": false,
+    "createdAt": "2025-01-01T00:00:00.0"
+  },
+  {
+    "uuid": "habit-uuid-5",
+    "name": "Carb-Heavy Lunch",
+    "type": "YesNoHabit",
+    "archived": false,
+    "createdAt": "2025-01-01T00:00:00.0"
+  }
+]
