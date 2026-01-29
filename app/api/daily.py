@@ -6,8 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
+from app.core.config import get_settings
 from app.models.database import DailyHabit
 from app.schemas.responses import HabitResponse, DailySummary
+from app.services.features import compute_features_range
 
 router = APIRouter(prefix="/api", tags=["daily"])
 
@@ -52,17 +54,20 @@ async def get_habits(days: int = 30, db: AsyncSession = Depends(get_db)):
 
 @router.get("/daily", response_model=list[DailySummary])
 async def get_daily_summaries(days: int = 30, db: AsyncSession = Depends(get_db)):
-    """
-    Get computed daily summaries for the last N days.
-    This will be implemented in Phase 7 with the features engine.
-    For now, returns empty summaries.
-    """
-    # Placeholder - will be implemented in Phase 7
-    summaries = []
-    start_date = date.today() - timedelta(days=days)
+    """Get computed daily summaries for the last N days."""
+    settings = get_settings()
+    end_date = date.today()
+    start_date = end_date - timedelta(days=days - 1)
 
-    for i in range(days):
-        current_date = start_date + timedelta(days=i)
-        summaries.append(DailySummary(date=current_date.isoformat()))
+    # Compute features for the date range
+    features_list = await compute_features_range(
+        db,
+        start_date,
+        end_date,
+        timezone=settings.tz
+    )
+
+    # Convert to DailySummary objects
+    summaries = [DailySummary(**features) for features in features_list]
 
     return summaries
