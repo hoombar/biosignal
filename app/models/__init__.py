@@ -13,6 +13,7 @@ from app.models.database import (
     DailyHabit,
     DailySummaryCache,
 )
+from app.models.sync_log import SyncLog
 
 __all__ = [
     "RawGarminResponse",
@@ -27,4 +28,5 @@ __all__ = [
     "Activity",
     "DailyHabit",
     "DailySummaryCache",
+    "SyncLog",
 ]
