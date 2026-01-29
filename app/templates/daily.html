@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Daily View - Energy Tracker{% endblock %}
+
+{% block content %}
+<h1>Daily View</h1>
+
+<div class="chart-container">
+    <h2>Last 90 Days</h2>
+    <div id="calendar-heatmap" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; max-width: 600px;">
+        <p class="loading">Loading calendar...</p>
+    </div>
+</div>
+
+<div class="chart-container" id="day-detail" style="display: none;">
+    <h2>Day Details</h2>
+    <div id="day-detail-content"></div>
+</div>
+
+<script src="/static/js/daily.js"></script>
+{% endblock %}

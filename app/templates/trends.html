@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Trends - Energy Tracker{% endblock %}
+
+{% block content %}
+<h1>Trends</h1>
+
+<div class="chart-container">
+    <h2>Metrics Over Time</h2>
+    <div style="margin-bottom: 1rem;">
+        <label>
+            <input type="checkbox" id="check-fog" checked onchange="updateChart()"> PM Slump (7-day avg)
+        </label>
+        <label style="margin-left: 1rem;">
+            <input type="checkbox" id="check-sleep" onchange="updateChart()"> Sleep Score
+        </label>
+        <label style="margin-left: 1rem;">
+            <input type="checkbox" id="check-hrv" onchange="updateChart()"> HRV
+        </label>
+        <label style="margin-left: 1rem;">
+            <input type="checkbox" id="check-bb" onchange="updateChart()"> Body Battery at 2pm
+        </label>
+    </div>
+    <canvas id="trends-chart"></canvas>
+</div>
+
+<script src="/static/js/trends.js"></script>
+{% endblock %}

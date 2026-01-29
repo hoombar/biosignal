@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Insights - Energy Tracker{% endblock %}
+
+{% block content %}
+<h1>Insights</h1>
+
+<div class="chart-container">
+    <h2>Key Findings</h2>
+    <div id="insights-list">
+        <p class="loading">Loading insights...</p>
+    </div>
+</div>
+
+<div class="chart-container">
+    <h2>Pattern Analysis</h2>
+    <div id="patterns-list">
+        <p class="loading">Loading patterns...</p>
+    </div>
+</div>
+
+<div class="chart-container">
+    <h2>Export Data</h2>
+    <p>Download your data for external analysis:</p>
+    <button onclick="exportData('csv', 90)">Export Last 90 Days (CSV)</button>
+    <button onclick="exportData('json', 90)">Export Last 90 Days (JSON)</button>
+    <button onclick="exportData('csv', 365)">Export All Data (CSV)</button>
+</div>
+
+<script src="/static/js/insights.js"></script>
+{% endblock %}

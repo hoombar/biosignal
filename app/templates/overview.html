@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Overview - Energy Tracker{% endblock %}
+
+{% block content %}
+<h1>Overview</h1>
+
+<div class="stat-cards" id="stats">
+    <div class="stat-card">
+        <h3>Total Days Tracked</h3>
+        <div class="value" id="total-days">-</div>
+    </div>
+    <div class="stat-card">
+        <h3>Fog Days</h3>
+        <div class="value" id="fog-days">-</div>
+    </div>
+    <div class="stat-card">
+        <h3>Fog Percentage</h3>
+        <div class="value" id="fog-pct">-</div>
+    </div>
+    <div class="stat-card">
+        <h3>Current Clear Streak</h3>
+        <div class="value" id="clear-streak">-</div>
+    </div>
+</div>
+
+<div class="chart-container">
+    <h2>Top 3 Correlates</h2>
+    <div id="top-correlates">
+        <p class="loading">Loading correlations...</p>
+    </div>
+</div>
+
+<div class="chart-container">
+    <h2>Sync Status</h2>
+    <div id="sync-status">
+        <p class="loading">Loading status...</p>
+    </div>
+    <button id="sync-btn" onclick="triggerSync()">Run Manual Sync</button>
+</div>
+
+<script src="/static/js/overview.js"></script>
+{% endblock %}
