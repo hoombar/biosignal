@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.core.database import init_db
-from app.api import config, sync
+from app.api import config, sync, raw, daily
 from app.services.scheduler import start_scheduler, stop_scheduler
 
 
@@ -36,3 +36,5 @@ templates = Jinja2Templates(directory="app/templates")
 # Include routers
 app.include_router(config.router)
 app.include_router(sync.router)
+app.include_router(raw.router)
+app.include_router(daily.router)
