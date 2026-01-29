@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  energy-tracker:
+    build: .
+    container_name: energy-tracker
+    environment:
+      # Database
+      - DB_PATH=/data/energy_tracker.db
+
+      # Garmin credentials (set these in .env file)
+      - GARMIN_EMAIL=${GARMIN_EMAIL}
+      - GARMIN_PASSWORD=${GARMIN_PASSWORD}
+      - GARMIN_TOKEN_DIR=/data/.garmin_tokens
+
+      # HabitSync connection (set these in .env file)
+      - HABITSYNC_URL=${HABITSYNC_URL}
+      - HABITSYNC_API_KEY=${HABITSYNC_API_KEY}
+
+      # Optional settings
+      - TZ=${TZ:-Europe/London}
+      - SYNC_HOUR=${SYNC_HOUR:-6}
+      - DEBUG=${DEBUG:-false}
+
+    volumes:
+      - ./data:/data
+
+    ports:
+      - "8000:8000"
+
+    restart: unless-stopped
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
