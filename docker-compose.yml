@@ -1,6 +1,6 @@
 services:
   energy-tracker:
-    build: .
+    image: ghcr.io/hoombar/biosignal:latest
     container_name: energy-tracker
     environment:
       # Database
