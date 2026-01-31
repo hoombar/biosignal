@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date
-from typing import Optional
+from typing import Any, Optional
 import httpx
 import re
 
