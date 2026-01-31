@@ -22,9 +22,9 @@ class GarminClient:
         os.makedirs(self.token_dir, exist_ok=True)
 
         def _connect():
-            client = Garmin(self.email, self.password)
             # Try loading saved tokens first
             try:
+                client = Garmin(self.email, self.password)
                 client.login(self.token_dir)
                 logger.info("Logged in using saved tokens")
                 return client
@@ -33,13 +33,11 @@ class GarminClient:
             except Exception as token_err:
                 logger.info(f"Saved tokens invalid ({token_err}), performing fresh login")
 
-            # Clear env var so login() doesn't try to load tokens again
+            # Fresh client instance to avoid tainted garth state
             os.environ.pop("GARMINTOKENS", None)
-            # Fresh login with credentials
+            client = Garmin(self.email, self.password)
             client.login()
-            # Save tokens for future use
             client.garth.dump(self.token_dir)
-            # Restore env var for future token loads
             os.environ["GARMINTOKENS"] = self.token_dir
             logger.info("Fresh login successful, tokens saved")
             return client
