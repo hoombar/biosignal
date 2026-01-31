@@ -19,8 +19,6 @@ class GarminClient:
 
     async def connect(self) -> None:
         """Connect to Garmin and authenticate."""
-        # Set token directory environment variable
-        os.environ["GARMINTOKENS"] = self.token_dir
         os.makedirs(self.token_dir, exist_ok=True)
 
         def _connect():
@@ -35,10 +33,14 @@ class GarminClient:
             except Exception as token_err:
                 logger.info(f"Saved tokens invalid ({token_err}), performing fresh login")
 
+            # Clear env var so login() doesn't try to load tokens again
+            os.environ.pop("GARMINTOKENS", None)
             # Fresh login with credentials
             client.login()
             # Save tokens for future use
             client.garth.dump(self.token_dir)
+            # Restore env var for future token loads
+            os.environ["GARMINTOKENS"] = self.token_dir
             logger.info("Fresh login successful, tokens saved")
             return client
 
