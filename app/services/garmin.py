@@ -25,7 +25,21 @@ class GarminClient:
 
         def _connect():
             client = Garmin(self.email, self.password)
+            # Try loading saved tokens first
+            try:
+                client.login(self.token_dir)
+                logger.info("Logged in using saved tokens")
+                return client
+            except FileNotFoundError:
+                logger.info("No saved tokens found, performing fresh login")
+            except Exception as token_err:
+                logger.info(f"Saved tokens invalid ({token_err}), performing fresh login")
+
+            # Fresh login with credentials
             client.login()
+            # Save tokens for future use
+            client.garth.dump(self.token_dir)
+            logger.info("Fresh login successful, tokens saved")
             return client
 
         try:

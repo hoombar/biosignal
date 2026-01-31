@@ -73,7 +73,7 @@ FEATURE_METADATA = {
 
 @router.get("")
 async def export_features(
-    format: str = Query("csv", regex="^(csv|json)$"),
+    format: str = Query("csv", pattern="^(csv|json)$"),
     days: int | None = None,
     start: str | None = None,
     end: str | None = None,
@@ -167,7 +167,7 @@ async def export_features(
 
 @router.get("/timeseries")
 async def export_timeseries(
-    type: str = Query(..., regex="^(heart_rate|body_battery|stress|hrv|spo2|steps)$"),
+    type: str = Query(..., pattern="^(heart_rate|body_battery|stress|hrv|spo2|steps)$"),
     start: str = Query(...),
     end: str = Query(...),
     db: AsyncSession = Depends(get_db)
