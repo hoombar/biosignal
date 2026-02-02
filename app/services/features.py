@@ -31,8 +31,9 @@ def _datetime_in_tz(dt: datetime, tz: ZoneInfo) -> datetime:
 
 
 def _time_to_datetime(target_date: date, t: time, tz: ZoneInfo) -> datetime:
-    """Combine date and time into timezone-aware datetime."""
-    return datetime.combine(target_date, t, tzinfo=tz)
+    """Combine date and time into a naive-UTC datetime for SQLite comparison."""
+    aware = datetime.combine(target_date, t, tzinfo=tz)
+    return aware.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
 
 
 def _closest_value(samples: list, target_time: datetime, window_minutes: int = 30) -> Optional[float]:

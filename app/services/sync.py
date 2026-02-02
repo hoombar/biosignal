@@ -42,13 +42,23 @@ class SyncService:
         samples: list,
         unique_column: str = "timestamp"
     ):
-        """Upsert time-series samples using SQLite INSERT OR REPLACE."""
+        """Upsert time-series samples using SQLite INSERT OR IGNORE."""
         if not samples:
             return 0
 
+        table = model_class.__table__
         for sample in samples:
-            # Use merge for upsert behavior
-            await session.merge(sample)
+            # Build dict of non-PK column values from the ORM object
+            data = {}
+            for col in table.columns:
+                if col.name != "id":
+                    data[col.name] = getattr(sample, col.name, None)
+
+            stmt = insert(table).values(**data).on_conflict_do_update(
+                index_elements=[unique_column],
+                set_={k: v for k, v in data.items() if k != unique_column},
+            )
+            await session.execute(stmt)
 
         return len(samples)
 
@@ -73,56 +83,74 @@ class SyncService:
             # Fetch all data for the date
             raw_data = await self.garmin.fetch_all_for_date(date_str)
 
-            # Store raw responses
+            # Store raw responses (upsert by date+endpoint)
             for endpoint, response in raw_data.items():
                 if response is not None:
-                    raw_record = RawGarminResponse(
-                        date=target_date,
-                        endpoint=endpoint,
-                        response=response,
-                        fetched_at=datetime.utcnow()
+                    existing = await session.execute(
+                        select(RawGarminResponse).where(
+                            RawGarminResponse.date == target_date,
+                            RawGarminResponse.endpoint == endpoint,
+                        )
                     )
-                    await session.merge(raw_record)
+                    existing_record = existing.scalar_one_or_none()
+                    if existing_record:
+                        existing_record.response = response
+                        existing_record.fetched_at = datetime.utcnow()
+                    else:
+                        session.add(RawGarminResponse(
+                            date=target_date,
+                            endpoint=endpoint,
+                            response=response,
+                            fetched_at=datetime.utcnow()
+                        ))
 
             # Parse and store each data type
-            if raw_data.get("heart_rate"):
-                hr_samples = parsers.parse_heart_rate(raw_data["heart_rate"], target_date)
-                count = await self._upsert_samples(session, HeartRateSample, hr_samples)
-                status["counts"]["heart_rate"] = count
+            parse_tasks = [
+                ("heart_rate", lambda d: parsers.parse_heart_rate(d, target_date), HeartRateSample),
+                ("body_battery", lambda d: parsers.parse_body_battery(d, target_date), BodyBatterySample),
+                ("stress", lambda d: parsers.parse_stress(d, target_date), StressSample),
+                ("hrv", lambda d: parsers.parse_hrv(d, target_date), HrvSample),
+                ("spo2", lambda d: parsers.parse_spo2(d, target_date), Spo2Sample),
+                ("steps", lambda d: parsers.parse_steps(d, target_date), StepsSample),
+            ]
 
-            if raw_data.get("body_battery"):
-                bb_samples = parsers.parse_body_battery(raw_data["body_battery"], target_date)
-                count = await self._upsert_samples(session, BodyBatterySample, bb_samples)
-                status["counts"]["body_battery"] = count
-
-            if raw_data.get("stress"):
-                stress_samples = parsers.parse_stress(raw_data["stress"], target_date)
-                count = await self._upsert_samples(session, StressSample, stress_samples)
-                status["counts"]["stress"] = count
-
-            if raw_data.get("hrv"):
-                hrv_samples = parsers.parse_hrv(raw_data["hrv"], target_date)
-                count = await self._upsert_samples(session, HrvSample, hrv_samples)
-                status["counts"]["hrv"] = count
-
-            if raw_data.get("spo2"):
-                spo2_samples = parsers.parse_spo2(raw_data["spo2"], target_date)
-                count = await self._upsert_samples(session, Spo2Sample, spo2_samples)
-                status["counts"]["spo2"] = count
-
-            if raw_data.get("steps"):
-                steps_samples = parsers.parse_steps(raw_data["steps"], target_date)
-                count = await self._upsert_samples(session, StepsSample, steps_samples)
-                status["counts"]["steps"] = count
+            for key, parse_fn, model_class in parse_tasks:
+                if raw_data.get(key):
+                    try:
+                        samples = parse_fn(raw_data[key])
+                        count = await self._upsert_samples(session, model_class, samples)
+                        status["counts"][key] = count
+                    except Exception as e:
+                        logger.error(f"Failed to parse {key} for {date_str}: {e} (data type: {type(raw_data[key]).__name__})")
+                        status["errors"].append(f"{key}: {e}")
+                        await session.rollback()
 
             if raw_data.get("sleep"):
-                sleep_session = parsers.parse_sleep(raw_data["sleep"], target_date)
-                if sleep_session:
-                    await session.merge(sleep_session)
-                    status["counts"]["sleep"] = 1
+                try:
+                    sleep_session = parsers.parse_sleep(raw_data["sleep"], target_date)
+                    if sleep_session:
+                        # Upsert sleep by date
+                        sleep_data = {}
+                        for col in SleepSession.__table__.columns:
+                            if col.name != "id":
+                                sleep_data[col.name] = getattr(sleep_session, col.name, None)
+                        stmt = insert(SleepSession.__table__).values(**sleep_data).on_conflict_do_update(
+                            index_elements=["date"],
+                            set_={k: v for k, v in sleep_data.items() if k != "date"},
+                        )
+                        await session.execute(stmt)
+                        status["counts"]["sleep"] = 1
+                except Exception as e:
+                    logger.error(f"Failed to parse sleep for {date_str}: {e} (data type: {type(raw_data['sleep']).__name__})")
+                    status["errors"].append(f"sleep: {e}")
+                    await session.rollback()
+
+            if status["errors"]:
+                status["success"] = False
 
             await session.commit()
-            logger.info(f"Garmin sync completed for {date_str}: {status['counts']}")
+            logger.info(f"Garmin sync completed for {date_str}: {status['counts']}"
+                        + (f" (errors: {status['errors']})" if status["errors"] else ""))
 
         except Exception as e:
             logger.error(f"Garmin sync failed for {date_str}: {e}")
@@ -153,13 +181,20 @@ class SyncService:
             # Fetch all habits for the date
             habits_data = await self.habitsync.fetch_all_for_date(target_date, self.timezone)
 
-            # Store raw response
-            raw_record = RawHabitSyncResponse(
-                date=target_date,
-                response=habits_data,
-                fetched_at=datetime.utcnow()
+            # Store raw response (upsert by date)
+            existing = await session.execute(
+                select(RawHabitSyncResponse).where(RawHabitSyncResponse.date == target_date)
             )
-            await session.merge(raw_record)
+            existing_record = existing.scalar_one_or_none()
+            if existing_record:
+                existing_record.response = habits_data
+                existing_record.fetched_at = datetime.utcnow()
+            else:
+                session.add(RawHabitSyncResponse(
+                    date=target_date,
+                    response=habits_data,
+                    fetched_at=datetime.utcnow()
+                ))
 
             # Parse and store habits
             habit_rows = parse_habitsync_response(habits_data, target_date)

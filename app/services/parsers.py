@@ -1,6 +1,6 @@
 """Parsers to convert raw Garmin/HabitSync JSON into ORM models."""
 
-from datetime import datetime, date, timezone
+from datetime import datetime, date, timedelta, timezone
 from typing import Optional
 import logging
 
@@ -31,6 +31,13 @@ def _iso_to_datetime(iso_str: str) -> datetime:
     return datetime.fromisoformat(iso_str).replace(tzinfo=timezone.utc)
 
 
+def _parse_timestamp(value) -> datetime:
+    """Convert a timestamp that may be epoch ms (int/str) or ISO 8601 string."""
+    if isinstance(value, str) and not value.isdigit():
+        return _iso_to_datetime(value)
+    return _timestamp_to_datetime(int(value))
+
+
 def parse_heart_rate(raw: dict, date: date) -> list[HeartRateSample]:
     """Parse heart rate JSON into HeartRateSample objects."""
     samples = []
@@ -41,7 +48,7 @@ def parse_heart_rate(raw: dict, date: date) -> list[HeartRateSample]:
             ts_ms, hr_value = entry[0], entry[1]
             if hr_value is not None and hr_value > 0:
                 samples.append(HeartRateSample(
-                    timestamp=_timestamp_to_datetime(ts_ms),
+                    timestamp=_parse_timestamp(ts_ms),
                     heart_rate=hr_value
                 ))
 
@@ -63,7 +70,7 @@ def parse_body_battery(raw: list | dict, date: date) -> list[BodyBatterySample]:
                 ts_ms, bb_level = entry[0], entry[1]
                 if bb_level is not None:
                     samples.append(BodyBatterySample(
-                        timestamp=_timestamp_to_datetime(ts_ms),
+                        timestamp=_parse_timestamp(ts_ms),
                         body_battery=bb_level
                     ))
 
@@ -76,13 +83,14 @@ def parse_stress(raw: dict, date: date) -> list[StressSample]:
     samples = []
 
     stress_values = raw.get("stressValuesArray", [])
-    start_ts = raw.get("startTimestampGMT") or raw.get("startTimestampLocal")
+    start_ts_raw = raw.get("startTimestampGMT") or raw.get("startTimestampLocal")
 
-    if start_ts:
+    if start_ts_raw:
+        start_dt = _parse_timestamp(start_ts_raw)
         for entry in stress_values:
             if len(entry) >= 2:
                 offset_ms, stress_level = entry[0], entry[1]
-                timestamp = _timestamp_to_datetime(start_ts + offset_ms)
+                timestamp = start_dt + timedelta(milliseconds=int(offset_ms))
                 # Store all values including -1/-2 (rest/unmeasured)
                 samples.append(StressSample(
                     timestamp=timestamp,
@@ -107,7 +115,7 @@ def parse_hrv(raw: Optional[dict], date: date) -> list[HrvSample]:
         hrv_value = reading.get("hrv")
         if ts_ms and hrv_value:
             samples.append(HrvSample(
-                timestamp=_timestamp_to_datetime(ts_ms),
+                timestamp=_parse_timestamp(ts_ms),
                 hrv_value=float(hrv_value),
                 reading_type="overnight"
             ))
@@ -119,7 +127,7 @@ def parse_hrv(raw: Optional[dict], date: date) -> list[HrvSample]:
         end_ts = raw.get("endTimestampGMT")
         if end_ts:
             samples.append(HrvSample(
-                timestamp=_timestamp_to_datetime(end_ts),
+                timestamp=_parse_timestamp(end_ts),
                 hrv_value=float(summary["lastNightAvg"]),
                 reading_type="overnight_avg"
             ))
@@ -141,7 +149,7 @@ def parse_spo2(raw: Optional[dict], date: date) -> list[Spo2Sample]:
         spo2_value = entry.get("spO2Value")
         if ts_ms and spo2_value:
             samples.append(Spo2Sample(
-                timestamp=_timestamp_to_datetime(ts_ms),
+                timestamp=_parse_timestamp(ts_ms),
                 spo2_value=spo2_value
             ))
 
@@ -149,11 +157,21 @@ def parse_spo2(raw: Optional[dict], date: date) -> list[Spo2Sample]:
     return samples
 
 
-def parse_steps(raw: dict, date: date) -> list[StepsSample]:
+def parse_steps(raw: dict | list, date: date) -> list[StepsSample]:
     """Parse steps JSON into StepsSample objects."""
     samples = []
 
-    steps_per_hour = raw.get("stepsPerHour", [])
+    if isinstance(raw, list):
+        # API returned a list directly — check if items look like hourly entries
+        # or a list of day objects containing stepsPerHour
+        if raw and isinstance(raw[0], dict) and "startGMT" in raw[0]:
+            steps_per_hour = raw
+        elif raw and isinstance(raw[0], dict) and "stepsPerHour" in raw[0]:
+            steps_per_hour = raw[0].get("stepsPerHour", [])
+        else:
+            steps_per_hour = []
+    else:
+        steps_per_hour = raw.get("stepsPerHour", [])
     for entry in steps_per_hour:
         start_gmt = entry.get("startGMT")
         steps = entry.get("steps")
