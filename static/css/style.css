@@ -153,3 +153,33 @@ button:disabled {
 .empty-state h2 {
     margin-bottom: 1rem;
 }
+
+/* MFA input */
+.mfa-input {
+    font-size: 1.5rem;
+    padding: 0.5rem 1rem;
+    width: 160px;
+    text-align: center;
+    letter-spacing: 0.3em;
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.mfa-input:focus {
+    border-color: var(--primary-color);
+}
+
+/* Status badges */
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.status-badge.valid { background: #dcfce7; color: var(--success-color); }
+.status-badge.expired { background: #fff7ed; color: var(--warning-color); }
+.status-badge.not-configured { background: #fee; color: var(--danger-color); }

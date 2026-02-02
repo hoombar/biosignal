@@ -8,6 +8,11 @@ from garminconnect import Garmin, GarminConnectAuthenticationError, GarminConnec
 logger = logging.getLogger(__name__)
 
 
+class GarminMfaRequiredError(Exception):
+    """Raised when Garmin login requires MFA and cannot proceed non-interactively."""
+    pass
+
+
 class GarminClient:
     """Async wrapper for Garmin Connect API."""
 
@@ -29,18 +34,14 @@ class GarminClient:
                 logger.info("Logged in using saved tokens")
                 return client
             except FileNotFoundError:
-                logger.info("No saved tokens found, performing fresh login")
+                logger.info("No saved tokens found")
             except Exception as token_err:
-                logger.info(f"Saved tokens invalid ({token_err}), performing fresh login")
+                logger.info(f"Saved tokens invalid: {token_err}")
 
-            # Fresh client instance to avoid tainted garth state
-            os.environ.pop("GARMINTOKENS", None)
-            client = Garmin(self.email, self.password)
-            client.login()
-            client.garth.dump(self.token_dir)
-            os.environ["GARMINTOKENS"] = self.token_dir
-            logger.info("Fresh login successful, tokens saved")
-            return client
+            raise GarminMfaRequiredError(
+                "No valid Garmin tokens found. "
+                "Please complete authentication setup at /setup/garmin"
+            )
 
         try:
             self.client = await asyncio.to_thread(_connect)

@@ -8,7 +8,7 @@ from sqlalchemy import select, desc
 
 from app.core.database import get_db
 from app.core.config import get_settings
-from app.services.garmin import GarminClient
+from app.services.garmin import GarminClient, GarminMfaRequiredError
 from app.services.habitsync import HabitSyncClient
 from app.services.sync import SyncService
 from app.models.sync_log import SyncLog
@@ -54,7 +54,20 @@ async def _run_sync_in_background(
     session: AsyncSession
 ):
     """Background task to run sync."""
-    sync_service = await _get_sync_service()
+    try:
+        sync_service = await _get_sync_service()
+    except GarminMfaRequiredError:
+        sync_log = SyncLog(
+            sync_type=sync_type,
+            date_synced=target_date,
+            started_at=datetime.utcnow(),
+            completed_at=datetime.utcnow(),
+            status="failed",
+            error_message="Garmin authentication not set up. Visit /setup/garmin to configure."
+        )
+        session.add(sync_log)
+        await session.commit()
+        return
 
     started_at = datetime.utcnow()
 

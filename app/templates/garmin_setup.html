@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Garmin Setup - Energy Tracker{% endblock %}
+
+{% block content %}
+<h1>Garmin Authentication Setup</h1>
+
+<div class="chart-container" id="status-section">
+    <h2>Connection Status</h2>
+    <div id="auth-status">
+        <p class="loading">Checking authentication status...</p>
+    </div>
+</div>
+
+<div class="chart-container" id="login-section" style="display: none;">
+    <h2>Connect to Garmin</h2>
+    <p>This will use the Garmin credentials configured in your environment.</p>
+    <button id="login-btn" onclick="initiateLogin()" style="margin-top: 1rem;">Connect to Garmin</button>
+    <div id="login-status" style="margin-top: 1rem;"></div>
+</div>
+
+<div class="chart-container" id="mfa-section" style="display: none;">
+    <h2>Enter Verification Code</h2>
+    <p>A verification code has been sent to your email or authenticator app.</p>
+    <div style="margin: 1.5rem 0;">
+        <input type="text" id="mfa-code" maxlength="6" placeholder="000000"
+               class="mfa-input" autocomplete="one-time-code" inputmode="numeric">
+    </div>
+    <button id="mfa-btn" onclick="submitMfa()">Verify Code</button>
+    <div id="mfa-status" style="margin-top: 1rem;"></div>
+</div>
+
+<div class="chart-container" id="success-section" style="display: none;">
+    <h2>Connected</h2>
+    <p>Garmin authentication is set up. You can now sync your data.</p>
+    <a href="/overview"><button style="margin-top: 1rem;">Back to Overview</button></a>
+</div>
+
+<script src="/static/js/garmin_setup.js"></script>
+{% endblock %}

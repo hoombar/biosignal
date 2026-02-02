@@ -69,6 +69,21 @@ async function loadOverview() {
     } catch (error) {
         console.error('Error loading sync status:', error);
     }
+
+    // Check Garmin auth status
+    try {
+        const authResp = await fetch('/api/garmin/auth/status');
+        const authData = await authResp.json();
+
+        if (authData.status !== 'valid') {
+            const btn = document.getElementById('sync-btn');
+            btn.textContent = 'Set Up Garmin';
+            btn.onclick = () => window.location.href = '/setup/garmin';
+            btn.style.backgroundColor = 'var(--warning-color)';
+        }
+    } catch (error) {
+        console.error('Error checking Garmin auth:', error);
+    }
 }
 
 async function triggerSync() {
