@@ -183,3 +183,21 @@ button:disabled {
 .status-badge.valid { background: #dcfce7; color: var(--success-color); }
 .status-badge.expired { background: #fff7ed; color: var(--warning-color); }
 .status-badge.not-configured { background: #fee; color: var(--danger-color); }
+
+/* Progress bar */
+.progress-bar-container {
+    width: 100%;
+    height: 20px;
+    background-color: var(--bg-secondary);
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    width: 0%;
+    background-color: var(--primary-color);
+    border-radius: 10px;
+    transition: width 0.5s ease;
+}

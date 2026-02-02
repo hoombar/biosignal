@@ -38,8 +38,11 @@ def _parse_timestamp(value) -> datetime:
     return _timestamp_to_datetime(int(value))
 
 
-def parse_heart_rate(raw: dict, date: date) -> list[HeartRateSample]:
+def parse_heart_rate(raw: dict | None, date: date) -> list[HeartRateSample]:
     """Parse heart rate JSON into HeartRateSample objects."""
+    if raw is None:
+        return []
+
     samples = []
 
     hr_values = raw.get("heartRateValues", [])
@@ -56,8 +59,11 @@ def parse_heart_rate(raw: dict, date: date) -> list[HeartRateSample]:
     return samples
 
 
-def parse_body_battery(raw: list | dict, date: date) -> list[BodyBatterySample]:
+def parse_body_battery(raw: list | dict | None, date: date) -> list[BodyBatterySample]:
     """Parse body battery JSON into BodyBatterySample objects."""
+    if raw is None:
+        return []
+
     samples = []
 
     # Handle list response
@@ -78,8 +84,11 @@ def parse_body_battery(raw: list | dict, date: date) -> list[BodyBatterySample]:
     return samples
 
 
-def parse_stress(raw: dict, date: date) -> list[StressSample]:
+def parse_stress(raw: dict | None, date: date) -> list[StressSample]:
     """Parse stress JSON into StressSample objects."""
+    if raw is None:
+        return []
+
     samples = []
 
     stress_values = raw.get("stressValuesArray", [])
@@ -157,8 +166,11 @@ def parse_spo2(raw: Optional[dict], date: date) -> list[Spo2Sample]:
     return samples
 
 
-def parse_steps(raw: dict | list, date: date) -> list[StepsSample]:
+def parse_steps(raw: dict | list | None, date: date) -> list[StepsSample]:
     """Parse steps JSON into StepsSample objects."""
+    if raw is None:
+        return []
+
     samples = []
 
     if isinstance(raw, list):
@@ -187,8 +199,11 @@ def parse_steps(raw: dict | list, date: date) -> list[StepsSample]:
     return samples
 
 
-def parse_sleep(raw: dict, date: date) -> Optional[SleepSession]:
+def parse_sleep(raw: dict | None, date: date) -> Optional[SleepSession]:
     """Parse sleep JSON into SleepSession object."""
+    if raw is None:
+        return None
+
     sleep_dto = raw.get("dailySleepDTO", {})
 
     if not sleep_dto:

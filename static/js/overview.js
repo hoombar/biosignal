@@ -102,5 +102,120 @@ async function triggerSync() {
     }
 }
 
+let backfillPollInterval = null;
+
+async function startBackfill() {
+    const days = parseInt(document.getElementById('backfill-days').value);
+    if (!days || days < 1 || days > 365) {
+        alert('Please enter a number between 1 and 365.');
+        return;
+    }
+
+    const btn = document.getElementById('backfill-btn');
+    btn.disabled = true;
+    btn.textContent = 'Starting...';
+
+    try {
+        const resp = await fetch('/api/sync/backfill', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ days })
+        });
+
+        if (resp.status === 409) {
+            // Already running, just start polling
+            showBackfillProgress();
+            pollBackfillStatus();
+            return;
+        }
+
+        if (!resp.ok) {
+            const err = await resp.json();
+            throw new Error(err.detail || 'Failed to start backfill');
+        }
+
+        showBackfillProgress();
+        pollBackfillStatus();
+
+    } catch (error) {
+        alert('Failed to start backfill: ' + error.message);
+        btn.disabled = false;
+        btn.textContent = 'Start Backfill';
+    }
+}
+
+function showBackfillProgress() {
+    document.getElementById('backfill-progress').style.display = 'block';
+    document.getElementById('backfill-result').style.display = 'none';
+    document.getElementById('backfill-btn').disabled = true;
+    document.getElementById('backfill-btn').textContent = 'Backfill Running...';
+    document.getElementById('backfill-days').disabled = true;
+}
+
+function pollBackfillStatus() {
+    if (backfillPollInterval) clearInterval(backfillPollInterval);
+
+    backfillPollInterval = setInterval(async () => {
+        try {
+            const resp = await fetch('/api/sync/backfill/status');
+            const status = await resp.json();
+
+            const done = (status.days_completed || 0) + (status.days_failed || 0);
+            const total = status.total_days || 1;
+            const pct = Math.round((done / total) * 100);
+
+            const bar = document.getElementById('backfill-bar');
+            bar.style.width = pct + '%';
+
+            const text = document.getElementById('backfill-status-text');
+            text.textContent = `${done} / ${total} days processed (${status.days_completed || 0} succeeded, ${status.days_failed || 0} failed)`;
+
+            if (!status.is_running && done > 0) {
+                clearInterval(backfillPollInterval);
+                backfillPollInterval = null;
+                onBackfillComplete(status);
+            }
+        } catch (error) {
+            console.error('Error polling backfill status:', error);
+        }
+    }, 3000);
+}
+
+function onBackfillComplete(status) {
+    document.getElementById('backfill-btn').disabled = false;
+    document.getElementById('backfill-btn').textContent = 'Start Backfill';
+    document.getElementById('backfill-days').disabled = false;
+
+    const bar = document.getElementById('backfill-bar');
+    bar.style.width = '100%';
+
+    const resultDiv = document.getElementById('backfill-result');
+    resultDiv.style.display = 'block';
+
+    const failed = status.days_failed || 0;
+    if (failed === 0) {
+        resultDiv.innerHTML = `<p style="color: var(--success-color); margin-top: 1rem;">Backfill complete — ${status.days_completed} days synced successfully.</p>`;
+    } else {
+        resultDiv.innerHTML = `<p style="color: var(--warning-color); margin-top: 1rem;">Backfill complete — ${status.days_completed} succeeded, ${failed} failed. You can re-run to retry failed days.</p>`;
+    }
+}
+
+async function checkBackfillOnLoad() {
+    try {
+        const resp = await fetch('/api/sync/backfill/status');
+        const status = await resp.json();
+        if (status.is_running) {
+            showBackfillProgress();
+            pollBackfillStatus();
+        }
+    } catch (error) {
+        // Ignore - endpoint may not exist on older versions
+    }
+}
+
 // Load on page load
-document.addEventListener('DOMContentLoaded', loadOverview);
+document.addEventListener('DOMContentLoaded', () => {
+    loadOverview();
+    document.getElementById('backfill-btn').addEventListener('click', startBackfill);
+    checkBackfillOnLoad();
+});

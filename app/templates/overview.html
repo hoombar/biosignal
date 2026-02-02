@@ -39,5 +39,25 @@
     <button id="sync-btn" onclick="triggerSync()">Run Manual Sync</button>
 </div>
 
+<div class="chart-container">
+    <h2>Backfill Historical Data</h2>
+    <p style="color: var(--text-secondary); margin-bottom: 1rem;">Import historical data from Garmin and HabitSync. Each day takes a few seconds due to API rate limits.</p>
+    <div id="backfill-controls">
+        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+            <label for="backfill-days" style="white-space: nowrap;">Days to backfill:</label>
+            <input type="number" id="backfill-days" value="90" min="1" max="365"
+                style="width: 80px; padding: 0.5rem; border: 2px solid var(--border-color); border-radius: 6px; font-size: 1rem;">
+            <button id="backfill-btn">Start Backfill</button>
+        </div>
+    </div>
+    <div id="backfill-progress" style="display: none;">
+        <div class="progress-bar-container">
+            <div class="progress-bar" id="backfill-bar"></div>
+        </div>
+        <p id="backfill-status-text" style="margin-top: 0.5rem; color: var(--text-secondary); font-size: 0.875rem;"></p>
+    </div>
+    <div id="backfill-result" style="display: none;"></div>
+</div>
+
 <script src="/static/js/overview.js"></script>
 {% endblock %}
