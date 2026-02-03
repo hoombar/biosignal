@@ -226,11 +226,12 @@ class SyncService:
         garmin_status = await self.sync_garmin_day(target_date, session)
         habitsync_status = await self.sync_habitsync_day(target_date, session)
 
+        # Consider day successful if Garmin succeeds (HabitSync is supplementary)
         return {
             "date": target_date.strftime("%Y-%m-%d"),
             "garmin": garmin_status,
             "habitsync": habitsync_status,
-            "overall_success": garmin_status["success"] and habitsync_status["success"]
+            "overall_success": garmin_status["success"]
         }
 
     async def sync_date_range(

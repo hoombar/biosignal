@@ -45,12 +45,25 @@ class HabitSyncClient:
         """Get list of all habits."""
         try:
             client = await self._get_client()
-            response = await client.get(f"{self.base_url}/api/habit")
+            # Try user-scoped endpoint first (newer API)
+            response = await client.get(f"{self.base_url}/api/user/habit")
             response.raise_for_status()
             habits = response.json()
             logger.info(f"Fetched {len(habits)} habits from HabitSync")
             return habits
         except httpx.HTTPStatusError as e:
+            # If 404, try the old endpoint
+            if e.response.status_code == 404:
+                try:
+                    logger.info("Trying fallback endpoint /api/habit")
+                    response = await client.get(f"{self.base_url}/api/habit")
+                    response.raise_for_status()
+                    habits = response.json()
+                    logger.info(f"Fetched {len(habits)} habits from HabitSync (fallback)")
+                    return habits
+                except Exception as fallback_error:
+                    logger.error(f"Fallback endpoint also failed: {fallback_error}")
+                    return []
             logger.error(f"HTTP error fetching habits: {e}")
             logger.error(f"Response status: {e.response.status_code}, URL: {e.request.url}")
             logger.error(f"Response body: {e.response.text[:500]}")
