@@ -45,7 +45,7 @@ def parse_heart_rate(raw: dict | None, date: date) -> list[HeartRateSample]:
 
     samples = []
 
-    hr_values = raw.get("heartRateValues", [])
+    hr_values = raw.get("heartRateValues") or []
     for entry in hr_values:
         if len(entry) >= 2:
             ts_ms, hr_value = entry[0], entry[1]
@@ -70,7 +70,7 @@ def parse_body_battery(raw: list | dict | None, date: date) -> list[BodyBatteryS
     data_list = raw if isinstance(raw, list) else [raw]
 
     for day_data in data_list:
-        bb_values = day_data.get("bodyBatteryValuesArray", [])
+        bb_values = day_data.get("bodyBatteryValuesArray") or []
         for entry in bb_values:
             if len(entry) >= 2:
                 ts_ms, bb_level = entry[0], entry[1]
@@ -91,7 +91,7 @@ def parse_stress(raw: dict | None, date: date) -> list[StressSample]:
 
     samples = []
 
-    stress_values = raw.get("stressValuesArray", [])
+    stress_values = raw.get("stressValuesArray") or []
     start_ts_raw = raw.get("startTimestampGMT") or raw.get("startTimestampLocal")
 
     if start_ts_raw:
@@ -118,7 +118,7 @@ def parse_hrv(raw: Optional[dict], date: date) -> list[HrvSample]:
     samples = []
 
     # Try different HRV structures
-    hrv_readings = raw.get("hrvReadings", [])
+    hrv_readings = raw.get("hrvReadings") or []
     for reading in hrv_readings:
         ts_ms = reading.get("timestampGMT")
         hrv_value = reading.get("hrv")
@@ -152,7 +152,7 @@ def parse_spo2(raw: Optional[dict], date: date) -> list[Spo2Sample]:
 
     samples = []
 
-    spo2_values = raw.get("spO2ValueDescriptorDTOList", [])
+    spo2_values = raw.get("spO2ValueDescriptorDTOList") or []
     for entry in spo2_values:
         ts_ms = entry.get("readingTimestampGMT")
         spo2_value = entry.get("spO2Value")
@@ -183,7 +183,7 @@ def parse_steps(raw: dict | list | None, date: date) -> list[StepsSample]:
         else:
             steps_per_hour = []
     else:
-        steps_per_hour = raw.get("stepsPerHour", [])
+        steps_per_hour = raw.get("stepsPerHour") or []
     for entry in steps_per_hour:
         start_gmt = entry.get("startGMT")
         steps = entry.get("steps")
