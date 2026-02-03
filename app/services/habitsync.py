@@ -52,6 +52,8 @@ class HabitSyncClient:
             return habits
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error fetching habits: {e}")
+            logger.error(f"Response status: {e.response.status_code}, URL: {e.request.url}")
+            logger.error(f"Response body: {e.response.text[:500]}")
             return []
         except httpx.ConnectError as e:
             logger.error(f"Connection error to HabitSync: {e}")
