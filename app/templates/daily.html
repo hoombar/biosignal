@@ -5,16 +5,75 @@
 {% block content %}
 <h1>Daily View</h1>
 
-<div class="chart-container">
-    <h2>Last 90 Days</h2>
-    <div id="calendar-heatmap" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; max-width: 600px;">
-        <p class="loading">Loading calendar...</p>
-    </div>
-</div>
+<div class="daily-layout">
+    <!-- Calendar Section (Left) -->
+    <div class="calendar-section">
+        <div class="calendar-header">
+            <h2>Last 90 Days</h2>
+        </div>
 
-<div class="chart-container" id="day-detail" style="display: none;">
-    <h2>Day Details</h2>
-    <div id="day-detail-content"></div>
+        <div class="calendar-weekdays">
+            <span class="calendar-weekday">Mon</span>
+            <span class="calendar-weekday">Tue</span>
+            <span class="calendar-weekday">Wed</span>
+            <span class="calendar-weekday">Thu</span>
+            <span class="calendar-weekday">Fri</span>
+            <span class="calendar-weekday">Sat</span>
+            <span class="calendar-weekday">Sun</span>
+        </div>
+
+        <div class="calendar-grid" id="calendar-grid">
+            <p class="loading">Loading...</p>
+        </div>
+
+        <div class="calendar-legend">
+            <div class="legend-item">
+                <span class="legend-dot" style="background: var(--habit-pmslump-clear)"></span>
+                <span>Clear</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-dot" style="background: var(--habit-pmslump-slump)"></span>
+                <span>PM Slump</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-dot" style="background: var(--habit-coffee)"></span>
+                <span>Coffee</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-dot" style="background: var(--habit-beer)"></span>
+                <span>Beer</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-dot" style="background: var(--habit-lunch-healthy)"></span>
+                <span>Healthy</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detail Section (Right) -->
+    <div class="detail-section" id="detail-section">
+        <div class="detail-header">
+            <span class="detail-date" id="detail-date">Select a day</span>
+            <div class="detail-nav">
+                <button onclick="navigateDay(-1)" title="Previous day">&larr;</button>
+                <button onclick="navigateDay(1)" title="Next day">&rarr;</button>
+            </div>
+        </div>
+
+        <!-- Habits Banner -->
+        <div class="habits-banner" id="habits-banner">
+            <div class="habit-item">
+                <span class="habit-indicator"></span>
+                <span class="habit-label">PM Slump</span>
+                <span class="habit-value">-</span>
+            </div>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div class="metrics-grid" id="metrics-grid">
+            <!-- Cards populated by JS -->
+        </div>
+    </div>
 </div>
 
 <script src="/static/js/daily.js"></script>
