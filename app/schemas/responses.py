@@ -56,6 +56,13 @@ class ActivityResponse(BaseModel):
         from_attributes = True
 
 
+class Habit(BaseModel):
+    """Single habit entry."""
+    name: str
+    value: int
+    type: str
+
+
 class HabitResponse(BaseModel):
     """Daily habits response."""
     date: str
@@ -107,13 +114,8 @@ class DailySummary(BaseModel):
     training_avg_hr: int | None = None
     training_intensity: str | None = None
     hours_since_training: float | None = None
-    # Habit features (dynamic)
-    pm_slump: bool | None = None
-    coffee_count: int | None = None
-    beer_count: int | None = None
-    healthy_lunch: bool | None = None
-    carb_heavy_lunch: bool | None = None
-    # Additional dynamic habits will be added at runtime
+    # Habit features (dynamic list)
+    habits: list[Habit] = []
 
 
 class CorrelationResult(BaseModel):

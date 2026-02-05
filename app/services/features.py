@@ -387,26 +387,30 @@ async def compute_habit_features(
     session: AsyncSession,
     target_date: date
 ) -> dict:
-    """Compute habit features."""
+    """Compute habit features as a list of habit objects."""
     result = await session.execute(
         select(DailyHabit).where(DailyHabit.date == target_date)
     )
     habits = result.scalars().all()
 
-    features = {}
+    habit_list = []
 
     for habit in habits:
-        # Convert based on type
+        # Convert value based on type
         if habit.habit_type == "boolean":
-            value = habit.habit_value.lower() == "true"
+            value = 1 if habit.habit_value.lower() == "true" else 0
         elif habit.habit_type == "counter":
             value = int(habit.habit_value) if habit.habit_value else 0
         else:
-            value = habit.habit_value
+            value = int(habit.habit_value) if habit.habit_value.isdigit() else 0
 
-        features[habit.habit_name] = value
+        habit_list.append({
+            "name": habit.habit_name,
+            "value": value,
+            "type": habit.habit_type or "counter"
+        })
 
-    return features
+    return {"habits": habit_list}
 
 
 async def compute_daily_features(

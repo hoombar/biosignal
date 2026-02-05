@@ -64,28 +64,39 @@ function getScoreClass(value, lowThresh, highThresh) {
 // CALENDAR RENDERING
 // ============================================
 
+function formatHabitName(name) {
+    // Convert snake_case to Title Case
+    return name.split('_').map(word =>
+        word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
+}
+
+function getHabitValue(habits, name) {
+    if (!habits) return null;
+    const habit = habits.find(h => h.name === name);
+    return habit ? habit.value : null;
+}
+
 function renderCalendarCell(day, index) {
     const date = new Date(day.date);
     const dateNum = date.getDate();
     const dayName = getDayName(day.date);
 
-    // Determine habit dot classes
-    const pmClass = day.pm_slump === null ? 'empty' :
-                    day.pm_slump ? 'pm-slump' : 'pm-clear';
+    // Check for key habits for the calendar dot display
+    const pmSlump = getHabitValue(day.habits, 'afternoon_slump');
+    const coffee = getHabitValue(day.habits, 'coffee');
+    const beer = getHabitValue(day.habits, 'beer');
 
-    const coffeeClass = day.coffee_count === null ? 'empty' :
-                        day.coffee_count > 0 ? 'coffee' : 'empty';
+    const pmClass = pmSlump === null ? 'empty' :
+                    pmSlump > 0 ? 'pm-slump' : 'pm-clear';
 
-    const beerClass = day.beer_count === null ? 'empty' :
-                      day.beer_count > 0 ? 'beer' : 'empty';
+    const coffeeClass = coffee === null ? 'empty' :
+                        coffee > 0 ? 'coffee' : 'empty';
 
-    const healthyClass = day.healthy_lunch === null ? 'empty' :
-                         day.healthy_lunch ? 'healthy' : 'empty';
+    const beerClass = beer === null ? 'empty' :
+                      beer > 0 ? 'beer' : 'empty';
 
-    const carbsClass = day.carb_heavy_lunch === null ? 'empty' :
-                       day.carb_heavy_lunch ? 'carbs' : 'empty';
-
-    const hasData = day.sleep_score !== null || day.pm_slump !== null;
+    const hasData = day.sleep_score !== null || (day.habits && day.habits.length > 0);
     const noDataClass = hasData ? '' : 'no-data';
     const selectedClass = selectedDate === day.date ? 'selected' : '';
 
@@ -98,11 +109,9 @@ function renderCalendarCell(day, index) {
                 ${day.sleep_score ? `<span class="sleep-score">${day.sleep_score}</span>` : ''}
             </div>
             <div class="habit-strip">
-                <span class="habit-dot ${pmClass}" title="PM Slump"></span>
-                <span class="habit-dot ${coffeeClass}" title="Coffee: ${day.coffee_count ?? '-'}"></span>
-                <span class="habit-dot ${beerClass}" title="Beer: ${day.beer_count ?? '-'}"></span>
-                <span class="habit-dot ${healthyClass}" title="Healthy Lunch"></span>
-                <span class="habit-dot ${carbsClass}" title="Carb-heavy"></span>
+                <span class="habit-dot ${pmClass}" title="PM Slump: ${pmSlump ?? '-'}"></span>
+                <span class="habit-dot ${coffeeClass}" title="Coffee: ${coffee ?? '-'}"></span>
+                <span class="habit-dot ${beerClass}" title="Beer: ${beer ?? '-'}"></span>
             </div>
         </div>
     `;
@@ -147,7 +156,7 @@ async function loadCalendar() {
 
         // Auto-select the most recent day with data
         const recentWithData = dailyData.find(d =>
-            d.sleep_score !== null || d.pm_slump !== null
+            d.sleep_score !== null || (d.habits && d.habits.length > 0)
         );
         if (recentWithData) {
             const idx = dailyData.indexOf(recentWithData);
@@ -190,7 +199,7 @@ function selectDay(dateStr, index) {
 
     // Show detail section
     const detailSection = document.getElementById('detail-section');
-    detailSection.classList.add('visible');
+    if (detailSection) detailSection.classList.add('visible');
 
     // Render detail
     renderDayDetail(dailyData[index]);
@@ -221,38 +230,32 @@ document.addEventListener('keydown', (e) => {
 // ============================================
 
 function renderHabitsBanner(day) {
-    const pmStatus = day.pm_slump === null ? '' :
-                     day.pm_slump ? 'slump' : 'clear';
-    const pmText = day.pm_slump === null ? '-' :
-                   day.pm_slump ? 'Slump' : 'Clear';
+    if (!day.habits || day.habits.length === 0) {
+        return '<div class="habit-item"><span class="habit-label">No habits tracked</span></div>';
+    }
 
-    return `
-        <div class="habit-item ${pmStatus}">
-            <span class="habit-indicator"></span>
-            <span class="habit-label">PM Slump</span>
-            <span class="habit-value">${pmText}</span>
-        </div>
-        <div class="habit-item">
-            <span class="habit-icon">&#9749;</span>
-            <span class="habit-label">Coffee</span>
-            <span class="habit-value">${day.coffee_count ?? '-'}</span>
-        </div>
-        <div class="habit-item">
-            <span class="habit-icon">&#127866;</span>
-            <span class="habit-label">Beer</span>
-            <span class="habit-value">${day.beer_count ?? '-'}</span>
-        </div>
-        <div class="habit-item">
-            <span class="habit-icon">&#129367;</span>
-            <span class="habit-label">Healthy Lunch</span>
-            <span class="habit-value">${formatBool(day.healthy_lunch)}</span>
-        </div>
-        <div class="habit-item">
-            <span class="habit-icon">&#127837;</span>
-            <span class="habit-label">Carb-heavy</span>
-            <span class="habit-value">${formatBool(day.carb_heavy_lunch)}</span>
-        </div>
-    `;
+    return day.habits.map(habit => {
+        // Special styling for afternoon_slump (outcome metric)
+        if (habit.name === 'afternoon_slump') {
+            const status = habit.value > 0 ? 'slump' : 'clear';
+            const text = habit.value > 0 ? 'Slump' : 'Clear';
+            return `
+                <div class="habit-item ${status}">
+                    <span class="habit-indicator"></span>
+                    <span class="habit-label">PM Slump</span>
+                    <span class="habit-value">${text}</span>
+                </div>
+            `;
+        }
+
+        // Regular habits
+        return `
+            <div class="habit-item">
+                <span class="habit-label">${formatHabitName(habit.name)}</span>
+                <span class="habit-value">${habit.value}</span>
+            </div>
+        `;
+    }).join('');
 }
 
 function renderSleepCard(day) {
@@ -471,14 +474,19 @@ function renderActivityCard(day) {
 }
 
 function renderDayDetail(day) {
+    if (!day) return;
+
     // Update date header
-    document.getElementById('detail-date').textContent = formatDate(day.date);
+    const detailDate = document.getElementById('detail-date');
+    if (detailDate) detailDate.textContent = formatDate(day.date);
 
     // Update habits banner
-    document.getElementById('habits-banner').innerHTML = renderHabitsBanner(day);
+    const habitsBanner = document.getElementById('habits-banner');
+    if (habitsBanner) habitsBanner.innerHTML = renderHabitsBanner(day);
 
     // Update metrics grid - force re-render for animations
     const metricsGrid = document.getElementById('metrics-grid');
+    if (!metricsGrid) return;
     metricsGrid.innerHTML = '';
 
     // Small delay to allow CSS animation reset
