@@ -191,6 +191,10 @@ main > h1 {
     font-weight: 600;
 }
 
+.chart-container canvas {
+    max-height: 500px;
+}
+
 /* Stat Cards Grid */
 .stat-cards {
     display: grid;
