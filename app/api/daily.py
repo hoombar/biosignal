@@ -14,6 +14,15 @@ from app.services.features import compute_features_range
 router = APIRouter(prefix="/api", tags=["daily"])
 
 
+@router.get("/habits/names", response_model=list[str])
+async def get_habit_names(db: AsyncSession = Depends(get_db)):
+    """Get list of distinct habit names."""
+    result = await db.execute(
+        select(DailyHabit.habit_name).distinct()
+    )
+    return [row[0] for row in result.all()]
+
+
 @router.get("/habits", response_model=list[HabitResponse])
 async def get_habits(days: int = 30, db: AsyncSession = Depends(get_db)):
     """Get habit data for the last N days."""

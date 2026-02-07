@@ -13,17 +13,21 @@ router = APIRouter(prefix="/api", tags=["analysis"])
 
 @router.get("/correlations", response_model=list[CorrelationResult])
 async def get_correlations(
-    days: int | None = None,
+    target_habit: str,
+    min_days: int = 5,
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Get correlation analysis between all metrics and PM slump.
+    Get correlation analysis between all metrics and a target habit.
 
     Args:
-        days: Optional filter for last N days (not implemented yet)
+        target_habit: The habit name to correlate against
+        min_days: Minimum days of data required for analysis
     """
     settings = get_settings()
-    correlations = await compute_correlations(db, settings.tz)
+    correlations = await compute_correlations(
+        db, settings.tz, target_habit=target_habit, min_days=min_days
+    )
 
     return [CorrelationResult(**c) for c in correlations]
 

@@ -1,21 +1,66 @@
 // Correlations page JavaScript
 
-async function loadCorrelations() {
+const STORAGE_KEY = 'biosignal_target_habit';
+let correlationChart = null;
+
+async function loadHabitSelector() {
     try {
-        const resp = await fetch('/api/correlations');
+        const resp = await fetch('/api/habits/names');
+        const habitNames = await resp.json();
+
+        const select = document.getElementById('target-habit');
+        const savedHabit = localStorage.getItem(STORAGE_KEY);
+
+        select.innerHTML = '<option value="">-- Select a habit --</option>' +
+            habitNames.map(name =>
+                `<option value="${name}" ${name === savedHabit ? 'selected' : ''}>${name.replace(/_/g, ' ')}</option>`
+            ).join('');
+
+        // Load correlations if a habit was previously selected
+        if (savedHabit && habitNames.includes(savedHabit)) {
+            loadCorrelations();
+        }
+    } catch (error) {
+        console.error('Error loading habit names:', error);
+        document.getElementById('target-habit').innerHTML = '<option value="">Failed to load habits</option>';
+    }
+}
+
+async function loadCorrelations() {
+    const select = document.getElementById('target-habit');
+    const targetHabit = select.value;
+    const tableContainer = document.getElementById('correlation-table');
+
+    if (!targetHabit) {
+        tableContainer.innerHTML = '<p>Select a habit to see correlations</p>';
+        return;
+    }
+
+    // Save selection
+    localStorage.setItem(STORAGE_KEY, targetHabit);
+
+    tableContainer.innerHTML = '<p class="loading">Loading correlations...</p>';
+
+    try {
+        const resp = await fetch(`/api/correlations?target_habit=${encodeURIComponent(targetHabit)}`);
         const correlations = await resp.json();
 
         if (correlations.length === 0) {
-            document.getElementById('correlation-table').innerHTML =
-                '<p>Insufficient data for correlations. Need at least 7 days with PM slump tracking.</p>';
+            tableContainer.innerHTML =
+                '<p>Insufficient data for correlations. Need at least 5 days with this habit tracked.</p>';
             return;
+        }
+
+        // Destroy existing chart if any
+        if (correlationChart) {
+            correlationChart.destroy();
         }
 
         // Create bar chart (top 15 correlations)
         const top15 = correlations.slice(0, 15);
         const ctx = document.getElementById('correlation-chart').getContext('2d');
 
-        new Chart(ctx, {
+        correlationChart = new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: top15.map(c => c.metric.replace(/_/g, ' ')),
@@ -46,14 +91,13 @@ async function loadCorrelations() {
         });
 
         // Create table
-        const tableContainer = document.getElementById('correlation-table');
         tableContainer.innerHTML = '<table style="width: 100%; border-collapse: collapse;">' +
             '<thead><tr>' +
             '<th style="text-align: left; padding: 0.5rem;">Metric</th>' +
             '<th style="text-align: right; padding: 0.5rem;">r</th>' +
             '<th style="text-align: right; padding: 0.5rem;">Strength</th>' +
-            '<th style="text-align: right; padding: 0.5rem;">Fog Day Avg</th>' +
-            '<th style="text-align: right; padding: 0.5rem;">Clear Day Avg</th>' +
+            '<th style="text-align: right; padding: 0.5rem;">Positive Avg</th>' +
+            '<th style="text-align: right; padding: 0.5rem;">Negative Avg</th>' +
             '<th style="text-align: right; padding: 0.5rem;">Difference</th>' +
             '<th style="text-align: right; padding: 0.5rem;">n</th>' +
             '</tr></thead><tbody>' +
@@ -72,9 +116,9 @@ async function loadCorrelations() {
 
     } catch (error) {
         console.error('Error loading correlations:', error);
-        document.getElementById('correlation-table').innerHTML = '<p class="error">Failed to load correlations</p>';
+        tableContainer.innerHTML = '<p class="error">Failed to load correlations</p>';
     }
 }
 
 // Load on page load
-document.addEventListener('DOMContentLoaded', loadCorrelations);
+document.addEventListener('DOMContentLoaded', loadHabitSelector);

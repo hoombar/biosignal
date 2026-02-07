@@ -6,6 +6,15 @@
 <h1>Correlations</h1>
 
 <div class="chart-container">
+    <div style="margin-bottom: 1rem;">
+        <label for="target-habit">Correlate against: </label>
+        <select id="target-habit" onchange="loadCorrelations()">
+            <option value="">Loading habits...</option>
+        </select>
+    </div>
+</div>
+
+<div class="chart-container">
     <h2>Correlation Coefficients</h2>
     <canvas id="correlation-chart"></canvas>
 </div>
@@ -13,7 +22,7 @@
 <div class="chart-container">
     <h2>Detailed Results</h2>
     <div id="correlation-table">
-        <p class="loading">Loading correlations...</p>
+        <p class="loading">Select a habit to see correlations</p>
     </div>
 </div>
 

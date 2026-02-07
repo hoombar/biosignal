@@ -26,8 +26,14 @@
 
 <div class="chart-container">
     <h2>Top 3 Correlates</h2>
+    <div style="margin-bottom: 1rem;">
+        <label for="target-habit">Correlate against: </label>
+        <select id="target-habit" onchange="loadCorrelations()">
+            <option value="">Loading habits...</option>
+        </select>
+    </div>
     <div id="top-correlates">
-        <p class="loading">Loading correlations...</p>
+        <p class="loading">Select a habit to see correlations</p>
     </div>
 </div>
 
