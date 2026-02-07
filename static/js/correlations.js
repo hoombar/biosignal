@@ -2,6 +2,74 @@
 
 const STORAGE_KEY = 'biosignal_target_habit';
 let correlationChart = null;
+let metricMetadata = {};
+
+async function loadMetricMetadata() {
+    try {
+        const resp = await fetch('/api/export/metadata');
+        const data = await resp.json();
+        metricMetadata = data.features || {};
+        renderLegend();
+    } catch (error) {
+        console.error('Error loading metric metadata:', error);
+    }
+}
+
+function renderLegend() {
+    const container = document.getElementById('legend-content');
+    if (!container || Object.keys(metricMetadata).length === 0) return;
+
+    // Group metrics by category
+    const categories = {};
+    for (const [key, meta] of Object.entries(metricMetadata)) {
+        const cat = meta.category || 'Other';
+        if (!categories[cat]) categories[cat] = [];
+        categories[cat].push({ key, ...meta });
+    }
+
+    // Render grouped tables
+    let html = '';
+    for (const [category, metrics] of Object.entries(categories)) {
+        html += `<div class="legend-category">
+            <h4>${category}</h4>
+            <table>
+                <tbody>
+                    ${metrics.map(m => `
+                        <tr>
+                            <td class="legend-metric">${m.key.replace(/_/g, ' ')}</td>
+                            <td class="legend-desc">${m.description}</td>
+                            <td class="legend-unit">${m.unit}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>`;
+    }
+
+    container.innerHTML = html;
+}
+
+function toggleLegend() {
+    const content = document.getElementById('legend-content');
+    const button = document.querySelector('.legend-toggle');
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        button.classList.add('expanded');
+    } else {
+        content.style.display = 'none';
+        button.classList.remove('expanded');
+    }
+}
+
+function getMetricTooltip(metricName) {
+    // Handle habit_ prefix
+    const lookupKey = metricName.startsWith('habit_') ? metricName.slice(6) : metricName;
+    const meta = metricMetadata[lookupKey];
+    if (meta) {
+        return `${meta.description} (${meta.unit})`;
+    }
+    return '';
+}
 
 async function loadHabitSelector() {
     try {
@@ -101,9 +169,12 @@ async function loadCorrelations() {
             '<th style="text-align: right; padding: 0.5rem;">Difference</th>' +
             '<th style="text-align: right; padding: 0.5rem;">n</th>' +
             '</tr></thead><tbody>' +
-            correlations.map(c => `
+            correlations.map(c => {
+                const tooltip = getMetricTooltip(c.metric);
+                const titleAttr = tooltip ? ` title="${tooltip}"` : '';
+                return `
                 <tr style="border-top: 1px solid var(--border-color);">
-                    <td style="padding: 0.5rem;">${c.metric.replace(/_/g, ' ')}</td>
+                    <td style="padding: 0.5rem; cursor: help;"${titleAttr}>${c.metric.replace(/_/g, ' ')}</td>
                     <td style="text-align: right; padding: 0.5rem; font-weight: bold;">${c.coefficient.toFixed(3)}</td>
                     <td style="text-align: right; padding: 0.5rem;">${c.strength}</td>
                     <td style="text-align: right; padding: 0.5rem;">${c.fog_day_avg !== null ? c.fog_day_avg.toFixed(1) : '-'}</td>
@@ -111,7 +182,7 @@ async function loadCorrelations() {
                     <td style="text-align: right; padding: 0.5rem;">${c.difference_pct !== null ? c.difference_pct.toFixed(1) + '%' : '-'}</td>
                     <td style="text-align: right; padding: 0.5rem;">${c.n}</td>
                 </tr>
-            `).join('') +
+            `}).join('') +
             '</tbody></table>';
 
     } catch (error) {
@@ -121,4 +192,7 @@ async function loadCorrelations() {
 }
 
 // Load on page load
-document.addEventListener('DOMContentLoaded', loadHabitSelector);
+document.addEventListener('DOMContentLoaded', () => {
+    loadMetricMetadata();
+    loadHabitSelector();
+});
