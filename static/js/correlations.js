@@ -192,7 +192,7 @@ async function loadCorrelations() {
 }
 
 // Load on page load
-document.addEventListener('DOMContentLoaded', () => {
-    loadMetricMetadata();
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadMetricMetadata();
     loadHabitSelector();
 });
