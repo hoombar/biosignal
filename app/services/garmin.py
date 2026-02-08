@@ -1,7 +1,7 @@
 import asyncio
 import os
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any, Optional
 from garminconnect import Garmin, GarminConnectAuthenticationError, GarminConnectTooManyRequestsError, GarminConnectConnectionError
 
@@ -149,11 +149,52 @@ class GarminClient:
             logger.error(f"Failed to fetch activities: {e}")
             return None
 
+    async def fetch_activities_for_date(
+        self, target_date: date, batch_size: int = 20, max_batches: int = 10
+    ) -> list:
+        """
+        Fetch activities that occurred on the target date.
+
+        Fetches in batches and stops when:
+        - Activities for the target date are found and we've moved past it
+        - No more activities exist
+        - Max batches reached
+        """
+        activities_for_date = []
+        offset = 0
+
+        for _ in range(max_batches):
+            batch = await self.fetch_activities(start=offset, limit=batch_size)
+            if not batch:
+                break
+
+            for activity in batch:
+                start_time_str = activity.get("startTimeGMT")
+                if not start_time_str:
+                    continue
+
+                try:
+                    activity_dt = datetime.fromisoformat(start_time_str.replace("Z", "+00:00"))
+                    activity_date = activity_dt.date()
+                except (ValueError, AttributeError):
+                    continue
+
+                if activity_date == target_date:
+                    activities_for_date.append(activity)
+                elif activity_date < target_date:
+                    # Activities are sorted newest-first, so we've gone past target
+                    return activities_for_date
+
+            offset += batch_size
+
+        return activities_for_date
+
     async def fetch_all_for_date(self, date_str: str) -> dict[str, Any]:
         """Fetch all data types for a specific date."""
         logger.info(f"Fetching all Garmin data for {date_str}")
 
         results = {}
+        target_date = date.fromisoformat(date_str)
 
         # Fetch all endpoints - don't let one failure block others
         results["sleep"] = await self.fetch_sleep(date_str)
@@ -163,5 +204,6 @@ class GarminClient:
         results["stress"] = await self.fetch_stress(date_str)
         results["spo2"] = await self.fetch_spo2(date_str)
         results["steps"] = await self.fetch_steps(date_str)
+        results["activities"] = await self.fetch_activities_for_date(target_date)
 
         return results

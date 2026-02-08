@@ -145,6 +145,26 @@ class SyncService:
                     status["errors"].append(f"sleep: {e}")
                     await session.rollback()
 
+            if raw_data.get("activities"):
+                try:
+                    activities = parsers.parse_activities(raw_data["activities"])
+                    for activity in activities:
+                        # Upsert activity by garmin_activity_id
+                        activity_data = {}
+                        for col in Activity.__table__.columns:
+                            if col.name != "id":
+                                activity_data[col.name] = getattr(activity, col.name, None)
+                        stmt = insert(Activity.__table__).values(**activity_data).on_conflict_do_update(
+                            index_elements=["garmin_activity_id"],
+                            set_={k: v for k, v in activity_data.items() if k != "garmin_activity_id"},
+                        )
+                        await session.execute(stmt)
+                    status["counts"]["activities"] = len(activities)
+                except Exception as e:
+                    logger.error(f"Failed to parse activities for {date_str}: {e}")
+                    status["errors"].append(f"activities: {e}")
+                    await session.rollback()
+
             if status["errors"]:
                 status["success"] = False
 
