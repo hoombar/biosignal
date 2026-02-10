@@ -8,8 +8,13 @@ let selectedIndex = -1;
 // UTILITY FUNCTIONS
 // ============================================
 
+function parseLocalDate(dateStr) {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+}
+
 function formatDate(dateStr) {
-    const date = new Date(dateStr);
+    const date = parseLocalDate(dateStr);
     return date.toLocaleDateString('en-GB', {
         weekday: 'long',
         day: 'numeric',
@@ -19,7 +24,7 @@ function formatDate(dateStr) {
 }
 
 function formatShortDate(dateStr) {
-    const date = new Date(dateStr);
+    const date = parseLocalDate(dateStr);
     return date.toLocaleDateString('en-GB', {
         day: 'numeric',
         month: 'short'
@@ -27,7 +32,7 @@ function formatShortDate(dateStr) {
 }
 
 function getDayName(dateStr) {
-    const date = new Date(dateStr);
+    const date = parseLocalDate(dateStr);
     return date.toLocaleDateString('en-GB', { weekday: 'short' }).slice(0, 2);
 }
 
@@ -78,7 +83,7 @@ function getHabitValue(habits, name) {
 }
 
 function renderCalendarCell(day, index) {
-    const date = new Date(day.date);
+    const date = parseLocalDate(day.date);
     const dateNum = date.getDate();
     const dayName = getDayName(day.date);
 
@@ -129,11 +134,11 @@ async function loadCalendar() {
             return;
         }
 
-        // Reverse to show oldest first, then render
-        const sortedData = [...dailyData].reverse();
+        // dailyData is already oldest-first from API, use directly
+        const sortedData = dailyData;
 
         // Add empty cells for alignment to start on correct day of week
-        const firstDate = new Date(sortedData[0].date);
+        const firstDate = parseLocalDate(sortedData[0].date);
         // getDay() returns 0 for Sunday, we want Monday = 0
         let startDay = firstDate.getDay() - 1;
         if (startDay < 0) startDay = 6; // Sunday becomes 6
@@ -147,15 +152,13 @@ async function loadCalendar() {
 
         // Render each day
         sortedData.forEach((day, index) => {
-            // Find actual index in original dailyData (which is newest first)
-            const actualIndex = dailyData.length - 1 - index;
-            html += renderCalendarCell(day, actualIndex);
+            html += renderCalendarCell(day, index);
         });
 
         container.innerHTML = html;
 
-        // Auto-select the most recent day with data
-        const recentWithData = dailyData.find(d =>
+        // Auto-select the most recent day with data (search from end since oldest-first)
+        const recentWithData = [...dailyData].reverse().find(d =>
             d.sleep_score !== null || (d.habits && d.habits.length > 0)
         );
         if (recentWithData) {
@@ -185,13 +188,11 @@ function selectDay(dateStr, index) {
 
     // Find and select the clicked cell
     const cells = document.querySelectorAll('.calendar-cell');
-    // Convert index from dailyData (newest first) to display order (oldest first)
-    const displayIndex = dailyData.length - 1 - index;
-    // Account for spacer cells
-    const firstDate = new Date([...dailyData].reverse()[0].date);
+    // Account for spacer cells at the start
+    const firstDate = parseLocalDate(dailyData[0].date);
     let startDay = firstDate.getDay() - 1;
     if (startDay < 0) startDay = 6;
-    const cellIndex = displayIndex + startDay;
+    const cellIndex = index + startDay;
 
     if (cells[cellIndex]) {
         cells[cellIndex].classList.add('selected');
@@ -206,7 +207,7 @@ function selectDay(dateStr, index) {
 }
 
 function navigateDay(direction) {
-    const newIndex = selectedIndex - direction; // subtract because dailyData is newest-first
+    const newIndex = selectedIndex + direction; // add because dailyData is oldest-first
     if (newIndex >= 0 && newIndex < dailyData.length) {
         selectDay(dailyData[newIndex].date, newIndex);
     }
