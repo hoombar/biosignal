@@ -134,8 +134,8 @@ class HabitSyncClient:
 
         # Calculate epoch day for target date (days since 1970-01-01)
         epoch_day = (target_date - date_class(1970, 1, 1)).days
-        # Calculate offset (days from today, 0=today, 1=yesterday, etc.)
-        offset = (date_class.today() - target_date).days
+        # Calculate offset (negative for past dates, e.g., -6 for 6 days ago)
+        offset = (target_date - date_class.today()).days
 
         logger.info(f"Fetching HabitSync data for {target_date} (epochDay={epoch_day}, offset={offset})")
 

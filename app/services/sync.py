@@ -216,10 +216,20 @@ class SyncService:
                     fetched_at=datetime.utcnow()
                 ))
 
-            # Parse and store habits
+            # Parse and store habits (upsert by date+habit_name)
             habit_rows = parse_habitsync_response(habits_data, target_date)
             for habit in habit_rows:
-                await session.merge(habit)
+                stmt = insert(DailyHabit).values(
+                    date=habit.date,
+                    habit_name=habit.habit_name,
+                    habit_value=habit.habit_value,
+                    habit_type=habit.habit_type,
+                )
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["date", "habit_name"],
+                    set_={"habit_value": stmt.excluded.habit_value, "habit_type": stmt.excluded.habit_type},
+                )
+                await session.execute(stmt)
 
             status["counts"]["habits"] = len(habit_rows)
 
