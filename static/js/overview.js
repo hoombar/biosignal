@@ -227,7 +227,10 @@ function pollBackfillStatus() {
             bar.style.width = pct + '%';
 
             const text = document.getElementById('backfill-status-text');
-            text.textContent = `${done} / ${total} days processed (${status.days_completed || 0} succeeded, ${status.days_failed || 0} failed)`;
+            const dateRange = status.start_date && status.end_date
+                ? `${status.start_date} to ${status.end_date}`
+                : '';
+            text.textContent = `${dateRange}: ${done} / ${total} days (${status.days_completed || 0} succeeded, ${status.days_failed || 0} failed)`;
 
             if (!status.is_running && done > 0) {
                 clearInterval(backfillPollInterval);
