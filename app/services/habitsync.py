@@ -134,8 +134,10 @@ class HabitSyncClient:
 
         # Calculate epoch day for target date (days since 1970-01-01)
         epoch_day = (target_date - date_class(1970, 1, 1)).days
+        # Calculate offset (days from today, 0=today, 1=yesterday, etc.)
+        offset = (date_class.today() - target_date).days
 
-        logger.info(f"Fetching HabitSync data for {target_date} (epochDay={epoch_day})")
+        logger.info(f"Fetching HabitSync data for {target_date} (epochDay={epoch_day}, offset={offset})")
 
         # Get all habits (includes embedded records)
         habits = await self.get_habits()
@@ -143,6 +145,7 @@ class HabitSyncClient:
         results = {}
         for habit in habits:
             habit_name = habit.get("name")
+            habit_uuid = habit.get("uuid")
             is_negative = habit.get("progressComputation", {}).get("isNegative", False)
 
             if not habit_name:
@@ -157,6 +160,10 @@ class HabitSyncClient:
                 if record.get("epochDay") == epoch_day:
                     target_record = record
                     break
+
+            # Fall back to offset-based API if no embedded record found
+            if not target_record and habit_uuid:
+                target_record = await self.get_habit_record(habit_uuid, offset, timezone)
 
             if target_record:
                 record_value = target_record.get("recordValue", 0)
