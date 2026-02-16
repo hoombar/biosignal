@@ -82,6 +82,11 @@ class DailySummary(BaseModel):
     hrv_overnight_avg: float | None = None
     hrv_overnight_min: float | None = None
     hrv_rmssd_slope: float | None = None
+    # SpO2 features
+    spo2_overnight_avg: float | None = None
+    spo2_overnight_min: int | None = None
+    spo2_overnight_max: int | None = None
+    spo2_dips_below_94: int | None = None
     # Heart rate features
     resting_hr: int | None = None
     hr_morning_avg: float | None = None

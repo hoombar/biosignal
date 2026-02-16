@@ -32,6 +32,7 @@ function updateChart() {
     const showFog = document.getElementById('check-fog').checked;
     const showSleep = document.getElementById('check-sleep').checked;
     const showHrv = document.getElementById('check-hrv').checked;
+    const showSpo2 = document.getElementById('check-spo2').checked;
     const showBb = document.getElementById('check-bb').checked;
 
     const labels = trendsData.map(d => d.date);
@@ -67,6 +68,16 @@ function updateChart() {
             borderColor: 'rgb(22, 163, 74)',
             backgroundColor: 'rgba(22, 163, 74, 0.1)',
             yAxisID: 'y-hrv',
+        });
+    }
+
+    if (showSpo2) {
+        datasets.push({
+            label: 'SpO2 Overnight Avg',
+            data: trendsData.map(d => d.spo2_overnight_avg),
+            borderColor: 'rgb(56, 189, 248)',
+            backgroundColor: 'rgba(56, 189, 248, 0.1)',
+            yAxisID: 'y-spo2',
         });
     }
 
@@ -119,6 +130,15 @@ function updateChart() {
                     position: 'right',
                     grid: { drawOnChartArea: false },
                     title: { display: true, text: 'HRV (ms)' }
+                },
+                'y-spo2': {
+                    type: 'linear',
+                    display: showSpo2,
+                    position: 'right',
+                    min: 85,
+                    max: 100,
+                    grid: { drawOnChartArea: false },
+                    title: { display: true, text: 'SpO2 (%)' }
                 }
             }
         }

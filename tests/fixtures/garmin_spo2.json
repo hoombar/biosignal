@@ -3,11 +3,13 @@
   "calendarDate": "2025-01-28",
   "startTimestampGMT": 1706396400000,
   "endTimestampGMT": 1706423400000,
-  "spO2ValueDescriptorDTOList": [
-    {"readingTimestampGMT": 1706396400000, "spO2Value": 96},
-    {"readingTimestampGMT": 1706398200000, "spO2Value": 97},
-    {"readingTimestampGMT": 1706400000000, "spO2Value": 95},
-    {"readingTimestampGMT": 1706401800000, "spO2Value": 96},
-    {"readingTimestampGMT": 1706403600000, "spO2Value": 97}
+  "averageSpO2": 96.2,
+  "lowestSpO2": 95,
+  "spO2HourlyAverages": [
+    [1706396400000, 96],
+    [1706400000000, 97],
+    [1706403600000, 95],
+    [1706407200000, 96],
+    [1706410800000, 97]
   ]
 }

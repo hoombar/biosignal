@@ -144,6 +144,41 @@ async def compute_hrv_features(
     return features
 
 
+async def compute_spo2_features(
+    session: AsyncSession,
+    target_date: date,
+    tz: ZoneInfo
+) -> dict:
+    """Compute SpO2 (blood oxygen) features from overnight readings."""
+    # Get sleep session to determine overnight window
+    result = await session.execute(
+        select(SleepSession).where(SleepSession.date == target_date)
+    )
+    sleep = result.scalar_one_or_none()
+
+    if not sleep or not sleep.sleep_start or not sleep.sleep_end:
+        return {}
+
+    # Get SpO2 samples during sleep
+    spo2_samples = await _get_samples_in_range(
+        session, Spo2Sample, sleep.sleep_start, sleep.sleep_end
+    )
+
+    if not spo2_samples:
+        return {}
+
+    spo2_values = [s.spo2_value for s in spo2_samples]
+
+    features = {
+        "spo2_overnight_avg": float(np.mean(spo2_values)),
+        "spo2_overnight_min": int(np.min(spo2_values)),
+        "spo2_overnight_max": int(np.max(spo2_values)),
+        "spo2_dips_below_94": sum(1 for v in spo2_values if v < 94),
+    }
+
+    return features
+
+
 async def compute_heart_rate_features(
     session: AsyncSession,
     target_date: date,
@@ -433,6 +468,9 @@ async def compute_daily_features(
 
     hrv_features = await compute_hrv_features(session, target_date, tz)
     features.update(hrv_features)
+
+    spo2_features = await compute_spo2_features(session, target_date, tz)
+    features.update(spo2_features)
 
     hr_features = await compute_heart_rate_features(session, target_date, tz)
     features.update(hr_features)

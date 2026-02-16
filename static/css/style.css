@@ -40,6 +40,7 @@
     /* Metric category colors */
     --color-sleep: #a78bfa;
     --color-hrv: #34d399;
+    --color-spo2: #38bdf8;
     --color-heart: #f87171;
     --color-battery: #fbbf24;
     --color-stress: #fb923c;
@@ -529,6 +530,7 @@ main > h1 {
 
 .card-header.sleep .card-icon { color: var(--color-sleep); }
 .card-header.hrv .card-icon { color: var(--color-hrv); }
+.card-header.spo2 .card-icon { color: var(--color-spo2); }
 .card-header.heart .card-icon { color: var(--color-heart); }
 .card-header.battery .card-icon { color: var(--color-battery); }
 .card-header.stress .card-icon { color: var(--color-stress); }

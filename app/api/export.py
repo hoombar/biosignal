@@ -28,6 +28,12 @@ FEATURE_METADATA = {
     "hrv_overnight_min": {"description": "Minimum overnight HRV", "unit": "ms", "category": "HRV"},
     "hrv_rmssd_slope": {"description": "HRV trend overnight (slope)", "unit": "ms/reading", "category": "HRV"},
 
+    # SpO2 features
+    "spo2_overnight_avg": {"description": "Average overnight blood oxygen", "unit": "%", "category": "SpO2"},
+    "spo2_overnight_min": {"description": "Minimum overnight blood oxygen", "unit": "%", "category": "SpO2"},
+    "spo2_overnight_max": {"description": "Maximum overnight blood oxygen", "unit": "%", "category": "SpO2"},
+    "spo2_dips_below_94": {"description": "SpO2 readings below 94%", "unit": "count", "category": "SpO2"},
+
     # Heart rate features
     "resting_hr": {"description": "Resting heart rate (lowest 30-min avg)", "unit": "bpm", "category": "Heart Rate"},
     "hr_morning_avg": {"description": "Average HR 6am-12pm", "unit": "bpm", "category": "Heart Rate"},
@@ -141,7 +147,7 @@ async def export_features(
     ordered_columns = ["date"]
 
     # Add known columns by category
-    for category in ["Sleep", "HRV", "Heart Rate", "Body Battery", "Stress", "Activity", "Habits"]:
+    for category in ["Sleep", "HRV", "SpO2", "Heart Rate", "Body Battery", "Stress", "Activity", "Habits"]:
         for col, meta in FEATURE_METADATA.items():
             if meta["category"] == category and col in all_columns:
                 ordered_columns.append(col)

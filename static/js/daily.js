@@ -321,6 +321,40 @@ function renderHrvCard(day) {
     `;
 }
 
+function renderSpo2Card(day) {
+    // SpO2 scoring: >=95% good, 92-95% warning, <92% bad
+    const spo2Class = getScoreClass(day.spo2_overnight_avg, 92, 95);
+    const hasDips = day.spo2_dips_below_94 !== null && day.spo2_dips_below_94 > 0;
+    const dipsClass = hasDips ? 'warning' : '';
+
+    return `
+        <div class="metric-card">
+            <div class="card-header spo2">
+                <span class="card-icon">&#128168;</span>
+                <span class="card-title">Blood Oxygen</span>
+            </div>
+            <div class="primary-metric">
+                <span class="metric-value ${spo2Class}">${formatNum(day.spo2_overnight_avg, 1)}</span>
+                <span class="metric-unit">% avg</span>
+            </div>
+            <div class="secondary-metrics">
+                <div class="metric-row">
+                    <span class="metric-label">Minimum</span>
+                    <span class="metric-value">${formatNum(day.spo2_overnight_min)}%</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Maximum</span>
+                    <span class="metric-value">${formatNum(day.spo2_overnight_max)}%</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Dips &lt;94%</span>
+                    <span class="metric-value ${dipsClass}">${day.spo2_dips_below_94 ?? '-'}</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 function renderHeartRateCard(day) {
     return `
         <div class="metric-card">
@@ -495,6 +529,7 @@ function renderDayDetail(day) {
         metricsGrid.innerHTML = `
             ${renderSleepCard(day)}
             ${renderHrvCard(day)}
+            ${renderSpo2Card(day)}
             ${renderHeartRateCard(day)}
             ${renderBodyBatteryCard(day)}
             ${renderStressCard(day)}

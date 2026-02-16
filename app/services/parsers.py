@@ -146,21 +146,25 @@ def parse_hrv(raw: Optional[dict], date: date) -> list[HrvSample]:
 
 
 def parse_spo2(raw: Optional[dict], date: date) -> list[Spo2Sample]:
-    """Parse SpO2 JSON into Spo2Sample objects."""
+    """Parse SpO2 JSON into Spo2Sample objects.
+
+    The Garmin API returns SpO2 data in spO2HourlyAverages as [timestamp_ms, spo2_value] pairs.
+    """
     if raw is None:
         return []
 
     samples = []
 
-    spo2_values = raw.get("spO2ValueDescriptorDTOList") or []
-    for entry in spo2_values:
-        ts_ms = entry.get("readingTimestampGMT")
-        spo2_value = entry.get("spO2Value")
-        if ts_ms and spo2_value:
-            samples.append(Spo2Sample(
-                timestamp=_parse_timestamp(ts_ms),
-                spo2_value=spo2_value
-            ))
+    # Primary source: hourly averages (most reliable)
+    hourly_averages = raw.get("spO2HourlyAverages") or []
+    for entry in hourly_averages:
+        if isinstance(entry, list) and len(entry) >= 2:
+            ts_ms, spo2_value = entry[0], entry[1]
+            if ts_ms and spo2_value:
+                samples.append(Spo2Sample(
+                    timestamp=_parse_timestamp(ts_ms),
+                    spo2_value=int(spo2_value)
+                ))
 
     logger.debug(f"Parsed {len(samples)} SpO2 samples for {date}")
     return samples
