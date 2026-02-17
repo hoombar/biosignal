@@ -389,9 +389,16 @@ function renderHeartRateCard(day) {
 }
 
 function renderBodyBatteryCard(day) {
-    // Create mini sparkline data from body battery readings
-    const bbValues = [day.bb_wakeup, day.bb_9am, day.bb_12pm, day.bb_2pm, day.bb_6pm].filter(v => v !== null);
-    const bbLabels = ['Wake', '9am', '12pm', '2pm', '6pm'];
+    // Render body battery samples with their actual times
+    const samples = day.bb_samples || [];
+
+    // Build sample rows from actual data
+    const sampleRows = samples.map(s => `
+                <div class="metric-row">
+                    <span class="metric-label">${s.time}</span>
+                    <span class="metric-value">${s.value}</span>
+                </div>
+    `).join('');
 
     return `
         <div class="metric-card">
@@ -404,22 +411,7 @@ function renderBodyBatteryCard(day) {
                 <span class="metric-unit">at wake</span>
             </div>
             <div class="secondary-metrics">
-                <div class="metric-row">
-                    <span class="metric-label">9am</span>
-                    <span class="metric-value">${formatNum(day.bb_9am)}</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label">12pm</span>
-                    <span class="metric-value">${formatNum(day.bb_12pm)}</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label">2pm</span>
-                    <span class="metric-value">${formatNum(day.bb_2pm)}</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label">6pm</span>
-                    <span class="metric-value">${formatNum(day.bb_6pm)}</span>
-                </div>
+                ${sampleRows}
                 <div class="metric-row">
                     <span class="metric-label">Daily Min</span>
                     <span class="metric-value">${formatNum(day.bb_daily_min)}</span>

@@ -56,6 +56,12 @@ class ActivityResponse(BaseModel):
         from_attributes = True
 
 
+class BodyBatterySample(BaseModel):
+    """Single body battery reading with time."""
+    time: str  # Human-readable time like "7:39 AM"
+    value: int
+
+
 class Habit(BaseModel):
     """Single habit entry."""
     name: str
@@ -96,10 +102,7 @@ class DailySummary(BaseModel):
     hr_recovery_slope: float | None = None
     # Body battery features
     bb_wakeup: int | None = None
-    bb_9am: int | None = None
-    bb_12pm: int | None = None
-    bb_2pm: int | None = None
-    bb_6pm: int | None = None
+    bb_samples: list[BodyBatterySample] = []  # All available samples with times
     bb_morning_drain_rate: float | None = None
     bb_afternoon_drain_rate: float | None = None
     bb_daily_min: int | None = None

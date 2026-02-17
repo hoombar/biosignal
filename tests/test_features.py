@@ -208,8 +208,8 @@ class TestBodyBatteryFeatures:
         assert result == {}
 
     @pytest.mark.asyncio
-    async def test_computes_bb_at_key_times(self, async_session):
-        # Add samples at key times (UTC = local in Jan)
+    async def test_returns_bb_samples_with_times(self, async_session):
+        # Add samples at various times (UTC = local in Jan for Europe/London)
         for hour, bb in [(7, 80), (9, 72), (12, 60), (14, 50), (18, 35)]:
             async_session.add(BodyBatterySample(
                 timestamp=utc_dt(2025, 1, 28, hour),
@@ -219,10 +219,12 @@ class TestBodyBatteryFeatures:
 
         result = await compute_body_battery_features(async_session, TEST_DATE, TZ)
 
-        assert result["bb_9am"] == 72
-        assert result["bb_12pm"] == 60
-        assert result["bb_2pm"] == 50
-        assert result["bb_6pm"] == 35
+        # Should return all samples with their actual times
+        assert "bb_samples" in result
+        assert len(result["bb_samples"]) == 5
+        # Samples should have time and value
+        assert result["bb_samples"][0]["value"] == 80
+        assert "AM" in result["bb_samples"][0]["time"] or "PM" in result["bb_samples"][0]["time"]
         assert result["bb_daily_min"] == 35
 
     @pytest.mark.asyncio

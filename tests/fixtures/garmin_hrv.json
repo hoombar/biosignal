@@ -7,17 +7,17 @@
     "lastNightAvg": 58,
     "lastNight5MinHigh": 72,
     "status": "BALANCED",
-    "createTimeStamp": 1706423400000
+    "createTimeStamp": "2025-01-28T07:30:00.0"
   },
-  "startTimestampGMT": 1706396400000,
-  "endTimestampGMT": 1706423400000,
-  "startTimestampLocal": 1706396400000,
-  "endTimestampLocal": 1706423400000,
+  "startTimestampGMT": "2025-01-27T22:00:00.0",
+  "endTimestampGMT": "2025-01-28T07:30:00.0",
+  "startTimestampLocal": "2025-01-27T22:00:00.0",
+  "endTimestampLocal": "2025-01-28T07:30:00.0",
   "hrvReadings": [
-    {"timestampGMT": 1706396400000, "hrv": 55},
-    {"timestampGMT": 1706398200000, "hrv": 58},
-    {"timestampGMT": 1706400000000, "hrv": 62},
-    {"timestampGMT": 1706401800000, "hrv": 59},
-    {"timestampGMT": 1706403600000, "hrv": 56}
+    {"readingTimeGMT": "2025-01-27T22:00:00.0", "hrvValue": 55},
+    {"readingTimeGMT": "2025-01-27T22:30:00.0", "hrvValue": 58},
+    {"readingTimeGMT": "2025-01-27T23:00:00.0", "hrvValue": 62},
+    {"readingTimeGMT": "2025-01-27T23:30:00.0", "hrvValue": 59},
+    {"readingTimeGMT": "2025-01-28T00:00:00.0", "hrvValue": 56}
   ]
 }

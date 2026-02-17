@@ -113,14 +113,15 @@ def parse_hrv(raw: Optional[dict], date: date) -> list[HrvSample]:
 
     samples = []
 
-    # Try different HRV structures
+    # Parse individual HRV readings
     hrv_readings = raw.get("hrvReadings") or []
     for reading in hrv_readings:
-        ts_ms = reading.get("timestampGMT")
-        hrv_value = reading.get("hrv")
-        if ts_ms and hrv_value:
+        # Garmin API uses readingTimeGMT and hrvValue
+        ts = reading.get("readingTimeGMT")
+        hrv_value = reading.get("hrvValue")
+        if ts and hrv_value is not None:
             samples.append(HrvSample(
-                timestamp=_parse_timestamp(ts_ms),
+                timestamp=_parse_timestamp(ts),
                 hrv_value=float(hrv_value),
                 reading_type="overnight"
             ))

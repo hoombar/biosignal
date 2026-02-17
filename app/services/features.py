@@ -234,12 +234,22 @@ async def compute_heart_rate_features(
     return features
 
 
+def _format_time_local(dt: datetime, tz: ZoneInfo) -> str:
+    """Format datetime as human-readable local time like '7:39 AM'."""
+    local_dt = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(tz)
+    return local_dt.strftime("%-I:%M %p").lstrip("0")
+
+
 async def compute_body_battery_features(
     session: AsyncSession,
     target_date: date,
     tz: ZoneInfo
 ) -> dict:
-    """Compute body battery features."""
+    """Compute body battery features.
+
+    Returns actual sample times since Garmin provides sparse data (~6 samples/day)
+    at irregular intervals rather than the expected 15-minute granularity.
+    """
     day_start = _time_to_datetime(target_date, time(0, 0), tz)
     day_end = day_start + timedelta(days=1)
 
@@ -256,42 +266,54 @@ async def compute_body_battery_features(
     )
     sleep = result.scalar_one_or_none()
 
+    # Wakeup body battery (closest to sleep end)
     if sleep and sleep.sleep_end:
         wakeup_bb = _closest_value(bb_samples, sleep.sleep_end)
         if wakeup_bb is not None:
             features["bb_wakeup"] = wakeup_bb
 
-    # Specific times
-    time_9am = _time_to_datetime(target_date, time(9, 0), tz)
-    bb_9am = _closest_value(bb_samples, time_9am)
-    if bb_9am is not None:
-        features["bb_9am"] = bb_9am
+    # Return all available samples with their actual times (excluding midnight placeholder)
+    # Skip samples at exactly midnight (00:00) as these are often placeholders
+    bb_sample_list = []
+    for sample in bb_samples:
+        local_dt = sample.timestamp.replace(tzinfo=ZoneInfo("UTC")).astimezone(tz)
+        # Skip midnight samples (often just placeholders)
+        if local_dt.hour == 0 and local_dt.minute == 0:
+            continue
+        bb_sample_list.append({
+            "time": _format_time_local(sample.timestamp, tz),
+            "value": sample.body_battery
+        })
+    features["bb_samples"] = bb_sample_list
 
-    time_12pm = _time_to_datetime(target_date, time(12, 0), tz)
-    bb_12pm = _closest_value(bb_samples, time_12pm)
-    if bb_12pm is not None:
-        features["bb_12pm"] = bb_12pm
+    # Drain rates - compute if we have morning and afternoon samples
+    if len(bb_sample_list) >= 2:
+        # Find samples closest to noon for morning/afternoon split
+        noon = _time_to_datetime(target_date, time(12, 0), tz)
+        morning_samples = [s for s in bb_samples
+                          if s.timestamp < noon and not (s.timestamp.hour == 0 and s.timestamp.minute == 0)]
+        afternoon_samples = [s for s in bb_samples if s.timestamp >= noon]
 
-    time_2pm = _time_to_datetime(target_date, time(14, 0), tz)
-    bb_2pm = _closest_value(bb_samples, time_2pm)
-    if bb_2pm is not None:
-        features["bb_2pm"] = bb_2pm
+        if morning_samples and afternoon_samples:
+            # Morning drain: first morning sample to last morning sample
+            first_morning = morning_samples[0]
+            last_morning = morning_samples[-1]
+            if first_morning != last_morning:
+                hours = (last_morning.timestamp - first_morning.timestamp).total_seconds() / 3600
+                if hours > 0:
+                    features["bb_morning_drain_rate"] = (
+                        last_morning.body_battery - first_morning.body_battery
+                    ) / hours
 
-    time_6pm = _time_to_datetime(target_date, time(18, 0), tz)
-    bb_6pm = _closest_value(bb_samples, time_6pm)
-    if bb_6pm is not None:
-        features["bb_6pm"] = bb_6pm
-
-    # Drain rates
-    if "bb_wakeup" in features and "bb_12pm" in features:
-        wakeup_time = sleep.sleep_end if sleep else time_9am
-        hours = (time_12pm - wakeup_time).total_seconds() / 3600
-        if hours > 0:
-            features["bb_morning_drain_rate"] = (features["bb_12pm"] - features["bb_wakeup"]) / hours
-
-    if "bb_12pm" in features and "bb_6pm" in features:
-        hours = 6
-        features["bb_afternoon_drain_rate"] = (features["bb_6pm"] - features["bb_12pm"]) / hours
+            # Afternoon drain: first afternoon sample to last afternoon sample
+            first_afternoon = afternoon_samples[0]
+            last_afternoon = afternoon_samples[-1]
+            if first_afternoon != last_afternoon:
+                hours = (last_afternoon.timestamp - first_afternoon.timestamp).total_seconds() / 3600
+                if hours > 0:
+                    features["bb_afternoon_drain_rate"] = (
+                        last_afternoon.body_battery - first_afternoon.body_battery
+                    ) / hours
 
     # Daily min
     bb_values = [s.body_battery for s in bb_samples]
