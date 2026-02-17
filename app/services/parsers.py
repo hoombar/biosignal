@@ -92,19 +92,15 @@ def parse_stress(raw: dict | None, date: date) -> list[StressSample]:
     samples = []
 
     stress_values = raw.get("stressValuesArray") or []
-    start_ts_raw = raw.get("startTimestampGMT") or raw.get("startTimestampLocal")
 
-    if start_ts_raw:
-        start_dt = _parse_timestamp(start_ts_raw)
-        for entry in stress_values:
-            if len(entry) >= 2:
-                offset_ms, stress_level = entry[0], entry[1]
-                timestamp = start_dt + timedelta(milliseconds=int(offset_ms))
-                # Store all values including -1/-2 (rest/unmeasured)
-                samples.append(StressSample(
-                    timestamp=timestamp,
-                    stress_level=stress_level
-                ))
+    for entry in stress_values:
+        if len(entry) >= 2:
+            ts_ms, stress_level = entry[0], entry[1]
+            # Store all values including -1/-2 (rest/unmeasured)
+            samples.append(StressSample(
+                timestamp=_parse_timestamp(ts_ms),
+                stress_level=stress_level
+            ))
 
     logger.debug(f"Parsed {len(samples)} stress samples for {date}")
     return samples

@@ -54,6 +54,8 @@ def test_parse_stress():
     assert all(s.timestamp is not None for s in samples)
     # Stress can be negative (-1, -2 for rest/unmeasured)
     assert all(s.stress_level >= -2 for s in samples)
+    # Timestamps must be near 2025-01-28, not year 2082 (regression: absolute epoch ms vs offset)
+    assert all(s.timestamp.year in (2024, 2025) for s in samples)
 
 
 def test_parse_hrv():
