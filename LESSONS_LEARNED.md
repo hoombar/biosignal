@@ -212,6 +212,50 @@ Note: if storing in SQLite (which has no timezone column type), strip tzinfo at 
 
 ---
 
+### Lesson: Don't Assume First Element Is Representative in Sparse Data
+
+**Context**: Correlation analysis using feature names from the first day with target habit.
+
+**Mistake Pattern**:
+- Code extracted feature names from `target_data[0]` to determine which metrics to correlate
+- Assumed the first day with the target habit would have all available features
+- After backfill, earliest days with habits often predate Garmin data
+- First day had only `had_training` feature; Garmin metrics like `sleep_hours`, `hrv_overnight_avg` were missing
+- Correlation results showed only habit-to-habit correlations, no Garmin metrics
+- Bug was silent — no error, just incomplete results
+
+**Epistemological Failure**:
+- Assumed data completeness without verifying
+- Used a single sample to infer the schema of a heterogeneous dataset
+- Didn't test with sparse/partial data scenarios
+- Only discovered when user reported missing Garmin correlations
+
+**Better Approach**:
+1. When inferring schema from data, collect keys from ALL records, not just the first
+2. Test with realistic sparse data: early records with partial data, later records complete
+3. For optional fields, the presence in ANY record should make it available for analysis
+4. Consider: "What if the first N records are incomplete?"
+
+**Code Pattern**:
+```python
+# Bad: assumes first record has all features
+feature_names = list(data[0].keys())
+
+# Good: collects features from all records
+all_features = set()
+for record in data:
+    all_features.update(record.keys())
+feature_names = list(all_features)
+```
+
+**Applies To**:
+- Any schema inference from sample data
+- Time-series data where early records may be incomplete
+- Data aggregation across sources with different availability windows
+- Any "union of schemas" scenario
+
+---
+
 ## Meta-Pattern: The Verification Cascade
 
 These four lessons follow a pattern - each failure could have been caught earlier with proper verification:
