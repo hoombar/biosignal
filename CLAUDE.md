@@ -1,5 +1,19 @@
 # Claude Development Guide - Biosignal Energy Tracker
 
+## Before Writing Any Code - MANDATORY
+
+Before implementing any feature or bug fix, answer these questions:
+
+1. **Is there a failing test that defines the expected behavior?**
+   - For new features: Write the test first, run it, watch it fail
+   - For bug fixes: Write a reproduction test first, run it, watch it fail
+
+2. **If no test exists, STOP and write one before proceeding.**
+
+If you skip this step, you must explicitly acknowledge the deviation and explain why before writing any implementation code.
+
+---
+
 ## Project Overview
 
 **Purpose**: Self-hosted biometric analysis dashboard that correlates Garmin health data with lifestyle habits to identify patterns related to afternoon energy slumps and brain fog.
@@ -381,12 +395,15 @@ async def test_parse_sleep_data(mock_garmin):
 - [ ] No SQL injection risk (ORM only, no string concatenation)
 - [ ] No secrets in code (env vars only)
 
-### Testing
+### Testing (MOST IMPORTANT)
 
-- [ ] TDD followed (test written first for new features)
+- [ ] **Test was written BEFORE implementation** (not after)
+- [ ] **For bug fixes: reproduction test was written FIRST**
 - [ ] Async tests use `pytest-asyncio`
 - [ ] External APIs mocked
 - [ ] Edge cases tested (missing data, API errors, timezone boundaries)
+
+⚠️ If tests were written after implementation, acknowledge this deviation explicitly.
 
 ### Code Quality
 
