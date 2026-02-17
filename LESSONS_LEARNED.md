@@ -123,6 +123,95 @@ Abstract, transferable thinking patterns from mistakes made during development.
 
 ---
 
+---
+
+### Lesson: Audit All Instances When Fixing a Class of Bug
+
+**Context**: Discovering the SpO2 parser was missing data; later discovering stress data had a similar but different timestamp bug.
+
+**Mistake Pattern**:
+- SpO2 data was missing from DB — found the parser bug, fixed it, moved on.
+- Later: stress data was also missing, with a related but distinct root cause (wrong timestamp interpretation vs. missing endpoint entirely).
+- Each bug was found reactively (user noticed missing data) rather than proactively.
+- When SpO2 was fixed, we did not scan other parsers to ask "does this class of error exist elsewhere?"
+
+**Epistemological Failure**:
+- Treated the bug as a one-off rather than a symptom of a class of error.
+- Closed the loop at the symptom level ("SpO2 is fixed") rather than the pattern level ("all parsers correctly handle Garmin response formats").
+- No regression guard was added to catch the same bug in other parsers.
+
+**Better Approach**:
+1. When fixing a bug, immediately ask: "Does this bug pattern exist anywhere else?"
+2. Scan all siblings (all parsers, all API integrations, all format handlers) for the same issue.
+3. Write a regression test that makes the whole class of bug visible — e.g., test all parsers return timestamps within a reasonable year range.
+4. Document the pattern in lessons learned at fix time, not after the next occurrence.
+
+**Applies To**:
+- Any repeated code pattern (parsers, serializers, validators, format handlers)
+- Data pipeline stages (ingest → parse → store → display)
+- Any integration that depends on implicit format contracts
+
+---
+
+### Lesson: Timestamp Format Contracts Must Be Explicit and Verified
+
+**Context**: `parse_stress()` treating absolute epoch ms timestamps as relative millisecond offsets from `startTimestampGMT`.
+
+**Mistake Pattern**:
+- Garmin's `stressValuesArray` format is `[epoch_ms, stress_level]` — identical to `heartRateValues` and `bodyBatteryValuesArray`.
+- Implementation assumed the first element was a *relative offset* from a start timestamp (common in some APIs).
+- The code added the "offset" to `startTimestampGMT`, producing timestamps 1.9 million minutes in the future (year 2082).
+- 19,270 stress samples written with wrong timestamps; none appeared in any query (all date-range filtered).
+- Bug was silent — no error, no warning, just invisible data.
+
+**Epistemological Failure**:
+- Did not cross-reference `stressValuesArray` format against other Garmin array types that were correctly implemented.
+- Trusted code review ("looks right") over testing against real data.
+- Did not assert reasonable year bounds on parsed timestamps in tests.
+- The year-2082 data sat in the DB unnoticed until the user reported no stress data.
+
+**Better Approach**:
+1. When implementing a data parser, verify the timestamp format against a known good example (real API response or captured fixture).
+2. Add a sanity check assertion in tests: timestamps must fall within a reasonable range (e.g., `assert 2020 <= timestamp.year <= 2030`).
+3. Cross-reference: if other parsers in the same file handle similar arrays, confirm the format is consistent before assuming a different convention.
+4. After a sync, spot-check the DB: `SELECT MIN(timestamp), MAX(timestamp) FROM <table>` catches out-of-range data immediately.
+
+**Applies To**:
+- Any parser handling external timestamp data (epoch ms, epoch seconds, relative offsets, ISO strings, Unix ms vs. seconds)
+- Any integration with inconsistent data formats across endpoints
+- Any silent data pipeline where errors don't surface until the user reports missing data
+
+---
+
+### Lesson: `datetime.utcnow()` Is Deprecated — Always Use Timezone-Aware UTC
+
+**Context**: Running tests surfaced `DeprecationWarning: datetime.datetime.utcnow() is deprecated` across `app/api/sync.py` and `app/services/sync.py`.
+
+**Mistake Pattern**:
+- Used `datetime.utcnow()` throughout sync code to generate timestamps.
+- This returns a naive datetime with no timezone info — ambiguous by construction.
+- Python 3.12+ deprecates `utcnow()` and will remove it in a future version.
+- The warnings don't break anything today, but they signal intent to fail in a future Python version.
+
+**Better Approach**:
+Replace `datetime.utcnow()` with `datetime.now(UTC)`:
+```python
+from datetime import datetime, UTC
+# Instead of:
+datetime.utcnow()
+# Use:
+datetime.now(UTC)
+```
+
+Note: if storing in SQLite (which has no timezone column type), strip tzinfo at the storage boundary only, not at the computation boundary. Keep timezone awareness as deep into the stack as possible.
+
+**Applies To**:
+- Any use of `datetime.utcnow()`, `datetime.now()` (without tz), or `time.time()` that needs to produce UTC
+- Cross-platform code that may run in different system timezones
+- Any codebase that will be upgraded across Python minor versions
+
+---
+
 ## Meta-Pattern: The Verification Cascade
 
 These four lessons follow a pattern - each failure could have been caught earlier with proper verification:
