@@ -230,10 +230,14 @@ function showBackfillProgress() {
     document.getElementById('backfill-btn').disabled = true;
     document.getElementById('backfill-btn').textContent = 'Backfill Running...';
     document.getElementById('backfill-date').disabled = true;
+    document.getElementById('backfill-cancel-btn').disabled = false;
+    document.getElementById('backfill-cancel-btn').textContent = 'Cancel';
 }
 
 function pollBackfillStatus() {
     if (backfillPollInterval) clearInterval(backfillPollInterval);
+
+    let lastTotal = null;
 
     backfillPollInterval = setInterval(async () => {
         try {
@@ -243,6 +247,9 @@ function pollBackfillStatus() {
             const done = (status.days_completed || 0) + (status.days_failed || 0);
             const total = status.total_days || 1;
             const pct = Math.round((done / total) * 100);
+
+            // Track if this looks like a cancellation (stopped before completing all days)
+            if (lastTotal === null) lastTotal = total;
 
             const bar = document.getElementById('backfill-bar');
             bar.style.width = pct + '%';
@@ -256,7 +263,8 @@ function pollBackfillStatus() {
             if (!status.is_running && done > 0) {
                 clearInterval(backfillPollInterval);
                 backfillPollInterval = null;
-                onBackfillComplete(status);
+                const wasCancelled = done < lastTotal;
+                onBackfillComplete(status, wasCancelled);
             }
         } catch (error) {
             console.error('Error polling backfill status:', error);
@@ -264,22 +272,43 @@ function pollBackfillStatus() {
     }, 3000);
 }
 
-function onBackfillComplete(status) {
+function onBackfillComplete(status, wasCancelled = false) {
     document.getElementById('backfill-btn').disabled = false;
     document.getElementById('backfill-btn').textContent = 'Start Backfill';
     document.getElementById('backfill-date').disabled = false;
-
-    const bar = document.getElementById('backfill-bar');
-    bar.style.width = '100%';
+    document.getElementById('backfill-progress').style.display = 'none';
 
     const resultDiv = document.getElementById('backfill-result');
     resultDiv.style.display = 'block';
 
     const failed = status.days_failed || 0;
-    if (failed === 0) {
-        resultDiv.innerHTML = `<p style="color: var(--success-color); margin-top: 1rem;">Backfill complete — ${status.days_completed} days synced successfully.</p>`;
+    const completed = status.days_completed || 0;
+
+    if (wasCancelled) {
+        resultDiv.innerHTML = `<p style="color: var(--warning-color); margin-top: 1rem;">Backfill cancelled — ${completed} days synced before cancellation.</p>`;
+    } else if (failed === 0) {
+        resultDiv.innerHTML = `<p style="color: var(--success-color); margin-top: 1rem;">Backfill complete — ${completed} days synced successfully.</p>`;
     } else {
-        resultDiv.innerHTML = `<p style="color: var(--warning-color); margin-top: 1rem;">Backfill complete — ${status.days_completed} succeeded, ${failed} failed. You can re-run to retry failed days.</p>`;
+        resultDiv.innerHTML = `<p style="color: var(--warning-color); margin-top: 1rem;">Backfill complete — ${completed} succeeded, ${failed} failed. You can re-run to retry failed days.</p>`;
+    }
+}
+
+async function cancelBackfill() {
+    const btn = document.getElementById('backfill-cancel-btn');
+    btn.disabled = true;
+    btn.textContent = 'Cancelling...';
+
+    try {
+        const resp = await fetch('/api/sync/backfill/cancel', { method: 'POST' });
+        if (!resp.ok) {
+            const err = await resp.json();
+            throw new Error(err.detail || 'Failed to cancel backfill');
+        }
+        // Polling will detect the cancellation and call onBackfillComplete
+    } catch (error) {
+        alert('Failed to cancel backfill: ' + error.message);
+        btn.disabled = false;
+        btn.textContent = 'Cancel';
     }
 }
 
@@ -316,5 +345,6 @@ document.addEventListener('DOMContentLoaded', () => {
     loadOverview();
     initBackfillDatePicker();
     document.getElementById('backfill-btn').addEventListener('click', startBackfill);
+    document.getElementById('backfill-cancel-btn').addEventListener('click', cancelBackfill);
     checkBackfillOnLoad();
 });

@@ -67,6 +67,7 @@ class BackfillStatusResponse(BaseModel):
 @dataclass
 class _BackfillState:
     is_running: bool = False
+    cancel_requested: bool = False
     start_date: date | None = None
     end_date: date | None = None
     total_days: int = 0
@@ -254,6 +255,7 @@ async def sync_status(db: AsyncSession = Depends(get_db)):
 async def _run_backfill_in_background(start_date: date, end_date: date):
     """Background task to backfill a date range."""
     _backfill_state.is_running = True
+    _backfill_state.cancel_requested = False
     _backfill_state.start_date = start_date
     _backfill_state.end_date = end_date
     _backfill_state.total_days = (end_date - start_date).days + 1
@@ -270,6 +272,11 @@ async def _run_backfill_in_background(start_date: date, end_date: date):
 
     current = start_date
     while current <= end_date:
+        # Check for cancellation
+        if _backfill_state.cancel_requested:
+            logger.info("Backfill cancelled by user")
+            break
+
         async with async_session_maker() as session:
             started_at = datetime.utcnow()
             try:
@@ -313,11 +320,20 @@ async def _run_backfill_in_background(start_date: date, end_date: date):
             await asyncio.sleep(2.0)
         current += timedelta(days=1)
 
+    cancelled = _backfill_state.cancel_requested
     _backfill_state.is_running = False
-    logger.info(
-        f"Backfill complete: {_backfill_state.days_completed} succeeded, "
-        f"{_backfill_state.days_failed} failed out of {_backfill_state.total_days}"
-    )
+    _backfill_state.cancel_requested = False
+
+    if cancelled:
+        logger.info(
+            f"Backfill cancelled: {_backfill_state.days_completed} succeeded, "
+            f"{_backfill_state.days_failed} failed out of {_backfill_state.total_days}"
+        )
+    else:
+        logger.info(
+            f"Backfill complete: {_backfill_state.days_completed} succeeded, "
+            f"{_backfill_state.days_failed} failed out of {_backfill_state.total_days}"
+        )
 
 
 @router.get("/backfill/status", response_model=BackfillStatusResponse)
@@ -332,6 +348,16 @@ async def backfill_status():
         days_failed=_backfill_state.days_failed,
         started_at=_backfill_state.started_at,
     )
+
+
+@router.post("/backfill/cancel")
+async def cancel_backfill():
+    """Cancel a running backfill."""
+    if not _backfill_state.is_running:
+        raise HTTPException(status_code=400, detail="No backfill is currently running")
+
+    _backfill_state.cancel_requested = True
+    return {"message": "Backfill cancellation requested"}
 
 
 @router.post("/backfill", response_model=BackfillResponse)

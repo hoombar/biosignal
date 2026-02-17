@@ -61,7 +61,10 @@
         <div class="progress-bar-container">
             <div class="progress-bar" id="backfill-bar"></div>
         </div>
-        <p id="backfill-status-text" style="margin-top: 0.5rem; color: var(--text-secondary); font-size: 0.875rem;"></p>
+        <div style="display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem;">
+            <p id="backfill-status-text" style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;"></p>
+            <button id="backfill-cancel-btn" style="background-color: var(--warning-color);">Cancel</button>
+        </div>
     </div>
     <div id="backfill-result" style="display: none;"></div>
 </div>
