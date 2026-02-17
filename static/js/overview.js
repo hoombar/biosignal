@@ -164,11 +164,32 @@ async function triggerSync() {
 let backfillPollInterval = null;
 
 async function startBackfill() {
-    const days = parseInt(document.getElementById('backfill-days').value);
-    if (!days || days < 1 || days > 365) {
-        alert('Please enter a number between 1 and 365.');
+    const dateInput = document.getElementById('backfill-date');
+    const startDate = dateInput.value;
+
+    if (!startDate) {
+        alert('Please select a date to backfill from.');
         return;
     }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(startDate + 'T00:00:00');
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const maxPast = new Date(today);
+    maxPast.setDate(maxPast.getDate() - 365);
+
+    if (selectedDate > yesterday) {
+        alert('Start date cannot be after yesterday.');
+        return;
+    }
+    if (selectedDate < maxPast) {
+        alert('Start date cannot be more than 365 days ago.');
+        return;
+    }
+
+    const endDate = yesterday.toISOString().split('T')[0];
 
     const btn = document.getElementById('backfill-btn');
     btn.disabled = true;
@@ -178,7 +199,7 @@ async function startBackfill() {
         const resp = await fetch('/api/sync/backfill', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ days })
+            body: JSON.stringify({ start_date: startDate, end_date: endDate })
         });
 
         if (resp.status === 409) {
@@ -208,7 +229,7 @@ function showBackfillProgress() {
     document.getElementById('backfill-result').style.display = 'none';
     document.getElementById('backfill-btn').disabled = true;
     document.getElementById('backfill-btn').textContent = 'Backfill Running...';
-    document.getElementById('backfill-days').disabled = true;
+    document.getElementById('backfill-date').disabled = true;
 }
 
 function pollBackfillStatus() {
@@ -246,7 +267,7 @@ function pollBackfillStatus() {
 function onBackfillComplete(status) {
     document.getElementById('backfill-btn').disabled = false;
     document.getElementById('backfill-btn').textContent = 'Start Backfill';
-    document.getElementById('backfill-days').disabled = false;
+    document.getElementById('backfill-date').disabled = false;
 
     const bar = document.getElementById('backfill-bar');
     bar.style.width = '100%';
@@ -275,9 +296,25 @@ async function checkBackfillOnLoad() {
     }
 }
 
+function initBackfillDatePicker() {
+    const dateInput = document.getElementById('backfill-date');
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const default90DaysAgo = new Date(today);
+    default90DaysAgo.setDate(default90DaysAgo.getDate() - 90);
+    const maxPast = new Date(today);
+    maxPast.setDate(maxPast.getDate() - 365);
+
+    dateInput.max = yesterday.toISOString().split('T')[0];
+    dateInput.min = maxPast.toISOString().split('T')[0];
+    dateInput.value = default90DaysAgo.toISOString().split('T')[0];
+}
+
 // Load on page load
 document.addEventListener('DOMContentLoaded', () => {
     loadOverview();
+    initBackfillDatePicker();
     document.getElementById('backfill-btn').addEventListener('click', startBackfill);
     checkBackfillOnLoad();
 });

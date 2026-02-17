@@ -51,9 +51,9 @@
     <p style="color: var(--text-secondary); margin-bottom: 1rem;">Import historical data from Garmin and HabitSync. Each day takes a few seconds due to API rate limits.</p>
     <div id="backfill-controls">
         <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
-            <label for="backfill-days" style="white-space: nowrap;">Days to backfill:</label>
-            <input type="number" id="backfill-days" value="90" min="1" max="365"
-                style="width: 80px; padding: 0.5rem; border: 2px solid var(--border-color); border-radius: 6px; font-size: 1rem;">
+            <label for="backfill-date" style="white-space: nowrap;">Backfill from:</label>
+            <input type="date" id="backfill-date"
+                style="padding: 0.5rem; border: 2px solid var(--border-color); border-radius: 6px; font-size: 1rem;">
             <button id="backfill-btn">Start Backfill</button>
         </div>
     </div>
