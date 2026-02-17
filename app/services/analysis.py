@@ -84,12 +84,18 @@ async def compute_correlations(
     results = []
 
     # Get all numeric features (excluding date and habits list)
-    sample_features = target_data[0]
-    feature_names = [k for k in sample_features.keys() if k not in ["date", "habits"]]
+    # Collect feature names from ALL days to handle sparse data
+    all_feature_names = set()
+    all_habit_names = set()
+    for f in target_data:
+        for k in f.keys():
+            if k not in ["date", "habits"]:
+                all_feature_names.add(k)
+        for h in f.get("habits", []):
+            if h["name"] != target_habit:
+                all_habit_names.add(f"habit_{h['name']}")
 
-    # Also add flattened habits (excluding the target habit)
-    habit_features = _flatten_habits(sample_features, exclude_habit=target_habit)
-    feature_names.extend(habit_features.keys())
+    feature_names = list(all_feature_names) + list(all_habit_names)
 
     for feature_name in feature_names:
         # Extract feature values - check if it's a habit or regular feature

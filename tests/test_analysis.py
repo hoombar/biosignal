@@ -140,6 +140,35 @@ class TestComputeCorrelations:
             else:
                 assert sleep_corr["strength"] == "weak"
 
+    @pytest.mark.asyncio
+    async def test_finds_features_from_sparse_data(self, async_session):
+        """Features should be found even if first day with habit has no Garmin data.
+
+        Regression test: previously, feature names were extracted only from the
+        first day with the target habit. If that day had no Garmin data (e.g.,
+        before backfill), Garmin metrics would be missing from correlations.
+        """
+        # Day 0: habit only, NO sleep data
+        d0 = _make_date(0)
+        async_session.add(DailyHabit(
+            date=d0,
+            habit_name="pm_slump",
+            habit_value="true",
+            habit_type="boolean",
+        ))
+
+        # Days 1-9: both habit AND sleep data
+        for i in range(1, 10):
+            slump = i % 2 == 0
+            await _seed_day(async_session, i, sleep_hours=5.0 if slump else 9.0, slump=slump)
+        await async_session.commit()
+
+        result = await compute_correlations(async_session, target_habit="pm_slump", min_days=5)
+
+        # sleep_hours should appear even though day 0 had no sleep data
+        sleep_corr = next((r for r in result if r["metric"] == "sleep_hours"), None)
+        assert sleep_corr is not None, "sleep_hours should be found from days 1-9 even if day 0 has no data"
+
 
 class TestGenerateInsights:
 

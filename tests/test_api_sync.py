@@ -138,3 +138,12 @@ class TestSyncBackfill:
         assert resp.status_code == 200
         data = resp.json()
         assert "is_running" in data
+
+    @pytest.mark.asyncio
+    async def test_backfill_cancel_when_not_running(self, async_session):
+        """Cancel should return 400 when no backfill is running."""
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.post("/api/sync/backfill/cancel")
+        assert resp.status_code == 400
+        assert "No backfill is currently running" in resp.json()["detail"]
