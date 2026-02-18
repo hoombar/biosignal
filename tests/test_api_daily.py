@@ -310,3 +310,63 @@ class TestNotableDaysEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data == []
+
+
+class TestHabitsApiShape:
+    """Contract tests: /api/daily habits field has expected shape for frontend."""
+
+    @pytest.mark.asyncio
+    async def test_habits_have_name_value_type_fields(self, async_session):
+        """Each habit in /api/daily response must have name, value, type fields."""
+        async_session.add(SleepSession(
+            date=date(2025, 1, 15),
+            total_sleep_seconds=7 * 3600,
+            sleep_score=75,
+        ))
+        async_session.add(DailyHabit(
+            date=date(2025, 1, 15),
+            habit_name="afternoon_slump",
+            habit_value="1",
+            habit_type="boolean",
+        ))
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get(
+                "/api/daily",
+                params={"start": "2025-01-15", "end": "2025-01-15"}
+            )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        habits = data[0]["habits"]
+        assert len(habits) == 1
+        habit = habits[0]
+        assert "name" in habit
+        assert "value" in habit
+        assert "type" in habit
+        assert habit["name"] == "afternoon_slump"
+        assert isinstance(habit["value"], int)
+        assert isinstance(habit["type"], str)
+
+    @pytest.mark.asyncio
+    async def test_day_with_no_habits_returns_empty_list(self, async_session):
+        """Days with no habits logged return habits as empty list."""
+        async_session.add(SleepSession(
+            date=date(2025, 1, 15),
+            total_sleep_seconds=7 * 3600,
+            sleep_score=75,
+        ))
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get(
+                "/api/daily",
+                params={"start": "2025-01-15", "end": "2025-01-15"}
+            )
+
+        data = resp.json()
+        assert data[0]["habits"] == []

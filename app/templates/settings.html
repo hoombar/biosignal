@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Energy Tracker{% endblock %}
+
+{% block content %}
+<h1>Settings</h1>
+
+<div class="settings-section">
+    <div class="settings-header">
+        <h2>Habit Display</h2>
+        <p class="settings-desc">Customise how habits appear in the daily view. Changes take effect immediately after saving.</p>
+    </div>
+
+    <div id="habits-loading" class="loading">Loading habits...</div>
+    <div id="habits-error" class="error" style="display:none;"></div>
+
+    <form id="habits-form" style="display:none;">
+        <div class="settings-table-wrap">
+            <table class="settings-table">
+                <thead>
+                    <tr>
+                        <th>Habit name</th>
+                        <th>Display label</th>
+                        <th>Emoji</th>
+                        <th>Order</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="habits-tbody">
+                    <!-- Populated by JS -->
+                </tbody>
+            </table>
+        </div>
+        <div class="settings-actions">
+            <button type="submit" class="btn-primary" id="save-btn">Save all</button>
+            <span id="save-status" class="save-status"></span>
+        </div>
+    </form>
+
+    <div id="no-habits" style="display:none;" class="empty-state">
+        No habits have been synced yet. Run a HabitSync sync first to populate habits here.
+    </div>
+</div>
+
+<script>
+(async function () {
+    const tbody = document.getElementById('habits-tbody');
+    const form = document.getElementById('habits-form');
+    const loading = document.getElementById('habits-loading');
+    const errorEl = document.getElementById('habits-error');
+    const noHabits = document.getElementById('no-habits');
+    const saveStatus = document.getElementById('save-status');
+
+    let habits = [];
+
+    function defaultLabel(habitName) {
+        return habitName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    }
+
+    function renderRow(habit) {
+        const label = habit.display_name ?? '';
+        const emoji = habit.emoji ?? '';
+        const order = habit.sort_order ?? 0;
+
+        const tr = document.createElement('tr');
+        tr.dataset.habitName = habit.habit_name;
+        tr.innerHTML = `
+            <td class="habit-name-cell">
+                <span class="habit-raw-name">${habit.habit_name}</span>
+                <span class="habit-default-label">${defaultLabel(habit.habit_name)}</span>
+            </td>
+            <td>
+                <input
+                    type="text"
+                    class="settings-input"
+                    name="display_name"
+                    value="${label}"
+                    placeholder="${defaultLabel(habit.habit_name)}"
+                    aria-label="Display label for ${habit.habit_name}"
+                >
+            </td>
+            <td>
+                <input
+                    type="text"
+                    class="settings-input settings-input--emoji"
+                    name="emoji"
+                    value="${emoji}"
+                    placeholder="—"
+                    maxlength="8"
+                    aria-label="Emoji for ${habit.habit_name}"
+                >
+            </td>
+            <td>
+                <input
+                    type="number"
+                    class="settings-input settings-input--order"
+                    name="sort_order"
+                    value="${order}"
+                    min="0"
+                    max="999"
+                    aria-label="Sort order for ${habit.habit_name}"
+                >
+            </td>
+            <td class="save-cell">
+                <span class="row-status" aria-live="polite"></span>
+            </td>
+        `;
+        return tr;
+    }
+
+    async function load() {
+        try {
+            const resp = await fetch('/api/settings/habits');
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            habits = await resp.json();
+
+            loading.style.display = 'none';
+
+            if (habits.length === 0) {
+                noHabits.style.display = '';
+                return;
+            }
+
+            habits.forEach(h => tbody.appendChild(renderRow(h)));
+            form.style.display = '';
+        } catch (err) {
+            loading.style.display = 'none';
+            errorEl.textContent = `Failed to load habits: ${err.message}`;
+            errorEl.style.display = '';
+        }
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const saveBtn = document.getElementById('save-btn');
+        saveBtn.disabled = true;
+        saveStatus.textContent = 'Saving…';
+        saveStatus.className = 'save-status';
+
+        const rows = tbody.querySelectorAll('tr[data-habit-name]');
+        const promises = Array.from(rows).map(async row => {
+            const name = row.dataset.habitName;
+            const display_name = row.querySelector('[name=display_name]').value.trim() || null;
+            const emoji = row.querySelector('[name=emoji]').value.trim() || null;
+            const sort_order = parseInt(row.querySelector('[name=sort_order]').value, 10) || 0;
+            const rowStatus = row.querySelector('.row-status');
+
+            try {
+                const resp = await fetch(`/api/settings/habits/${encodeURIComponent(name)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ display_name, emoji, sort_order }),
+                });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                rowStatus.textContent = '✓';
+                rowStatus.className = 'row-status row-status--ok';
+            } catch (err) {
+                rowStatus.textContent = '✗';
+                rowStatus.className = 'row-status row-status--err';
+            }
+        });
+
+        await Promise.all(promises);
+
+        const anyErr = tbody.querySelector('.row-status--err');
+        saveStatus.textContent = anyErr ? 'Some failed to save' : 'Saved';
+        saveStatus.className = anyErr ? 'save-status save-status--err' : 'save-status save-status--ok';
+        saveBtn.disabled = false;
+
+        // Clear per-row statuses after 3s
+        setTimeout(() => {
+            tbody.querySelectorAll('.row-status').forEach(el => {
+                el.textContent = '';
+                el.className = 'row-status';
+            });
+            saveStatus.textContent = '';
+        }, 3000);
+    });
+
+    await load();
+})();
+</script>
+{% endblock %}

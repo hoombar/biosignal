@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
 
 from app.core.database import init_db
-from app.api import config, sync, raw, daily, analysis, export, garmin_auth
+from app.api import config, sync, raw, daily, analysis, export, garmin_auth, settings
 from app.services.scheduler import start_scheduler, stop_scheduler
 
 
@@ -42,6 +42,7 @@ app.include_router(daily.router)
 app.include_router(analysis.router)
 app.include_router(export.router)
 app.include_router(garmin_auth.router)
+app.include_router(settings.router)
 
 
 # Page routes
@@ -79,6 +80,12 @@ async def trends_page(request: Request):
 async def insights_page(request: Request):
     """Insights page."""
     return templates.TemplateResponse("insights.html", {"request": request, "active_page": "insights"})
+
+
+@app.get("/settings")
+async def settings_page(request: Request):
+    """Habit display settings page."""
+    return templates.TemplateResponse("settings.html", {"request": request, "active_page": "settings"})
 
 
 @app.get("/setup/garmin")

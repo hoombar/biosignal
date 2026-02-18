@@ -147,12 +147,6 @@ function prefetchAdjacentMonth(year, month, direction) {
 // CALENDAR RENDERING
 // ============================================
 
-function formatHabitName(name) {
-    return name.split('_').map(word =>
-        word.charAt(0).toUpperCase() + word.slice(1)
-    ).join(' ');
-}
-
 function getHabitValue(habits, name) {
     if (!habits) return null;
     const habit = habits.find(h => h.name === name);
@@ -542,28 +536,40 @@ window.addEventListener('popstate', () => {
 // DAY DETAIL RENDERING
 // ============================================
 
-function renderHabitsBanner(day) {
+function renderHabitsPanel(day) {
     if (!day.habits || day.habits.length === 0) {
-        return '<div class="habit-item"><span class="habit-label">No habits tracked</span></div>';
+        return '<p class="habits-empty">No habits tracked</p>';
     }
 
-    return day.habits.map(habit => {
+    // Sort by configured sort_order, then name
+    const sorted = [...day.habits].sort((a, b) => {
+        const oa = getHabitDisplay(a.name).sort_order;
+        const ob = getHabitDisplay(b.name).sort_order;
+        if (oa !== ob) return oa - ob;
+        return a.name.localeCompare(b.name);
+    });
+
+    return sorted.map(habit => {
+        const { label, emoji } = getHabitDisplay(habit.name);
+        const displayValue = formatHabitValue(habit);
+
+        // Special colour class for afternoon_slump
+        let stateClass = '';
         if (habit.name === 'afternoon_slump') {
-            const status = habit.value > 0 ? 'slump' : 'clear';
-            const text = habit.value > 0 ? 'Slump' : 'Clear';
-            return `
-                <div class="habit-item ${status}">
-                    <span class="habit-indicator"></span>
-                    <span class="habit-label">PM Slump</span>
-                    <span class="habit-value">${text}</span>
-                </div>
-            `;
+            stateClass = habit.value > 0 ? 'slump' : 'clear';
         }
 
+        const emojiHtml = emoji
+            ? `<span class="habit-emoji" aria-hidden="true">${emoji}</span>`
+            : '';
+
         return `
-            <div class="habit-item">
-                <span class="habit-label">${formatHabitName(habit.name)}</span>
-                <span class="habit-value">${habit.value}</span>
+            <div class="habit-sidebar-item ${stateClass}">
+                <div class="habit-sidebar-header">
+                    ${emojiHtml}
+                    <span class="habit-sidebar-label">${label}</span>
+                </div>
+                <span class="habit-sidebar-value">${displayValue}</span>
             </div>
         `;
     }).join('');
@@ -813,8 +819,8 @@ function renderDayDetail(day) {
     const detailDate = document.getElementById('detail-date');
     if (detailDate) detailDate.textContent = formatDate(day.date);
 
-    const habitsBanner = document.getElementById('habits-banner');
-    if (habitsBanner) habitsBanner.innerHTML = renderHabitsBanner(day);
+    const habitsList = document.getElementById('habits-list');
+    if (habitsList) habitsList.innerHTML = renderHabitsPanel(day);
 
     const metricsGrid = document.getElementById('metrics-grid');
     if (!metricsGrid) return;
@@ -848,8 +854,9 @@ async function init() {
         selectedDate = hashDate;
     }
 
-    // Load year heatmap and month in parallel
+    // Load habit config and initial data in parallel
     await Promise.all([
+        loadHabitConfig(),
         renderYearHeatmap(currentYear),
         renderMonth(currentYear, currentMonth),
     ]);

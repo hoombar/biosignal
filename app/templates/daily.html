@@ -80,21 +80,23 @@
             </div>
         </div>
 
-        <!-- Habits Banner -->
-        <div class="habits-banner" id="habits-banner">
-            <div class="habit-item">
-                <span class="habit-indicator"></span>
-                <span class="habit-label">PM Slump</span>
-                <span class="habit-value">-</span>
+        <div class="detail-content">
+            <!-- Metrics Grid -->
+            <div class="metrics-grid" id="metrics-grid">
+                <!-- Cards populated by JS -->
             </div>
-        </div>
 
-        <!-- Metrics Grid -->
-        <div class="metrics-grid" id="metrics-grid">
-            <!-- Cards populated by JS -->
+            <!-- Habits Sidebar -->
+            <div class="habits-panel" id="habits-panel">
+                <h3 class="habits-panel-title">Habits</h3>
+                <div class="habits-list" id="habits-list">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
+<script src="/static/js/habit-config.js"></script>
 <script src="/static/js/daily.js"></script>
 {% endblock %}

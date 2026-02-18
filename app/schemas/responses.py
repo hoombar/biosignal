@@ -168,3 +168,21 @@ class InsightResult(BaseModel):
     confidence: str
     supporting_metric: str | None = None
     effect_size: float | None = None
+
+
+class HabitDisplayConfigResponse(BaseModel):
+    """Habit display config response — one entry per known habit."""
+    habit_name: str
+    display_name: str | None = None
+    emoji: str | None = None
+    sort_order: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class HabitDisplayConfigUpdate(BaseModel):
+    """Request body for updating a habit's display config."""
+    display_name: str | None = None
+    emoji: str | None = None
+    sort_order: int | None = None
