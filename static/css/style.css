@@ -221,6 +221,119 @@ main > h1 {
 }
 
 /* ============================================
+   YEAR HEATMAP
+   ============================================ */
+
+.year-heatmap-section {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-subtle);
+    padding: var(--space-md) var(--space-lg);
+    margin-bottom: var(--space-lg);
+}
+
+.year-heatmap-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-md);
+    margin-bottom: var(--space-sm);
+}
+
+.year-label {
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    min-width: 3.5rem;
+    text-align: center;
+}
+
+.year-nav-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    border-radius: var(--radius-sm);
+}
+
+.year-nav-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.year-heatmap {
+    overflow-x: auto;
+    padding-bottom: var(--space-xs);
+}
+
+.heatmap-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    justify-content: center;
+}
+
+.heatmap-cell {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    border: 1px solid transparent;
+}
+
+.heatmap-cell:hover {
+    transform: scale(1.8);
+    z-index: 1;
+    border-color: var(--text-primary);
+}
+
+.heatmap-cell.current-month {
+    border-color: var(--color-neutral);
+    box-shadow: 0 0 3px rgba(68, 136, 255, 0.4);
+}
+
+/* Month tabs */
+.month-tabs {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-xs);
+    margin-top: var(--space-sm);
+    flex-wrap: wrap;
+}
+
+.month-tab {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    background: transparent;
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.month-tab:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    transform: none;
+}
+
+.month-tab.active {
+    background: var(--color-neutral);
+    border-color: var(--color-neutral);
+    color: white;
+}
+
+/* ============================================
    DAILY VIEW - SPLIT PANEL LAYOUT
    ============================================ */
 
@@ -256,8 +369,89 @@ main > h1 {
 
 .calendar-header h2 {
     font-size: 1rem;
+    color: var(--text-primary);
+    font-weight: 600;
+    margin: 0;
+}
+
+/* Month navigation buttons */
+.month-nav-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-subtle);
     color: var(--text-secondary);
-    font-weight: 500;
+    font-size: 1rem;
+    border-radius: var(--radius-sm);
+}
+
+.month-nav-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+/* ============================================
+   NOTABLE DAYS PANEL
+   ============================================ */
+
+.notable-days {
+    margin-top: var(--space-md);
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--border-subtle);
+}
+
+.notable-days h3 {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: var(--space-sm);
+}
+
+.notable-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.notable-item {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-sm);
+    padding: var(--space-sm);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    border: 1px solid transparent;
+}
+
+.notable-item:hover {
+    border-color: var(--color-neutral);
+    background: var(--bg-hover);
+}
+
+.notable-date {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--color-neutral);
+    white-space: nowrap;
+    min-width: 3rem;
+}
+
+.notable-desc {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
 }
 
 /* Day of week headers */
@@ -971,6 +1165,21 @@ input:focus {
    RESPONSIVE ADJUSTMENTS
    ============================================ */
 
+@media (max-width: 1024px) {
+    .year-heatmap-section {
+        padding: var(--space-sm) var(--space-md);
+    }
+
+    .heatmap-cell {
+        width: 7px;
+        height: 7px;
+    }
+
+    .calendar-section {
+        position: static;
+    }
+}
+
 @media (max-width: 768px) {
     main {
         padding: var(--space-md);
@@ -984,7 +1193,17 @@ input:focus {
         grid-template-columns: 1fr;
     }
 
-    .calendar-section {
-        position: static;
+    .month-tabs {
+        gap: 2px;
+    }
+
+    .month-tab {
+        padding: 2px var(--space-xs);
+        font-size: 0.625rem;
+    }
+
+    .heatmap-cell {
+        width: 5px;
+        height: 5px;
     }
 }

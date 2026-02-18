@@ -5,11 +5,26 @@
 {% block content %}
 <h1>Daily View</h1>
 
+<!-- Year Heatmap Strip -->
+<div class="year-heatmap-section">
+    <div class="year-heatmap-header">
+        <button class="year-nav-btn" onclick="navigateYear(-1)" title="Previous year">&larr;</button>
+        <span class="year-label" id="year-label">2026</span>
+        <button class="year-nav-btn" onclick="navigateYear(1)" title="Next year">&rarr;</button>
+    </div>
+    <div class="year-heatmap" id="year-heatmap">
+        <p class="loading">Loading...</p>
+    </div>
+    <div class="month-tabs" id="month-tabs"></div>
+</div>
+
 <div class="daily-layout">
     <!-- Calendar Section (Left) -->
     <div class="calendar-section">
         <div class="calendar-header">
-            <h2>Last 90 Days</h2>
+            <button class="month-nav-btn" onclick="navigateMonth(-1)" title="Previous month">&larr;</button>
+            <h2 id="month-label">February 2026</h2>
+            <button class="month-nav-btn" onclick="navigateMonth(1)" title="Next month">&rarr;</button>
         </div>
 
         <div class="calendar-weekdays">
@@ -47,6 +62,11 @@
                 <span class="legend-dot" style="background: var(--habit-lunch-healthy)"></span>
                 <span>Healthy</span>
             </div>
+        </div>
+
+        <!-- Notable Days Panel -->
+        <div class="notable-days" id="notable-days">
+            <!-- Populated by JS -->
         </div>
     </div>
 

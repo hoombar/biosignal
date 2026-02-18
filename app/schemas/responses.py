@@ -126,6 +126,21 @@ class DailySummary(BaseModel):
     habits: list[Habit] = []
 
 
+class CalendarDaySummary(BaseModel):
+    """Lightweight day summary for year heatmap."""
+    date: str
+    sleep_score: int | None = None
+    has_slump: bool = False
+
+
+class NotableDay(BaseModel):
+    """A notable day within a month (extreme or anomaly)."""
+    date: str
+    description: str
+    metric: str
+    value: float | None = None
+
+
 class CorrelationResult(BaseModel):
     """Correlation analysis result."""
     metric: str

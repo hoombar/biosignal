@@ -1,8 +1,26 @@
-// Daily view page JavaScript - Data-forward redesign
+// Daily view page JavaScript - Month-based navigation with year heatmap
 
-let dailyData = [];
+// ============================================
+// STATE
+// ============================================
+
+let monthCache = {};       // { "2026-02": [DailySummary, ...], ... }
+let calendarCache = {};    // { 2026: [CalendarDaySummary, ...], ... }
+let currentYear = new Date().getFullYear();
+let currentMonth = new Date().getMonth() + 1; // 1-indexed
 let selectedDate = null;
 let selectedIndex = -1;
+let currentMonthData = [];  // data for the displayed month
+
+const MONTH_NAMES = [
+    '', 'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+const MONTH_SHORT = [
+    '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+];
 
 // ============================================
 // UTILITY FUNCTIONS
@@ -65,12 +83,71 @@ function getScoreClass(value, lowThresh, highThresh) {
     return 'bad';
 }
 
+function monthKey(year, month) {
+    return `${year}-${String(month).padStart(2, '0')}`;
+}
+
+function daysInMonth(year, month) {
+    return new Date(year, month, 0).getDate();
+}
+
+// ============================================
+// DATA LOADING
+// ============================================
+
+async function fetchMonth(year, month) {
+    const key = monthKey(year, month);
+    if (monthCache[key]) return monthCache[key];
+
+    const days = daysInMonth(year, month);
+    const start = `${year}-${String(month).padStart(2, '0')}-01`;
+    const end = `${year}-${String(month).padStart(2, '0')}-${String(days).padStart(2, '0')}`;
+
+    const resp = await fetch(`/api/daily?start=${start}&end=${end}`);
+    const data = await resp.json();
+    monthCache[key] = data;
+
+    // Evict old cache entries if > 6 months cached
+    const keys = Object.keys(monthCache);
+    if (keys.length > 6) {
+        delete monthCache[keys[0]];
+    }
+
+    return data;
+}
+
+async function fetchCalendarYear(year) {
+    if (calendarCache[year]) return calendarCache[year];
+
+    const resp = await fetch(`/api/daily/calendar?year=${year}`);
+    const data = await resp.json();
+    calendarCache[year] = data;
+    return data;
+}
+
+async function fetchNotableDays(year, month) {
+    const resp = await fetch(`/api/daily/notable?year=${year}&month=${month}`);
+    return await resp.json();
+}
+
+function prefetchAdjacentMonth(year, month, direction) {
+    let targetMonth = month + direction;
+    let targetYear = year;
+    if (targetMonth < 1) { targetMonth = 12; targetYear--; }
+    if (targetMonth > 12) { targetMonth = 1; targetYear++; }
+
+    const key = monthKey(targetYear, targetMonth);
+    if (!monthCache[key]) {
+        // Fire and forget
+        fetchMonth(targetYear, targetMonth);
+    }
+}
+
 // ============================================
 // CALENDAR RENDERING
 // ============================================
 
 function formatHabitName(name) {
-    // Convert snake_case to Title Case
     return name.split('_').map(word =>
         word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
@@ -85,9 +162,7 @@ function getHabitValue(habits, name) {
 function renderCalendarCell(day, index) {
     const date = parseLocalDate(day.date);
     const dateNum = date.getDate();
-    const dayName = getDayName(day.date);
 
-    // Check for key habits for the calendar dot display
     const pmSlump = getHabitValue(day.habits, 'afternoon_slump');
     const coffee = getHabitValue(day.habits, 'coffee');
     const beer = getHabitValue(day.habits, 'beer');
@@ -122,55 +197,242 @@ function renderCalendarCell(day, index) {
     `;
 }
 
-async function loadCalendar() {
+async function renderMonth(year, month) {
+    currentYear = year;
+    currentMonth = month;
+
+    // Update header
+    document.getElementById('month-label').textContent =
+        `${MONTH_NAMES[month]} ${year}`;
+
+    const container = document.getElementById('calendar-grid');
+    container.innerHTML = '<p class="loading">Loading...</p>';
+
     try {
-        const resp = await fetch('/api/daily?days=90');
-        dailyData = await resp.json();
+        const data = await fetchMonth(year, month);
+        currentMonthData = data;
 
-        const container = document.getElementById('calendar-grid');
-
-        if (dailyData.length === 0) {
-            container.innerHTML = '<p class="empty-state">No data available yet.</p>';
+        if (data.length === 0) {
+            container.innerHTML = '<p class="empty-state">No data available.</p>';
+            renderNotableDays([]);
             return;
         }
 
-        // dailyData is already oldest-first from API, use directly
-        const sortedData = dailyData;
-
         // Add empty cells for alignment to start on correct day of week
-        const firstDate = parseLocalDate(sortedData[0].date);
-        // getDay() returns 0 for Sunday, we want Monday = 0
+        const firstDate = parseLocalDate(data[0].date);
         let startDay = firstDate.getDay() - 1;
-        if (startDay < 0) startDay = 6; // Sunday becomes 6
+        if (startDay < 0) startDay = 6;
 
         let html = '';
-
-        // Add empty spacer cells
         for (let i = 0; i < startDay; i++) {
             html += '<div class="calendar-cell no-data" style="visibility: hidden;"></div>';
         }
 
-        // Render each day
-        sortedData.forEach((day, index) => {
+        data.forEach((day, index) => {
             html += renderCalendarCell(day, index);
         });
 
         container.innerHTML = html;
 
-        // Auto-select the most recent day with data (search from end since oldest-first)
-        const recentWithData = [...dailyData].reverse().find(d =>
-            d.sleep_score !== null || (d.habits && d.habits.length > 0)
-        );
-        if (recentWithData) {
-            const idx = dailyData.indexOf(recentWithData);
-            selectDay(recentWithData.date, idx);
+        // If selected date is in this month, re-select it
+        if (selectedDate) {
+            const idx = data.findIndex(d => d.date === selectedDate);
+            if (idx >= 0) {
+                selectDay(selectedDate, idx);
+            }
         }
 
+        // Prefetch adjacent month
+        prefetchAdjacentMonth(year, month, -1);
+        prefetchAdjacentMonth(year, month, 1);
+
+        // Load notable days
+        const notable = await fetchNotableDays(year, month);
+        renderNotableDays(notable);
+
     } catch (error) {
-        console.error('Error loading calendar:', error);
-        document.getElementById('calendar-grid').innerHTML =
-            '<p class="error">Failed to load calendar data</p>';
+        console.error('Error loading month:', error);
+        container.innerHTML = '<p class="error">Failed to load calendar data</p>';
     }
+}
+
+// ============================================
+// YEAR HEATMAP
+// ============================================
+
+function getHeatmapColor(sleepScore) {
+    if (sleepScore === null || sleepScore === undefined) return 'var(--bg-tertiary)';
+    if (sleepScore >= 80) return 'var(--color-positive)';
+    if (sleepScore >= 65) return '#4ea85c';
+    if (sleepScore >= 50) return 'var(--color-warning)';
+    return 'var(--color-negative)';
+}
+
+async function renderYearHeatmap(year) {
+    document.getElementById('year-label').textContent = year;
+
+    const container = document.getElementById('year-heatmap');
+    container.innerHTML = '<p class="loading">Loading...</p>';
+
+    try {
+        const data = await fetchCalendarYear(year);
+
+        // Group by week (ISO weeks, starting Monday)
+        let html = '<div class="heatmap-grid">';
+
+        data.forEach(day => {
+            const d = parseLocalDate(day.date);
+            const dayMonth = d.getMonth() + 1;
+            const isCurrentMonth = (dayMonth === currentMonth && d.getFullYear() === currentYear);
+            const currentMonthClass = isCurrentMonth ? 'current-month' : '';
+
+            html += `<div class="heatmap-cell ${currentMonthClass}"
+                          style="background: ${getHeatmapColor(day.sleep_score)}"
+                          title="${formatShortDate(day.date)}: ${day.sleep_score ?? 'No data'}${day.has_slump ? ' (Slump)' : ''}"
+                          onclick="jumpToDate('${day.date}')"></div>`;
+        });
+
+        html += '</div>';
+        container.innerHTML = html;
+
+        // Render month tabs
+        renderMonthTabs(year);
+
+    } catch (error) {
+        console.error('Error loading year heatmap:', error);
+        container.innerHTML = '<p class="error">Failed to load year data</p>';
+    }
+}
+
+function renderMonthTabs(year) {
+    const container = document.getElementById('month-tabs');
+    let html = '';
+
+    for (let m = 1; m <= 12; m++) {
+        const activeClass = (m === currentMonth && year === currentYear) ? 'active' : '';
+        html += `<button class="month-tab ${activeClass}"
+                         onclick="jumpToMonth(${year}, ${m})">${MONTH_SHORT[m]}</button>`;
+    }
+
+    container.innerHTML = html;
+}
+
+// ============================================
+// NOTABLE DAYS
+// ============================================
+
+function renderNotableDays(notable) {
+    const container = document.getElementById('notable-days');
+
+    if (!notable || notable.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    let html = '<h3>Notable Days</h3><ul class="notable-list">';
+
+    notable.forEach(item => {
+        const d = parseLocalDate(item.date);
+        const dayNum = d.getDate();
+        const monthShort = MONTH_SHORT[d.getMonth() + 1];
+
+        html += `<li class="notable-item" onclick="jumpToDate('${item.date}')">
+            <span class="notable-date">${dayNum} ${monthShort}</span>
+            <span class="notable-desc">${item.description}</span>
+        </li>`;
+    });
+
+    html += '</ul>';
+    container.innerHTML = html;
+}
+
+// ============================================
+// NAVIGATION
+// ============================================
+
+function navigateMonth(direction) {
+    let newMonth = currentMonth + direction;
+    let newYear = currentYear;
+
+    if (newMonth < 1) { newMonth = 12; newYear--; }
+    if (newMonth > 12) { newMonth = 1; newYear++; }
+
+    renderMonth(newYear, newMonth);
+
+    // Update heatmap current-month highlight
+    if (newYear !== currentYear) {
+        renderYearHeatmap(newYear);
+    } else {
+        updateHeatmapHighlight();
+        renderMonthTabs(newYear);
+    }
+}
+
+function navigateYear(direction) {
+    const newYear = currentYear + direction;
+    // Don't navigate beyond current year
+    if (newYear > new Date().getFullYear()) return;
+    if (newYear < 2020) return;
+
+    currentYear = newYear;
+    renderYearHeatmap(newYear);
+    renderMonth(newYear, currentMonth);
+}
+
+function jumpToMonth(year, month) {
+    if (year !== currentYear) {
+        currentYear = year;
+        renderYearHeatmap(year);
+    }
+    currentMonth = month;
+    renderMonth(year, month);
+    updateHeatmapHighlight();
+    renderMonthTabs(year);
+}
+
+function jumpToDate(dateStr) {
+    const d = parseLocalDate(dateStr);
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+
+    selectedDate = dateStr;
+    updateHash(dateStr);
+
+    if (year !== currentYear) {
+        currentYear = year;
+        renderYearHeatmap(year);
+    }
+
+    if (month !== currentMonth || year !== currentYear) {
+        currentMonth = month;
+        renderMonth(year, month).then(() => {
+            const idx = currentMonthData.findIndex(d => d.date === dateStr);
+            if (idx >= 0) selectDay(dateStr, idx);
+        });
+        updateHeatmapHighlight();
+        renderMonthTabs(year);
+    } else {
+        const idx = currentMonthData.findIndex(d => d.date === dateStr);
+        if (idx >= 0) selectDay(dateStr, idx);
+    }
+}
+
+function updateHeatmapHighlight() {
+    document.querySelectorAll('.heatmap-cell').forEach(cell => {
+        cell.classList.remove('current-month');
+    });
+
+    // Re-apply highlight based on current month data
+    const calData = calendarCache[currentYear];
+    if (!calData) return;
+
+    const cells = document.querySelectorAll('.heatmap-cell');
+    calData.forEach((day, i) => {
+        const d = parseLocalDate(day.date);
+        if (d.getMonth() + 1 === currentMonth && cells[i]) {
+            cells[i].classList.add('current-month');
+        }
+    });
 }
 
 // ============================================
@@ -180,16 +442,15 @@ async function loadCalendar() {
 function selectDay(dateStr, index) {
     selectedDate = dateStr;
     selectedIndex = index;
+    updateHash(dateStr);
 
     // Update calendar selection
     document.querySelectorAll('.calendar-cell').forEach(cell => {
         cell.classList.remove('selected');
     });
 
-    // Find and select the clicked cell
     const cells = document.querySelectorAll('.calendar-cell');
-    // Account for spacer cells at the start
-    const firstDate = parseLocalDate(dailyData[0].date);
+    const firstDate = parseLocalDate(currentMonthData[0].date);
     let startDay = firstDate.getDay() - 1;
     if (startDay < 0) startDay = 6;
     const cellIndex = index + startDay;
@@ -202,27 +463,78 @@ function selectDay(dateStr, index) {
     const detailSection = document.getElementById('detail-section');
     if (detailSection) detailSection.classList.add('visible');
 
-    // Render detail
-    renderDayDetail(dailyData[index]);
+    renderDayDetail(currentMonthData[index]);
 }
 
 function navigateDay(direction) {
-    const newIndex = selectedIndex + direction; // add because dailyData is oldest-first
-    if (newIndex >= 0 && newIndex < dailyData.length) {
-        selectDay(dailyData[newIndex].date, newIndex);
+    const newIndex = selectedIndex + direction;
+
+    if (newIndex >= 0 && newIndex < currentMonthData.length) {
+        selectDay(currentMonthData[newIndex].date, newIndex);
+    } else if (newIndex < 0) {
+        // Go to previous month's last day
+        navigateMonth(-1);
+        // After month loads, select last day
+        setTimeout(() => {
+            if (currentMonthData.length > 0) {
+                const lastIdx = currentMonthData.length - 1;
+                selectDay(currentMonthData[lastIdx].date, lastIdx);
+            }
+        }, 200);
+    } else {
+        // Go to next month's first day
+        navigateMonth(1);
+        setTimeout(() => {
+            if (currentMonthData.length > 0) {
+                selectDay(currentMonthData[0].date, 0);
+            }
+        }, 200);
     }
 }
 
 // Keyboard navigation
 document.addEventListener('keydown', (e) => {
-    if (selectedIndex === -1) return;
-
     if (e.key === 'ArrowLeft') {
-        navigateDay(-1);
-        e.preventDefault();
+        if (selectedIndex !== -1) {
+            navigateDay(-1);
+            e.preventDefault();
+        }
     } else if (e.key === 'ArrowRight') {
-        navigateDay(1);
+        if (selectedIndex !== -1) {
+            navigateDay(1);
+            e.preventDefault();
+        }
+    } else if (e.key === 'PageUp') {
+        navigateMonth(-1);
         e.preventDefault();
+    } else if (e.key === 'PageDown') {
+        navigateMonth(1);
+        e.preventDefault();
+    }
+});
+
+// ============================================
+// URL HASH STATE
+// ============================================
+
+function updateHash(dateStr) {
+    if (window.location.hash !== '#' + dateStr) {
+        history.pushState(null, '', '#' + dateStr);
+    }
+}
+
+function readHash() {
+    const hash = window.location.hash.slice(1);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(hash)) {
+        return hash;
+    }
+    return null;
+}
+
+window.addEventListener('popstate', () => {
+    const dateStr = readHash();
+    if (dateStr) {
+        jumpToDate(dateStr);
     }
 });
 
@@ -236,7 +548,6 @@ function renderHabitsBanner(day) {
     }
 
     return day.habits.map(habit => {
-        // Special styling for afternoon_slump (outcome metric)
         if (habit.name === 'afternoon_slump') {
             const status = habit.value > 0 ? 'slump' : 'clear';
             const text = habit.value > 0 ? 'Slump' : 'Clear';
@@ -249,7 +560,6 @@ function renderHabitsBanner(day) {
             `;
         }
 
-        // Regular habits
         return `
             <div class="habit-item">
                 <span class="habit-label">${formatHabitName(habit.name)}</span>
@@ -322,7 +632,6 @@ function renderHrvCard(day) {
 }
 
 function renderSpo2Card(day) {
-    // SpO2 scoring: >=95% good, 92-95% warning, <92% bad
     const spo2Class = getScoreClass(day.spo2_overnight_avg, 92, 95);
     const hasDips = day.spo2_dips_below_94 !== null && day.spo2_dips_below_94 > 0;
     const dipsClass = hasDips ? 'warning' : '';
@@ -389,10 +698,8 @@ function renderHeartRateCard(day) {
 }
 
 function renderBodyBatteryCard(day) {
-    // Render body battery samples with their actual times
     const samples = day.bb_samples || [];
 
-    // Build sample rows from actual data
     const sampleRows = samples.map(s => `
                 <div class="metric-row">
                     <span class="metric-label">${s.time}</span>
@@ -503,20 +810,16 @@ function renderActivityCard(day) {
 function renderDayDetail(day) {
     if (!day) return;
 
-    // Update date header
     const detailDate = document.getElementById('detail-date');
     if (detailDate) detailDate.textContent = formatDate(day.date);
 
-    // Update habits banner
     const habitsBanner = document.getElementById('habits-banner');
     if (habitsBanner) habitsBanner.innerHTML = renderHabitsBanner(day);
 
-    // Update metrics grid - force re-render for animations
     const metricsGrid = document.getElementById('metrics-grid');
     if (!metricsGrid) return;
     metricsGrid.innerHTML = '';
 
-    // Small delay to allow CSS animation reset
     requestAnimationFrame(() => {
         metricsGrid.innerHTML = `
             ${renderSleepCard(day)}
@@ -534,4 +837,36 @@ function renderDayDetail(day) {
 // INITIALIZATION
 // ============================================
 
-document.addEventListener('DOMContentLoaded', loadCalendar);
+async function init() {
+    // Check URL hash for a specific date
+    const hashDate = readHash();
+
+    if (hashDate) {
+        const d = parseLocalDate(hashDate);
+        currentYear = d.getFullYear();
+        currentMonth = d.getMonth() + 1;
+        selectedDate = hashDate;
+    }
+
+    // Load year heatmap and month in parallel
+    await Promise.all([
+        renderYearHeatmap(currentYear),
+        renderMonth(currentYear, currentMonth),
+    ]);
+
+    // Auto-select: hash date, or most recent day with data
+    if (hashDate) {
+        const idx = currentMonthData.findIndex(d => d.date === hashDate);
+        if (idx >= 0) selectDay(hashDate, idx);
+    } else if (currentMonthData.length > 0) {
+        const recentWithData = [...currentMonthData].reverse().find(d =>
+            d.sleep_score !== null || (d.habits && d.habits.length > 0)
+        );
+        if (recentWithData) {
+            const idx = currentMonthData.indexOf(recentWithData);
+            selectDay(recentWithData.date, idx);
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', init);
