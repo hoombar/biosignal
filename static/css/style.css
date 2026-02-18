@@ -698,33 +698,40 @@ main > h1 {
     border-radius: var(--radius-md);
     border: 1px solid var(--border-subtle);
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
 }
 
 .habit-sidebar-header {
     display: flex;
     align-items: center;
     gap: var(--space-xs);
+    min-width: 0;
 }
 
 .habit-emoji {
     font-size: 0.875rem;
     line-height: 1;
+    flex-shrink: 0;
 }
 
 .habit-sidebar-label {
     font-size: 0.6875rem;
-    color: var(--text-muted);
+    color: var(--text-secondary);
     font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .habit-sidebar-value {
     font-family: var(--font-mono);
-    font-size: 0.875rem;
+    font-size: 1rem;
     font-weight: 600;
     color: var(--text-primary);
-    padding-left: 0;
+    flex-shrink: 0;
 }
 
 .habit-sidebar-item.clear .habit-sidebar-value { color: var(--habit-pmslump-clear); }
