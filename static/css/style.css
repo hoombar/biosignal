@@ -269,8 +269,8 @@ main > h1 {
 }
 
 .year-heatmap {
-    overflow-x: auto;
-    padding-bottom: var(--space-xs);
+    overflow: visible;
+    padding: var(--space-xs) 0;
 }
 
 .heatmap-grid {
@@ -278,6 +278,7 @@ main > h1 {
     flex-wrap: wrap;
     gap: 2px;
     justify-content: center;
+    overflow: visible;
 }
 
 .heatmap-cell {
@@ -296,8 +297,8 @@ main > h1 {
 }
 
 .heatmap-cell.current-month {
-    border-color: var(--color-neutral);
-    box-shadow: 0 0 3px rgba(68, 136, 255, 0.4);
+    border-color: var(--text-primary);
+    box-shadow: 0 0 3px rgba(240, 240, 245, 0.3);
 }
 
 /* Month tabs */
