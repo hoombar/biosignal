@@ -5,6 +5,14 @@
 {% block content %}
 <h1>Insights</h1>
 
+<div class="habit-selector">
+    <span class="habit-selector-indicator"></span>
+    <span class="habit-selector-label">Analyze habit</span>
+    <select id="target-habit" onchange="loadAll()">
+        <option value="">Loading habits...</option>
+    </select>
+</div>
+
 <div class="chart-container">
     <h2>Key Findings</h2>
     <div id="insights-list">

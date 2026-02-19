@@ -33,18 +33,24 @@ async def get_correlations(
 
 
 @router.get("/patterns", response_model=list[PatternResult])
-async def get_patterns(db: AsyncSession = Depends(get_db)):
+async def get_patterns(
+    target_habit: str = "pm_slump",
+    db: AsyncSession = Depends(get_db),
+):
     """Get pattern detection results with conditional probabilities."""
     settings = get_settings()
-    patterns = await compute_patterns(db, settings.tz)
+    patterns = await compute_patterns(db, settings.tz, target_habit=target_habit)
 
     return [PatternResult(**p) for p in patterns]
 
 
 @router.get("/insights", response_model=list[InsightResult])
-async def get_insights(db: AsyncSession = Depends(get_db)):
+async def get_insights(
+    target_habit: str = "pm_slump",
+    db: AsyncSession = Depends(get_db),
+):
     """Get plain-English insights generated from analysis."""
     settings = get_settings()
-    insights = await generate_insights(db, settings.tz)
+    insights = await generate_insights(db, settings.tz, target_habit=target_habit)
 
     return [InsightResult(**i) for i in insights]

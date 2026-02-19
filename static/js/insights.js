@@ -1,14 +1,43 @@
 // Insights page JavaScript
 
-async function loadInsights() {
+async function loadHabits() {
     try {
-        const resp = await fetch('/api/insights');
+        const resp = await fetch('/api/habits/names');
+        const habitNames = await resp.json();
+
+        const select = document.getElementById('target-habit');
+        if (!habitNames || habitNames.length === 0) {
+            select.innerHTML = '<option value="">No habits found</option>';
+            return;
+        }
+
+        select.innerHTML = habitNames.map(name =>
+            `<option value="${name}"${name === 'pm_slump' ? ' selected' : ''}>${name.replace(/_/g, ' ')}</option>`
+        ).join('');
+
+    } catch (error) {
+        console.error('Error loading habits:', error);
+        document.getElementById('target-habit').innerHTML = '<option value="pm_slump">pm_slump</option>';
+    }
+}
+
+function getTargetHabit() {
+    return document.getElementById('target-habit').value || 'pm_slump';
+}
+
+async function loadInsights() {
+    const targetHabit = getTargetHabit();
+    const container = document.getElementById('insights-list');
+    container.innerHTML = '<p class="loading">Loading insights...</p>';
+
+    try {
+        const resp = await fetch(`/api/insights?target_habit=${encodeURIComponent(targetHabit)}`);
         const insights = await resp.json();
 
-        const container = document.getElementById('insights-list');
-
         if (insights.length === 0) {
-            container.innerHTML = '<p>No insights yet. Need at least 7 days of data with PM slump tracking.</p>';
+            const select = document.getElementById('target-habit');
+            const label = select.options[select.selectedIndex]?.text || targetHabit;
+            container.innerHTML = `<p>No insights yet. Need at least 7 days of <strong>${label}</strong> data.</p>`;
             return;
         }
 
@@ -37,16 +66,18 @@ async function loadInsights() {
 
     } catch (error) {
         console.error('Error loading insights:', error);
-        document.getElementById('insights-list').innerHTML = '<p class="error">Failed to load insights</p>';
+        container.innerHTML = '<p class="error">Failed to load insights</p>';
     }
 }
 
 async function loadPatterns() {
-    try {
-        const resp = await fetch('/api/patterns');
-        const patterns = await resp.json();
+    const targetHabit = getTargetHabit();
+    const container = document.getElementById('patterns-list');
+    container.innerHTML = '<p class="loading">Loading patterns...</p>';
 
-        const container = document.getElementById('patterns-list');
+    try {
+        const resp = await fetch(`/api/patterns?target_habit=${encodeURIComponent(targetHabit)}`);
+        const patterns = await resp.json();
 
         if (patterns.length === 0) {
             container.innerHTML = '<p>No patterns detected yet.</p>';
@@ -56,7 +87,7 @@ async function loadPatterns() {
         container.innerHTML = '<table style="width: 100%; border-collapse: collapse;">' +
             '<thead><tr>' +
             '<th style="text-align: left; padding: 0.5rem;">Condition</th>' +
-            '<th style="text-align: right; padding: 0.5rem;">Fog Probability</th>' +
+            '<th style="text-align: right; padding: 0.5rem;">Probability</th>' +
             '<th style="text-align: right; padding: 0.5rem;">Baseline</th>' +
             '<th style="text-align: right; padding: 0.5rem;">Relative Risk</th>' +
             '<th style="text-align: right; padding: 0.5rem;">Sample Size</th>' +
@@ -76,7 +107,7 @@ async function loadPatterns() {
 
     } catch (error) {
         console.error('Error loading patterns:', error);
-        document.getElementById('patterns-list').innerHTML = '<p class="error">Failed to load patterns</p>';
+        container.innerHTML = '<p class="error">Failed to load patterns</p>';
     }
 }
 
@@ -84,8 +115,12 @@ function exportData(format, days) {
     window.location.href = `/api/export?format=${format}&days=${days}`;
 }
 
+async function loadAll() {
+    await Promise.all([loadInsights(), loadPatterns()]);
+}
+
 // Load on page load
-document.addEventListener('DOMContentLoaded', () => {
-    loadInsights();
-    loadPatterns();
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadHabits();
+    await loadAll();
 });

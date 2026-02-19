@@ -173,10 +173,16 @@ async def compute_correlations(
 
 async def compute_patterns(
     session: AsyncSession,
-    timezone: str = "Europe/London"
+    timezone: str = "Europe/London",
+    target_habit: str = "pm_slump",
 ) -> list[dict]:
     """
     Detect specific patterns using conditional probabilities.
+
+    Args:
+        session: Database session
+        timezone: Timezone string
+        target_habit: The habit name to use as the outcome variable
 
     Returns:
         List of pattern results with probabilities and relative risk.
@@ -187,127 +193,87 @@ async def compute_patterns(
 
     features_list = await compute_features_range(session, start_date, end_date, timezone)
 
-    # Filter to days with pm_slump data
-    fog_data = [f for f in features_list if f.get("pm_slump") is not None]
+    # Filter to days with target habit data
+    fog_data = [f for f in features_list if _get_habit_value(f, target_habit) is not None]
 
     if len(fog_data) < 7:
         return []
 
-    # Calculate baseline fog probability
-    fog_count = sum(1 for f in fog_data if f.get("pm_slump") is True)
+    # Calculate baseline probability (target habit == 1)
+    fog_count = sum(1 for f in fog_data if _get_habit_value(f, target_habit) == 1.0)
     baseline_prob = fog_count / len(fog_data)
 
     patterns = []
 
-    # Pattern: Sleep < 7 hours
-    sleep_low = [f for f in fog_data if f.get("sleep_hours") is not None and f["sleep_hours"] < 7]
-    if len(sleep_low) >= 5:
-        fog_in_pattern = sum(1 for f in sleep_low if f.get("pm_slump") is True)
-        prob = fog_in_pattern / len(sleep_low)
+    def _add_pattern(subset: list[dict], description: str) -> None:
+        if len(subset) < 5:
+            return
+        fog_in_pattern = sum(1 for f in subset if _get_habit_value(f, target_habit) == 1.0)
+        prob = fog_in_pattern / len(subset)
         rel_risk = prob / baseline_prob if baseline_prob > 0 else 0
-
         patterns.append({
-            "description": "Sleep less than 7 hours",
+            "description": description,
             "probability": float(prob),
             "baseline_probability": float(baseline_prob),
             "relative_risk": float(rel_risk),
-            "sample_size": len(sleep_low),
+            "sample_size": len(subset),
         })
+
+    # Pattern: Sleep < 7 hours
+    _add_pattern(
+        [f for f in fog_data if f.get("sleep_hours") is not None and f["sleep_hours"] < 7],
+        "Sleep less than 7 hours",
+    )
 
     # Pattern: Beer count > 2
-    beer_high = [f for f in fog_data if f.get("beer_count") is not None and f["beer_count"] > 2]
-    if len(beer_high) >= 5:
-        fog_in_pattern = sum(1 for f in beer_high if f.get("pm_slump") is True)
-        prob = fog_in_pattern / len(beer_high)
-        rel_risk = prob / baseline_prob if baseline_prob > 0 else 0
-
-        patterns.append({
-            "description": "More than 2 alcoholic drinks previous evening",
-            "probability": float(prob),
-            "baseline_probability": float(baseline_prob),
-            "relative_risk": float(rel_risk),
-            "sample_size": len(beer_high),
-        })
+    _add_pattern(
+        [f for f in fog_data if _get_habit_value(f, "beer_count") is not None and _get_habit_value(f, "beer_count") > 2],
+        "More than 2 alcoholic drinks previous evening",
+    )
 
     # Pattern: Coffee > 3
-    coffee_high = [f for f in fog_data if f.get("coffee_count") is not None and f["coffee_count"] > 3]
-    if len(coffee_high) >= 5:
-        fog_in_pattern = sum(1 for f in coffee_high if f.get("pm_slump") is True)
-        prob = fog_in_pattern / len(coffee_high)
-        rel_risk = prob / baseline_prob if baseline_prob > 0 else 0
-
-        patterns.append({
-            "description": "More than 3 coffees",
-            "probability": float(prob),
-            "baseline_probability": float(baseline_prob),
-            "relative_risk": float(rel_risk),
-            "sample_size": len(coffee_high),
-        })
+    _add_pattern(
+        [f for f in fog_data if _get_habit_value(f, "coffee_count") is not None and _get_habit_value(f, "coffee_count") > 3],
+        "More than 3 coffees",
+    )
 
     # Pattern: Carb-heavy lunch
-    carb_heavy = [f for f in fog_data if f.get("carb_heavy_lunch") is True]
-    if len(carb_heavy) >= 5:
-        fog_in_pattern = sum(1 for f in carb_heavy if f.get("pm_slump") is True)
-        prob = fog_in_pattern / len(carb_heavy)
-        rel_risk = prob / baseline_prob if baseline_prob > 0 else 0
-
-        patterns.append({
-            "description": "Carb-heavy lunch",
-            "probability": float(prob),
-            "baseline_probability": float(baseline_prob),
-            "relative_risk": float(rel_risk),
-            "sample_size": len(carb_heavy),
-        })
-
-    # Pattern: Body battery at 9am < 50
-    bb_low = [f for f in fog_data if f.get("bb_9am") is not None and f["bb_9am"] < 50]
-    if len(bb_low) >= 5:
-        fog_in_pattern = sum(1 for f in bb_low if f.get("pm_slump") is True)
-        prob = fog_in_pattern / len(bb_low)
-        rel_risk = prob / baseline_prob if baseline_prob > 0 else 0
-
-        patterns.append({
-            "description": "Body Battery below 50 at 9am",
-            "probability": float(prob),
-            "baseline_probability": float(baseline_prob),
-            "relative_risk": float(rel_risk),
-            "sample_size": len(bb_low),
-        })
+    _add_pattern(
+        [f for f in fog_data if _get_habit_value(f, "carb_heavy_lunch") == 1.0],
+        "Carb-heavy lunch",
+    )
 
     # Pattern: Had training (inverse - does training REDUCE fog?)
-    had_training = [f for f in fog_data if f.get("had_training") is True]
-    if len(had_training) >= 5:
-        fog_in_pattern = sum(1 for f in had_training if f.get("pm_slump") is True)
-        prob = fog_in_pattern / len(had_training)
-        rel_risk = prob / baseline_prob if baseline_prob > 0 else 0
-
-        patterns.append({
-            "description": "Training day (previous day or same day)",
-            "probability": float(prob),
-            "baseline_probability": float(baseline_prob),
-            "relative_risk": float(rel_risk),
-            "sample_size": len(had_training),
-        })
+    _add_pattern(
+        [f for f in fog_data if f.get("had_training") is True],
+        "Training day (previous day or same day)",
+    )
 
     # Sort by relative risk (descending)
     patterns.sort(key=lambda x: x["relative_risk"], reverse=True)
 
-    logger.info(f"Identified {len(patterns)} patterns")
+    logger.info(f"Identified {len(patterns)} patterns against {target_habit}")
     return patterns
 
 
 async def generate_insights(
     session: AsyncSession,
-    timezone: str = "Europe/London"
+    timezone: str = "Europe/London",
+    target_habit: str = "pm_slump",
 ) -> list[dict]:
     """
     Generate plain-English insights from correlations and patterns.
 
+    Args:
+        session: Database session
+        timezone: Timezone string
+        target_habit: The habit name to analyze as the outcome variable
+
     Returns:
         List of insights with confidence ratings.
     """
-    correlations = await compute_correlations(session, timezone)
-    patterns = await compute_patterns(session, timezone)
+    correlations = await compute_correlations(session, timezone, target_habit=target_habit)
+    patterns = await compute_patterns(session, timezone, target_habit=target_habit)
 
     insights = []
 

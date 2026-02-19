@@ -39,7 +39,10 @@ function updateChart() {
     const datasets = [];
 
     if (showFog) {
-        const fogValues = trendsData.map(d => d.pm_slump === true ? 1 : d.pm_slump === false ? 0 : null);
+        const fogValues = trendsData.map(d => {
+            const h = d.habits?.find(h => h.name === 'pm_slump');
+            return h != null ? (h.value === 1 || h.value === true ? 1 : 0) : null;
+        });
         const fogRolling = calculateRollingAverage(fogValues);
 
         datasets.push({
@@ -47,7 +50,7 @@ function updateChart() {
             data: fogRolling,
             borderColor: 'rgb(220, 38, 38)',
             backgroundColor: 'rgba(220, 38, 38, 0.1)',
-            yAxisID: 'y-percent',
+            yAxisID: 'y-score',
         });
     }
 
@@ -83,8 +86,8 @@ function updateChart() {
 
     if (showBb) {
         datasets.push({
-            label: 'Body Battery at 2pm',
-            data: trendsData.map(d => d.bb_2pm),
+            label: 'Body Battery (daily min)',
+            data: trendsData.map(d => d.bb_daily_min),
             borderColor: 'rgb(234, 88, 12)',
             backgroundColor: 'rgba(234, 88, 12, 0.1)',
             yAxisID: 'y-score',
@@ -107,21 +110,12 @@ function updateChart() {
                 intersect: false,
             },
             scales: {
-                'y-percent': {
-                    type: 'linear',
-                    display: showFog,
-                    position: 'left',
-                    min: 0,
-                    max: 1,
-                    title: { display: true, text: 'PM Slump Probability' }
-                },
                 'y-score': {
                     type: 'linear',
-                    display: showSleep || showBb,
-                    position: 'right',
+                    display: showFog || showSleep || showBb,
+                    position: 'left',
                     min: 0,
                     max: 100,
-                    grid: { drawOnChartArea: false },
                     title: { display: true, text: 'Score (0-100)' }
                 },
                 'y-hrv': {
