@@ -275,6 +275,7 @@ async def generate_insights(
     correlations = await compute_correlations(session, timezone, target_habit=target_habit)
     patterns = await compute_patterns(session, timezone, target_habit=target_habit)
 
+    habit_label = target_habit.replace("_", " ")
     insights = []
 
     # Insights from patterns (high confidence if relative risk is significant)
@@ -287,9 +288,8 @@ async def generate_insights(
         baseline = pattern["baseline_probability"]
 
         if rel_risk > 1.5 and prob > 0.5:
-            # Increases fog risk
             text = (
-                f"You're {rel_risk:.1f}x more likely to experience brain fog "
+                f"You're {rel_risk:.1f}x more likely to have {habit_label} "
                 f"when {pattern['description'].lower()}. "
                 f"({prob*100:.0f}% vs {baseline*100:.0f}% baseline)"
             )
@@ -303,10 +303,9 @@ async def generate_insights(
             })
 
         elif rel_risk < 0.7 and prob < baseline:
-            # Reduces fog risk
             text = (
                 f"Days with {pattern['description'].lower()} show "
-                f"{(1-rel_risk)*100:.0f}% less brain fog. "
+                f"{(1-rel_risk)*100:.0f}% less {habit_label}. "
                 f"({prob*100:.0f}% vs {baseline*100:.0f}% baseline)"
             )
             confidence = "high" if pattern["sample_size"] >= 10 else "medium"
@@ -323,12 +322,11 @@ async def generate_insights(
         if abs(corr["coefficient"]) < 0.3:
             continue
 
-        direction = "higher" if corr["coefficient"] > 0 else "lower"
         metric_name = corr["metric"].replace("_", " ")
 
         text = (
             f"{metric_name.capitalize()} is associated with "
-            f"{'more' if corr['coefficient'] > 0 else 'fewer'} fog days "
+            f"{'more' if corr['coefficient'] > 0 else 'fewer'} {habit_label} days "
             f"(r={corr['coefficient']:.2f})"
         )
 
