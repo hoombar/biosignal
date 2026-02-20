@@ -62,11 +62,9 @@ function assignColor(key) {
 
 // ─── Default active metrics ───────────────────────────────────────────────────
 function activateDefaults() {
-    // Check pm_slump first
     if (habitNames.includes('pm_slump')) {
         enableMetric('habit:pm_slump');
     }
-    // Then sleep_score
     if (trendsData.some(d => d.sleep_score != null)) {
         enableMetric('sleep_score');
     }
@@ -82,8 +80,24 @@ function enableMetric(key) {
 
 // ─── ID helpers ───────────────────────────────────────────────────────────────
 function keyToId(key) {
-    // Convert metric key to a safe DOM id fragment
     return key.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+// ─── Habit range detection ────────────────────────────────────────────────────
+// HabitSync stores all habits with type="counter" regardless of whether they are
+// binary (pm_slump: 0/1) or a real count (beer: 0-5). We can't use habit.type to
+// distinguish them. Instead, inspect the actual data: if every non-null value is
+// 0 or 1 the habit is binary; if any value exceeds 1 it's a count metric.
+function isHabitBinary(habitName) {
+    const values = trendsData
+        .map(d => (d.habits || []).find(h => h.name === habitName))
+        .filter(h => h != null)
+        .map(h => {
+            const n = Number(h.value);
+            return isNaN(n) ? null : n;
+        })
+        .filter(v => v !== null);
+    return values.length > 0 && values.every(v => v === 0 || v === 1);
 }
 
 // ─── Habit selector (top bar) ─────────────────────────────────────────────────
@@ -115,7 +129,6 @@ async function onCorrelateHabitChange() {
             return;
         }
 
-        // Filter: |r| > 0.1, exclude the target habit itself, take top 8
         const targetKey = `habit_${target}`;
         const filtered = correlations
             .filter(c => Math.abs(c.coefficient) > 0.1 && c.metric !== targetKey && c.metric !== target)
@@ -137,7 +150,6 @@ function renderSuggestions(correlations) {
     }
 
     content.innerHTML = correlations.map(c => {
-        // Map correlation metric name to our picker key scheme
         const key = c.metric.startsWith('habit_') ? `habit:${c.metric.slice(6)}` : c.metric;
         const isAdded = activeMetrics.has(key);
         const r = c.coefficient;
@@ -169,7 +181,6 @@ function renderSuggestions(correlations) {
 }
 
 function addSuggestion(key) {
-    // Open the relevant accordion section
     let catId;
     if (key.startsWith('habit:')) {
         catId = 'Habits';
@@ -184,14 +195,12 @@ function addSuggestion(key) {
         }
     }
 
-    // Check the checkbox and activate the metric
     const cb = document.getElementById('cb-' + keyToId(key));
     if (cb && !cb.checked) {
         cb.checked = true;
         onMetricToggle(key, true);
     }
 
-    // Update the suggestion card appearance
     const card = document.getElementById('sug-' + keyToId(key));
     if (card) {
         card.classList.add('added');
@@ -208,17 +217,15 @@ function buildMetricPicker() {
     const container = document.getElementById('metric-accordion');
     container.innerHTML = '';
 
-    // Group metadata keys by category, skipping non-chartable text fields
     const categories = {};
     for (const [key, meta] of Object.entries(metricMetadata)) {
         const unit = meta.unit || '';
-        if (unit === 'text' || unit === 'low/medium/high') continue;  // skip text/categorical fields
+        if (unit === 'text' || unit === 'low/medium/high') continue;
         const cat = meta.category || 'Other';
         if (!categories[cat]) categories[cat] = [];
         categories[cat].push({ key, ...meta });
     }
 
-    // Add Habits category from live habit names
     if (habitNames.length > 0) {
         categories['Habits'] = habitNames.map(name => ({
             key: `habit:${name}`,
@@ -254,7 +261,6 @@ function buildMetricPicker() {
         container.appendChild(section);
     }
 
-    // Refresh swatches for any already-active metrics
     for (const key of activeMetrics) {
         refreshSwatch(key);
         const cb = document.getElementById('cb-' + keyToId(key));
@@ -288,8 +294,7 @@ function toggleAccordion(catId) {
 function refreshSwatch(key) {
     const el = document.getElementById('swatch-' + keyToId(key));
     if (!el) return;
-    const color = metricColors[key];
-    el.style.background = color || 'var(--border-strong)';
+    el.style.background = metricColors[key] || 'var(--border-strong)';
 }
 
 // ─── Metric toggle ────────────────────────────────────────────────────────────
@@ -328,27 +333,26 @@ function getMetricValues(key) {
     });
 }
 
-function isBinaryValues(values) {
-    const nonNull = values.filter(v => v !== null);
-    return nonNull.length > 0 && nonNull.every(v => v === 0 || v === 1);
-}
-
-function getAxisForKey(key, values) {
+// Axis assignment.
+// Axes: y-score (0–100), y-hrv (bpm/ms), y-count (steps/min/large counts),
+//       y-binary (0–1 stepped, "No/Yes"), y-numeric (auto-scaled small counts).
+function getAxisForKey(key) {
     if (key.startsWith('habit:')) {
-        // Binary boolean habits → score axis (scaled 0–100); numeric counts → count axis
-        return isBinaryValues(values) ? 'y-score' : 'y-count';
+        // Use actual data values to distinguish binary (0/1) from count (0-N) habits,
+        // since HabitSync stores all habits as type="counter" regardless of range.
+        return isHabitBinary(key.slice(6)) ? 'y-binary' : 'y-numeric';
     }
     const meta = metricMetadata[key];
     const unit = meta ? meta.unit : '';
-    if (unit === '0-100' || unit === '%' || unit === 'boolean') return 'y-score';
+    if (unit === 'boolean') return 'y-binary';
+    if (unit === '0-100' || unit === '%') return 'y-score';
     if (['ms', 'ms/reading', 'bpm', 'bpm/min'].includes(unit)) return 'y-hrv';
     return 'y-count';
 }
 
 function getMetricLabel(key) {
     if (key.startsWith('habit:')) {
-        const name = key.slice(6).replace(/_/g, ' ');
-        return name + ' (7d avg)';
+        return key.slice(6).replace(/_/g, ' ');
     }
     const meta = metricMetadata[key];
     return meta ? meta.description : key.replace(/_/g, ' ');
@@ -387,41 +391,72 @@ function updateChart() {
     let showScore = false;
     let showHrv = false;
     let showCount = false;
+    let showBinary = false;
+    let showNumeric = false;
 
     for (const key of activeMetrics) {
         const rawValues = getMetricValues(key);
-        const binary = isBinaryValues(rawValues);
-        const axis = getAxisForKey(key, rawValues);
+        const axis = getAxisForKey(key);
         const color = metricColors[key] || '#888888';
+        const bgColor = hexToRgba(color, 0.1);
+        const label = getMetricLabel(key);
 
-        // Apply rolling average for binary metrics when the toggle is on
-        let displayValues = rawValues;
-        if (useRolling && binary) {
-            displayValues = calculateRollingAverage(rawValues);
+        if (axis === 'y-binary') {
+            // Stepped raw line — clearly shows yes/no per day, alternating patterns visible
+            datasets.push({
+                label,
+                data: rawValues,
+                borderColor: color,
+                backgroundColor: bgColor,
+                yAxisID: 'y-binary',
+                stepped: 'before',
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                borderWidth: 1.5,
+                spanGaps: false,
+                tension: 0,
+            });
+
+            // Optional dotted frequency overlay (0–1) when toggle is on
+            if (useRolling) {
+                const rolled = calculateRollingAverage(rawValues);
+                datasets.push({
+                    label: label + ' (7d)',
+                    data: rolled,
+                    borderColor: color,
+                    backgroundColor: 'transparent',
+                    yAxisID: 'y-binary',
+                    tension: 0.4,
+                    pointRadius: 0,
+                    pointHoverRadius: 3,
+                    borderWidth: 1,
+                    borderDash: [4, 3],
+                    spanGaps: true,
+                });
+            }
+
+            showBinary = true;
+
+        } else {
+            // Smooth line for all non-binary metrics (score, hrv, count, numeric habits)
+            datasets.push({
+                label,
+                data: rawValues,
+                borderColor: color,
+                backgroundColor: bgColor,
+                yAxisID: axis,
+                tension: 0.3,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                borderWidth: 1.5,
+                spanGaps: true,
+            });
+
+            if (axis === 'y-score') showScore = true;
+            else if (axis === 'y-hrv') showHrv = true;
+            else if (axis === 'y-count') showCount = true;
+            else if (axis === 'y-numeric') showNumeric = true;
         }
-
-        // Scale 0/1 binary metrics to 0–100 for the score axis
-        let chartValues = displayValues;
-        if (axis === 'y-score' && binary) {
-            chartValues = displayValues.map(v => v !== null ? v * 100 : null);
-        }
-
-        datasets.push({
-            label: getMetricLabel(key),
-            data: chartValues,
-            borderColor: color,
-            backgroundColor: hexToRgba(color, 0.1),
-            yAxisID: axis,
-            tension: 0.3,
-            pointRadius: 0,
-            pointHoverRadius: 4,
-            borderWidth: 1.5,
-            spanGaps: true,
-        });
-
-        if (axis === 'y-score') showScore = true;
-        else if (axis === 'y-hrv') showHrv = true;
-        else showCount = true;
     }
 
     if (chart) chart.destroy();
@@ -494,6 +529,43 @@ function updateChart() {
                         font: { size: 10 },
                     },
                     ticks: { color: '#555566', font: { size: 10 } },
+                    grid: { drawOnChartArea: false },
+                },
+                'y-binary': {
+                    type: 'linear',
+                    display: showBinary,
+                    position: 'right',
+                    min: -0.15,
+                    max: 1.2,
+                    title: {
+                        display: true,
+                        text: 'Yes / No',
+                        color: '#8888a0',
+                        font: { size: 10 },
+                    },
+                    ticks: {
+                        color: '#555566',
+                        font: { size: 10 },
+                        stepSize: 1,
+                        callback: v => v === 0 ? 'No' : v === 1 ? 'Yes' : null,
+                    },
+                    grid: { drawOnChartArea: false },
+                },
+                'y-numeric': {
+                    type: 'linear',
+                    display: showNumeric,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Habit value',
+                        color: '#8888a0',
+                        font: { size: 10 },
+                    },
+                    ticks: {
+                        color: '#555566',
+                        font: { size: 10 },
+                        precision: 0,
+                    },
                     grid: { drawOnChartArea: false },
                 },
             },
