@@ -5,27 +5,241 @@
 {% block content %}
 <h1>Trends</h1>
 
-<div class="chart-container">
-    <h2>Metrics Over Time</h2>
-    <div style="margin-bottom: 1rem;">
-        <label>
-            <input type="checkbox" id="check-fog" checked onchange="updateChart()"> PM Slump (7-day avg)
-        </label>
-        <label style="margin-left: 1rem;">
-            <input type="checkbox" id="check-sleep" onchange="updateChart()"> Sleep Score
-        </label>
-        <label style="margin-left: 1rem;">
-            <input type="checkbox" id="check-hrv" onchange="updateChart()"> HRV
-        </label>
-        <label style="margin-left: 1rem;">
-            <input type="checkbox" id="check-spo2" onchange="updateChart()"> SpO2
-        </label>
-        <label style="margin-left: 1rem;">
-            <input type="checkbox" id="check-bb" onchange="updateChart()"> Body Battery (daily min)
-        </label>
-    </div>
-    <canvas id="trends-chart"></canvas>
+<!-- Top control bar: correlate with habit selector -->
+<div class="habit-selector">
+    <span class="habit-selector-label">Correlate with</span>
+    <select id="correlate-habit" onchange="onCorrelateHabitChange()">
+        <option value="">-- Select habit --</option>
+    </select>
+    <div class="habit-selector-indicator"></div>
 </div>
+
+<!-- Two-column layout: chart+picker left, suggestions right -->
+<div class="trends-layout">
+
+    <!-- Left column: chart + metric picker -->
+    <div class="trends-left">
+        <div class="chart-container">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                <h2 style="margin-bottom: 0;">Metrics Over Time</h2>
+                <label style="font-size: 0.8125rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" id="rolling-avg-toggle" checked onchange="updateChart()">
+                    7-day rolling avg (habits &amp; binary)
+                </label>
+            </div>
+            <canvas id="trends-chart" style="height: 420px;"></canvas>
+        </div>
+
+        <!-- Metric picker accordion -->
+        <div class="chart-container" style="padding: 1rem 1.5rem;">
+            <h2 style="margin-bottom: 0.75rem;">Select Metrics</h2>
+            <div id="metric-accordion">
+                <p class="loading">Loading metrics…</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right column: correlation suggestions -->
+    <div class="trends-right">
+        <div class="chart-container" style="position: sticky; top: 1.5rem;">
+            <h2 style="margin-bottom: 0.25rem;">Suggested Metrics</h2>
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">
+                Top correlates with selected habit
+            </p>
+            <div id="suggestions-content">
+                <p style="color: var(--text-muted); font-size: 0.875rem;">
+                    Select a habit above to see suggestions.
+                </p>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<style>
+.trends-layout {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+@media (max-width: 1100px) {
+    .trends-layout {
+        grid-template-columns: 1fr;
+    }
+    .trends-right .chart-container {
+        position: static !important;
+    }
+}
+
+/* Accordion */
+.accordion-section {
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    margin-bottom: 0.375rem;
+    overflow: hidden;
+}
+
+.accordion-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    background: var(--bg-tertiary);
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    transition: background var(--transition-fast);
+    border: none;
+    width: 100%;
+    text-align: left;
+}
+
+.accordion-header:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.cat-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.accordion-chevron {
+    margin-left: auto;
+    font-size: 0.5rem;
+    transition: transform var(--transition-fast);
+}
+
+.accordion-section.open .accordion-chevron {
+    transform: rotate(90deg);
+}
+
+.accordion-body {
+    display: none;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    padding: 0.5rem 0.625rem;
+    background: var(--bg-secondary);
+}
+
+.accordion-section.open .accordion-body {
+    display: flex;
+}
+
+.metric-checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+    white-space: nowrap;
+}
+
+.metric-checkbox-label:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.metric-color-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    background: var(--border-strong);
+}
+
+/* Suggestion cards */
+.suggestion-card {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.625rem;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
+    margin-bottom: 0.375rem;
+    transition: border-color var(--transition-fast);
+}
+
+.suggestion-card:hover {
+    border-color: var(--border-strong);
+}
+
+.suggestion-card.added {
+    border-color: var(--color-positive);
+    opacity: 0.7;
+}
+
+.suggestion-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.suggestion-name {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.suggestion-bar-wrap {
+    height: 3px;
+    background: var(--bg-hover);
+    border-radius: 2px;
+    margin-top: 0.25rem;
+    overflow: hidden;
+}
+
+.suggestion-bar {
+    height: 100%;
+    border-radius: 2px;
+}
+
+.suggestion-r {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.suggestion-add-btn {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    padding: 0.125rem 0.375rem;
+    font-size: 0.6875rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all var(--transition-fast);
+}
+
+.suggestion-add-btn:hover:not(:disabled) {
+    border-color: var(--color-positive);
+    color: var(--color-positive);
+    transform: none;
+    opacity: 1;
+}
+
+.suggestion-add-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+    transform: none;
+}
+</style>
 
 <script src="/static/js/trends.js"></script>
 {% endblock %}

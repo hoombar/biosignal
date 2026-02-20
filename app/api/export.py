@@ -40,13 +40,10 @@ FEATURE_METADATA = {
     "hr_afternoon_avg": {"description": "Average HR 12pm-6pm", "unit": "bpm", "category": "Heart Rate"},
     "hr_2pm_window": {"description": "Average HR 1pm-4pm", "unit": "bpm", "category": "Heart Rate"},
     "hr_max_24h": {"description": "Maximum HR in 24h", "unit": "bpm", "category": "Heart Rate"},
+    "hr_recovery_slope": {"description": "HR recovery rate after training", "unit": "bpm/min", "category": "Heart Rate"},
 
     # Body Battery features
     "bb_wakeup": {"description": "Body Battery at wake time", "unit": "0-100", "category": "Body Battery"},
-    "bb_9am": {"description": "Body Battery at 9am", "unit": "0-100", "category": "Body Battery"},
-    "bb_12pm": {"description": "Body Battery at 12pm", "unit": "0-100", "category": "Body Battery"},
-    "bb_2pm": {"description": "Body Battery at 2pm", "unit": "0-100", "category": "Body Battery"},
-    "bb_6pm": {"description": "Body Battery at 6pm", "unit": "0-100", "category": "Body Battery"},
     "bb_morning_drain_rate": {"description": "BB change per hour 6am-12pm", "unit": "points/hour", "category": "Body Battery"},
     "bb_afternoon_drain_rate": {"description": "BB change per hour 12pm-6pm", "unit": "points/hour", "category": "Body Battery"},
     "bb_daily_min": {"description": "Minimum BB of the day", "unit": "0-100", "category": "Body Battery"},
@@ -61,6 +58,7 @@ FEATURE_METADATA = {
     # Activity features
     "steps_total": {"description": "Total daily steps", "unit": "steps", "category": "Activity"},
     "steps_morning": {"description": "Steps before 12pm", "unit": "steps", "category": "Activity"},
+    "active_minutes": {"description": "Minutes of moderate+ activity", "unit": "minutes", "category": "Activity"},
     "had_training": {"description": "Training session occurred", "unit": "boolean", "category": "Activity"},
     "training_type": {"description": "Type of training", "unit": "text", "category": "Activity"},
     "training_duration_min": {"description": "Training duration", "unit": "minutes", "category": "Activity"},
