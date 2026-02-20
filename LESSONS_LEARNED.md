@@ -256,6 +256,68 @@ feature_names = list(all_features)
 
 ---
 
+---
+
+### Lesson: Check What the Integration Actually Produces Before Designing Around It
+
+**Context**: Building habit axis assignment in the Trends chart based on `habit.type` field.
+
+**Mistake Pattern**:
+- Designed the binary vs numeric axis split using `habit.type === 'boolean'` / `'numeric'`
+- Wrote two tests that passed — they verified the API passes `habit.type` through correctly
+- But both tests used synthetic DB data with manually set types: `habit_type="boolean"` and `habit_type="numeric"`
+- The real HabitSync sync code (habitsync.py) was sitting there the whole time, always writing `habit_type="counter"` for every habit regardless of binary vs count nature
+- Feature was broken for all real data; tests gave false confidence
+
+**Epistemological Failure**:
+- Checked that the API *passes through* the field (correct) but not what *values* the field takes in real data
+- Synthetic test data matched the assumption, not the reality
+- Did not read the integration code (habitsync.py) before designing around a field it populates
+- A 30-second read of the sync service would have revealed the issue before any code was written
+
+**Better Approach**:
+1. Before designing a feature around a data field, read the code that *populates* that field
+2. Ask: "what values does this field actually take in production?" not just "does this field exist?"
+3. When writing integration contract tests, seed data that mirrors real integration output, not idealized values
+4. Real integration output > API documentation > reasonable assumption
+
+**Applies To**:
+- Any feature dependent on enum/type fields populated by an external sync
+- Any test that seeds "boolean"/"numeric" where the real source uses a different vocabulary
+- Reading database contents to verify assumptions before building on top of them
+
+---
+
+### Lesson: Companion Artifacts Drift From Their Source of Truth — Test the Relationship
+
+**Context**: `FEATURE_METADATA` in `export.py` contained four fields (`bb_9am`, `bb_12pm`, `bb_2pm`, `bb_6pm`) that didn't exist in `DailySummary`, plus two `DailySummary` fields (`active_minutes`, `hr_recovery_slope`) absent from the metadata.
+
+**Mistake Pattern**:
+- `FEATURE_METADATA` is a dict that describes the fields of `DailySummary`
+- Over multiple development sessions, `DailySummary` gained new fields and lost others
+- `FEATURE_METADATA` was updated inconsistently — phantom fields remained, real fields were never added
+- In the UI, phantom fields would silently return all-null data with no error
+- No automated check existed to detect the divergence; the mismatch was invisible
+
+**Epistemological Failure**:
+- Treated two related artifacts (metadata dict + Pydantic model) as independent — neither was the "authority"
+- Relied on manual discipline ("remember to update both") instead of a machine-verifiable contract
+- Phantom fields fail silently: no exception, no warning, just empty chart lines
+
+**Better Approach**:
+1. Any time you have a "companion artifact" that describes another artifact (metadata dict, README, migration file, OpenAPI schema, config), write a test that asserts their relationship
+2. The test becomes the contract: it fails loudly the moment they diverge
+3. For this project: `test_feature_metadata_fields_exist_in_daily_summary` is the guard
+4. Silent failures (returning null instead of erroring) are the hardest to notice — automated checks are the only reliable defence
+
+**Applies To**:
+- Metadata/documentation dicts that describe a data schema
+- CSV/JSON column lists that must match a model
+- Config files that reference code identifiers (route names, field names, event types)
+- Any pair of artifacts where one describes the other and manual synchronisation is assumed
+
+---
+
 ## Meta-Pattern: The Verification Cascade
 
 These four lessons follow a pattern - each failure could have been caught earlier with proper verification:
