@@ -38,7 +38,7 @@ nano .env
 docker compose up -d
 ```
 
-The dashboard will be available at `http://localhost:8000`
+The dashboard will be available at `http://localhost:8234`
 
 ### 3. Initial Sync
 
@@ -51,6 +51,9 @@ All configuration is done via environment variables in `.env`:
 ```bash
 # Docker host storage path (set per machine; keep in untracked .env)
 BIOSIGNAL_DATA_DIR=./data
+
+# Docker image tag to deploy (use immutable tag in production)
+BIOSIGNAL_IMAGE_TAG=latest
 
 # Garmin credentials
 GARMIN_EMAIL=your@email.com
@@ -98,6 +101,10 @@ The system automatically discovers and imports any habits you create.
 - `GET /api/correlations` - Correlation coefficients
 - `GET /api/patterns` - Pattern detection results
 - `GET /api/insights` - Plain-English insights
+
+### Runtime
+- `GET /api/health` - Service health with app `version` and DB `db_revision`
+- `GET /api/config` - Runtime config (non-secret) with `app_version` and `db_revision`
 
 ### Export
 - `GET /api/export?format=csv&days=N` - Export computed features
@@ -157,7 +164,7 @@ The system automatically discovers and imports any habits you create.
 - **Database**: SQLite (file-based, easy backup)
 - **Location**: `./data/energy_tracker.db`
 - **Size**: ~15-20 MB per year
-- **Tables**: 13 tables (raw data, time-series, daily summaries, sync logs)
+- **Tables**: 14 tables (raw data, time-series, daily summaries, sync logs, UI settings)
 
 ### Backup
 
@@ -203,7 +210,7 @@ SQLite doesn't handle high concurrency well. The app uses write locks. If you se
 # Install dependencies
 pip install -e .
 
-# Run migrations
+# Run migrations (migration-only schema management)
 alembic upgrade head
 
 # Start dev server
@@ -221,6 +228,24 @@ pytest tests/ -v
 ```bash
 alembic revision --autogenerate -m "description"
 alembic upgrade head
+./scripts/check_migrations.sh
+```
+
+`./scripts/check_migrations.sh` verifies that a clean database upgraded to `head` has no model drift (`alembic check`).
+
+### Production Deploy (Pinned Image Tag)
+
+Use an immutable image tag (for example a Git SHA) in `.env`:
+
+```bash
+BIOSIGNAL_IMAGE_TAG=<git-sha-tag>
+```
+
+Then redeploy:
+
+```bash
+docker compose pull
+docker compose up -d
 ```
 
 ## Computed Features
