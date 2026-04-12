@@ -10,7 +10,11 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from garminconnect import Garmin, GarminConnectAuthenticationError
+from garminconnect import (
+    Garmin,
+    GarminConnectAuthenticationError,
+    GarminConnectTooManyRequestsError,
+)
 
 from app.core.config import get_settings
 
@@ -114,6 +118,11 @@ async def initiate_login():
 
     try:
         client, result = await asyncio.to_thread(_login)
+    except GarminConnectTooManyRequestsError as e:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit reached: {e}",
+        )
     except GarminConnectAuthenticationError as e:
         raise HTTPException(status_code=401, detail=f"Authentication failed: {e}")
     except Exception as e:
