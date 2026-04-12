@@ -1,3 +1,5 @@
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import declarative_base
 from typing import AsyncGenerator
@@ -34,7 +36,12 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
-async def init_db() -> None:
-    """Initialize database - create all tables."""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+async def get_alembic_revision() -> str | None:
+    """Return the current Alembic schema revision, if available."""
+    try:
+        async with engine.connect() as conn:
+            result = await conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1"))
+            row = result.first()
+            return row[0] if row else None
+    except SQLAlchemyError:
+        return None

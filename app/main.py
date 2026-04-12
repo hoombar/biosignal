@@ -5,8 +5,8 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
 from jinja2 import Environment, FileSystemLoader
 
-from app.core.database import init_db
 from app.api import config, sync, raw, daily, analysis, export, garmin_auth, settings
+from app.core.version import APP_VERSION
 from app.services.scheduler import start_scheduler, stop_scheduler
 
 
@@ -14,7 +14,6 @@ from app.services.scheduler import start_scheduler, stop_scheduler
 async def lifespan(app: FastAPI):
     """Application lifespan - startup and shutdown events."""
     # Startup
-    await init_db()
     start_scheduler()
     yield
     # Shutdown
@@ -25,7 +24,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Energy Correlation Tracker",
     description="Correlates Garmin biometric data with lifestyle habits",
-    version="0.1.0",
+    version=APP_VERSION,
     lifespan=lifespan,
 )
 
