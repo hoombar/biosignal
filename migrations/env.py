@@ -1,4 +1,6 @@
+import importlib
 from logging.config import fileConfig
+import pkgutil
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
@@ -8,7 +10,11 @@ from alembic import context
 # Import models and settings
 from app.core.database import Base
 from app.core.config import get_settings
-import app.models.database  # Ensure all models are loaded
+import app.models
+
+# Ensure every module under app.models is imported so Base.metadata is complete.
+for module in pkgutil.iter_modules(app.models.__path__):
+    importlib.import_module(f"{app.models.__name__}.{module.name}")
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
