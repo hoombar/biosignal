@@ -49,6 +49,9 @@ Navigate to the Overview page and click "Run Manual Sync" to perform the first d
 All configuration is done via environment variables in `.env`:
 
 ```bash
+# Docker host storage path (set per machine; keep in untracked .env)
+BIOSIGNAL_DATA_DIR=./data
+
 # Garmin credentials
 GARMIN_EMAIL=your@email.com
 GARMIN_PASSWORD=your_password

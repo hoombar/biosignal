@@ -17,7 +17,8 @@ services:
       - SYNC_HOUR=${SYNC_HOUR:-6}
       - DEBUG=${DEBUG:-false}
     volumes:
-      - /volume1/docker/biosignal/data:/data
+      # Host path for persistent database + Garmin tokens (set in .env)
+      - ${BIOSIGNAL_DATA_DIR:-./data}:/data
     ports:
       - "8234:8000"
     restart: unless-stopped
