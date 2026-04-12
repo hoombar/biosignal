@@ -1,14 +1,20 @@
 """HabitSync API client."""
 
 import logging
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Optional
 import httpx
 import re
+from zoneinfo import ZoneInfo
 
 from app.models.database import DailyHabit
 
 logger = logging.getLogger(__name__)
+
+
+def _today_in_timezone(timezone: str) -> date:
+    """Return today's date in the provided timezone."""
+    return datetime.now(ZoneInfo(timezone)).date()
 
 
 def _normalize_habit_name(name: str) -> str:
@@ -100,7 +106,7 @@ class HabitSyncClient:
 
         Args:
             habit_uuid: UUID of the habit
-            offset: Days from today (0=today, 1=yesterday, etc.)
+            offset: Relative day offset (0=today, -1=yesterday, +1=tomorrow)
             timezone: Timezone string (e.g., "Europe/London")
         """
         try:
@@ -130,12 +136,11 @@ class HabitSyncClient:
         Returns:
             Dict mapping normalized habit names to their values.
         """
-        from datetime import date as date_class
-
         # Calculate epoch day for target date (days since 1970-01-01)
-        epoch_day = (target_date - date_class(1970, 1, 1)).days
-        # Calculate offset (negative for past dates, e.g., -6 for 6 days ago)
-        offset = (target_date - date_class.today()).days
+        epoch_day = (target_date - date(1970, 1, 1)).days
+        today_in_tz = _today_in_timezone(timezone)
+        # Offset must align to HabitSync's target timezone semantics.
+        offset = (target_date - today_in_tz).days
 
         logger.info(f"Fetching HabitSync data for {target_date} (epochDay={epoch_day}, offset={offset})")
 

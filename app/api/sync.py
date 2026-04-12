@@ -8,6 +8,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
+from zoneinfo import ZoneInfo
 
 from app.core.database import get_db, async_session_maker
 from app.core.config import get_settings
@@ -77,6 +78,12 @@ class _BackfillState:
 
 
 _backfill_state = _BackfillState()
+
+
+def _today_in_app_timezone() -> date:
+    """Return today's date in the configured application timezone."""
+    settings = get_settings()
+    return datetime.now(ZoneInfo(settings.tz)).date()
 
 
 async def _get_sync_service() -> SyncService:
@@ -162,7 +169,7 @@ async def sync_garmin(
     db: AsyncSession = Depends(get_db)
 ):
     """Trigger manual Garmin sync."""
-    target_date = date.fromisoformat(date_param) if date_param else date.today()
+    target_date = date.fromisoformat(date_param) if date_param else _today_in_app_timezone()
 
     background_tasks.add_task(
         _run_sync_in_background,
@@ -184,7 +191,7 @@ async def sync_habitsync(
     db: AsyncSession = Depends(get_db)
 ):
     """Trigger manual HabitSync sync."""
-    target_date = date.fromisoformat(date_param) if date_param else date.today()
+    target_date = date.fromisoformat(date_param) if date_param else _today_in_app_timezone()
 
     background_tasks.add_task(
         _run_sync_in_background,
@@ -206,7 +213,7 @@ async def sync_all(
     db: AsyncSession = Depends(get_db)
 ):
     """Trigger full sync (both Garmin and HabitSync)."""
-    target_date = date.fromisoformat(date_param) if date_param else date.today()
+    target_date = date.fromisoformat(date_param) if date_param else _today_in_app_timezone()
 
     background_tasks.add_task(
         _run_sync_in_background,
@@ -377,8 +384,10 @@ async def sync_backfill(
             detail="A backfill is already running. Check /api/sync/backfill/status for progress.",
         )
 
+    today = _today_in_app_timezone()
+
     if request.days is not None:
-        end_date = date.today() - timedelta(days=1)
+        end_date = today - timedelta(days=1)
         start_date = end_date - timedelta(days=request.days - 1)
     elif request.start_date is not None and request.end_date is not None:
         start_date = request.start_date
@@ -391,7 +400,7 @@ async def sync_backfill(
 
     if start_date > end_date:
         raise HTTPException(status_code=422, detail="start_date must be before or equal to end_date")
-    if end_date > date.today():
+    if end_date > today:
         raise HTTPException(status_code=422, detail="end_date cannot be in the future")
 
     total_days = (end_date - start_date).days + 1

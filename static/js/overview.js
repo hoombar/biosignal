@@ -163,6 +163,13 @@ async function triggerSync() {
 
 let backfillPollInterval = null;
 
+function formatLocalDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 async function startBackfill() {
     const dateInput = document.getElementById('backfill-date');
     const startDate = dateInput.value;
@@ -189,7 +196,7 @@ async function startBackfill() {
         return;
     }
 
-    const endDate = yesterday.toISOString().split('T')[0];
+    const endDate = formatLocalDate(yesterday);
 
     const btn = document.getElementById('backfill-btn');
     btn.disabled = true;
@@ -335,9 +342,9 @@ function initBackfillDatePicker() {
     const maxPast = new Date(today);
     maxPast.setDate(maxPast.getDate() - 365);
 
-    dateInput.max = yesterday.toISOString().split('T')[0];
-    dateInput.min = maxPast.toISOString().split('T')[0];
-    dateInput.value = default90DaysAgo.toISOString().split('T')[0];
+    dateInput.max = formatLocalDate(yesterday);
+    dateInput.min = formatLocalDate(maxPast);
+    dateInput.value = formatLocalDate(default90DaysAgo);
 }
 
 // Load on page load
