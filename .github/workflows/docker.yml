@@ -3,9 +3,31 @@ name: Build and push Docker image
 on:
   push:
     branches: [main]
+  pull_request:
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Validate Alembic migrations
+        run: ./scripts/check_migrations.sh
+
+      - name: Run tests
+        run: pytest tests/ -v
+
   build:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: validate
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -24,4 +46,8 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository }}:latest
+          build-args: |
+            APP_VERSION=${{ github.sha }}
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
