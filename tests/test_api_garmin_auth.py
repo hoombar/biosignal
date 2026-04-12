@@ -74,6 +74,25 @@ class TestGarminAuthLogin:
         assert resp.status_code == 401
         assert "Authentication failed" in resp.json()["detail"]
 
+    def test_login_returns_429_when_auth_error_contains_rate_limit(self, tmp_path):
+        app = _make_test_app()
+        settings = _mock_settings(tmp_path)
+
+        with patch("app.api.garmin_auth.get_settings", return_value=settings):
+            with patch("app.api.garmin_auth.Garmin") as mock_garmin:
+                mock_client = MagicMock()
+                mock_client.login.side_effect = GarminConnectAuthenticationError(
+                    "Authentication failed: Login failed (429 Rate Limit). Try again later."
+                )
+                mock_garmin.return_value = mock_client
+
+                with TestClient(app) as client:
+                    resp = client.post("/api/garmin/auth/login")
+
+        assert resp.status_code == 429
+        assert "Rate limit reached" in resp.json()["detail"]
+        assert "429" in resp.json()["detail"]
+
     def test_login_returns_500_for_unexpected_errors(self, tmp_path):
         app = _make_test_app()
         settings = _mock_settings(tmp_path)
@@ -89,3 +108,29 @@ class TestGarminAuthLogin:
 
         assert resp.status_code == 500
         assert resp.json()["detail"] == "Login failed: boom"
+
+
+class TestGarminAuthStatus:
+
+    def test_status_validates_tokens_without_credential_fallback(self, tmp_path):
+        app = _make_test_app()
+        settings = _mock_settings(tmp_path)
+
+        token_dir = tmp_path / ".garmin_tokens"
+        token_dir.mkdir()
+        (token_dir / "oauth1_token.json").write_text("{}", encoding="utf-8")
+        (token_dir / "oauth2_token.json").write_text("{}", encoding="utf-8")
+
+        with patch("app.api.garmin_auth.get_settings", return_value=settings):
+            with patch("app.api.garmin_auth.Garmin") as mock_garmin:
+                mock_client = MagicMock()
+                mock_client.login.return_value = (None, None)
+                mock_garmin.return_value = mock_client
+
+                with TestClient(app) as client:
+                    resp = client.get("/api/garmin/auth/status")
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "valid"
+        mock_garmin.assert_called_once_with("", "")
+        mock_client.login.assert_called_once_with(settings.garmin_token_dir)

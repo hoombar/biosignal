@@ -82,7 +82,9 @@ async def auth_status():
         )
 
     def _validate():
-        client = Garmin(settings.garmin_email, settings.garmin_password)
+        # Validate stored tokens only. Do not fall back to credential login here,
+        # otherwise periodic status checks can trigger repeated login attempts.
+        client = Garmin("", "")
         client.login(token_dir)
 
     try:
@@ -124,6 +126,12 @@ async def initiate_login():
             detail=f"Rate limit reached: {e}",
         )
     except GarminConnectAuthenticationError as e:
+        error_text = str(e).lower()
+        if "429" in error_text or "rate limit" in error_text:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Rate limit reached: {e}",
+            )
         raise HTTPException(status_code=401, detail=f"Authentication failed: {e}")
     except Exception as e:
         logger.error(f"Login initiation failed: {e}")
