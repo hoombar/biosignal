@@ -101,19 +101,43 @@ class TestSyncPostEndpoints:
             resp = client.post("/api/sync/all?date_param=2025-01-28")
         assert resp.status_code == 200
 
+    @pytest.mark.asyncio
+    async def test_post_all_defaults_to_app_timezone_today(self, async_session):
+        app = _make_test_app(async_session)
+        with patch("app.api.sync._today_in_app_timezone", return_value=date(2026, 4, 12)):
+            with TestClient(app) as client:
+                resp = client.post("/api/sync/all")
+
+        assert resp.status_code == 200
+        assert resp.json()["date"] == "2026-04-12"
+
 
 class TestSyncBackfill:
 
     @pytest.mark.asyncio
     async def test_backfill_with_days_parameter(self, async_session):
         app = _make_test_app(async_session)
-        with TestClient(app) as client:
-            resp = client.post("/api/sync/backfill", json={"days": 7})
+        with patch("app.api.sync._run_backfill_in_background", new_callable=AsyncMock):
+            with TestClient(app) as client:
+                resp = client.post("/api/sync/backfill", json={"days": 7})
         assert resp.status_code == 200
         data = resp.json()
         assert data["total_days"] == 7
         assert "start_date" in data
         assert "end_date" in data
+
+    @pytest.mark.asyncio
+    async def test_backfill_days_ends_at_yesterday_in_app_timezone(self, async_session):
+        app = _make_test_app(async_session)
+        with patch("app.api.sync._today_in_app_timezone", return_value=date(2026, 4, 12)):
+            with patch("app.api.sync._run_backfill_in_background", new_callable=AsyncMock):
+                with TestClient(app) as client:
+                    resp = client.post("/api/sync/backfill", json={"days": 1})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["start_date"] == "2026-04-11"
+        assert data["end_date"] == "2026-04-11"
 
     @pytest.mark.asyncio
     async def test_backfill_validates_days_range(self, async_session):

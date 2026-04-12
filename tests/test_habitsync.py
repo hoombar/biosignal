@@ -191,6 +191,24 @@ class TestHabitSyncClientFallback:
                 assert offset < 0, f"Offset should be negative for past date, got {offset}"
 
     @pytest.mark.asyncio
+    async def test_offset_uses_target_timezone_today(self):
+        """Offset calculation should use app timezone day, not host-local day."""
+        client = HabitSyncClient(base_url="http://test", api_key="test-key")
+        target_date = date(2026, 4, 11)
+        habits_without_records = [{"uuid": "habit-1", "name": "Coffee", "records": []}]
+
+        with patch("app.services.habitsync._today_in_timezone", return_value=date(2026, 4, 12)):
+            with patch.object(client, "get_habits", new_callable=AsyncMock) as mock_get_habits:
+                with patch.object(client, "get_habit_record", new_callable=AsyncMock) as mock_get_record:
+                    mock_get_habits.return_value = habits_without_records
+                    mock_get_record.return_value = {"recordValue": 2.0, "completion": "COMPLETED"}
+
+                    await client.fetch_all_for_date(target_date, "Europe/London")
+
+                    call_args = mock_get_record.call_args
+                    assert call_args[0][1] == -1
+
+    @pytest.mark.asyncio
     async def test_returns_empty_when_no_record_found(self):
         """Should return empty dict when neither embedded nor API has record."""
         client = HabitSyncClient(base_url="http://test", api_key="test-key")
