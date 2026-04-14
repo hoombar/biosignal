@@ -1,3 +1,10 @@
-# Claude Instructions
+# Claude Agent Entry
 
-Canonical project agent instructions live in [AGENTS.md](./AGENTS.md).
+Primary instructions are in [AGENTS.md](./AGENTS.md).
+
+Critical non-negotiables:
+- tests first for behavior changes
+- Alembic-only schema evolution
+- explicit verification evidence
+- commit often with meaningful, scoped messages
+- split unrelated changes into separate commits
