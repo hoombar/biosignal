@@ -22,10 +22,22 @@
         <div class="chart-container">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
                 <h2 style="margin-bottom: 0;">Metrics Over Time</h2>
-                <label style="font-size: 0.8125rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                    <input type="checkbox" id="rolling-avg-toggle" checked onchange="updateChart()">
-                    Show frequency overlay (binary habits)
-                </label>
+                <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; justify-content: flex-end;">
+                    <label style="font-size: 0.8125rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.5rem;">
+                        Range
+                        <select id="trends-range" onchange="onRangeChange()">
+                            <option value="7">7d</option>
+                            <option value="14" selected>14d</option>
+                            <option value="30">30d</option>
+                            <option value="60">60d</option>
+                            <option value="90">90d</option>
+                        </select>
+                    </label>
+                    <label style="font-size: 0.8125rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="rolling-avg-toggle" checked onchange="updateChart()">
+                        Show frequency overlay (binary habits)
+                    </label>
+                </div>
             </div>
             <canvas id="trends-chart" style="height: 420px;"></canvas>
         </div>

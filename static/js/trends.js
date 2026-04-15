@@ -8,6 +8,10 @@ let activeMetrics = new Set();
 let metricColors = {};     // key → hex color (persistent per key)
 let chart = null;
 let paletteIndex = 0;
+let selectedRangeDays = 14;
+
+const ALLOWED_RANGE_DAYS = new Set([7, 14, 30, 60, 90]);
+const DEFAULT_RANGE_DAYS = 14;
 
 const PALETTE = [
     '#4488ff', '#dc2626', '#16a34a', '#f59e0b',
@@ -31,23 +35,59 @@ const CATEGORY_ORDER = ['Sleep', 'HRV', 'SpO2', 'Heart Rate', 'Body Battery', 'S
 // ─── Initialization ───────────────────────────────────────────────────────────
 async function init() {
     try {
-        const [dailyResp, metaResp, habitsResp] = await Promise.all([
-            fetch('/api/daily?days=90'),
+        const [metaResp, habitsResp] = await Promise.all([
             fetch('/api/export/metadata'),
             fetch('/api/habits/names'),
         ]);
 
-        trendsData = await dailyResp.json();
         const metaData = await metaResp.json();
         metricMetadata = metaData.features || {};
         habitNames = await habitsResp.json();
 
         buildHabitSelector();
-        buildMetricPicker();
-        activateDefaults();
-        updateChart();
+        buildRangeSelector();
+        await reloadRange(selectedRangeDays);
     } catch (err) {
         console.error('Failed to initialise trends:', err);
+    }
+}
+
+function buildRangeSelector() {
+    const select = document.getElementById('trends-range');
+    if (!select) return;
+    select.value = String(selectedRangeDays);
+}
+
+async function fetchDailySummariesForRange(days) {
+    const safeDays = ALLOWED_RANGE_DAYS.has(days) ? days : DEFAULT_RANGE_DAYS;
+    const resp = await fetch(`/api/daily?days=${safeDays}`);
+    if (!resp.ok) {
+        throw new Error(`Failed to fetch daily summaries (${resp.status})`);
+    }
+    selectedRangeDays = safeDays;
+    trendsData = await resp.json();
+}
+
+async function reloadRange(days) {
+    await fetchDailySummariesForRange(days);
+    buildMetricPicker();
+    if (activeMetrics.size === 0) {
+        activateDefaults();
+    }
+    updateChart();
+}
+
+async function onRangeChange() {
+    const select = document.getElementById('trends-range');
+    const nextDays = Number(select ? select.value : DEFAULT_RANGE_DAYS);
+
+    try {
+        await reloadRange(nextDays);
+        if (document.getElementById('correlate-habit').value) {
+            onCorrelateHabitChange();
+        }
+    } catch (err) {
+        console.error('Failed to reload trends range:', err);
     }
 }
 

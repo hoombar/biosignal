@@ -8,7 +8,7 @@ Tests:
 """
 
 import pytest
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -105,6 +105,30 @@ class TestDailyDateRange:
         data = resp.json()
         assert len(data) == 1
         assert data[0]["date"] == "2025-01-28"
+
+    @pytest.mark.asyncio
+    async def test_days_param_returns_exact_window(self, async_session):
+        """days=N should return exactly N rows spanning today-(N-1) to today."""
+        # Seed extra data outside the requested window to ensure range clipping works.
+        today = date.today()
+        for i in range(25):
+            d = today - timedelta(days=i)
+            async_session.add(SleepSession(
+                date=d,
+                total_sleep_seconds=7 * 3600,
+                sleep_score=70 + (i % 10),
+            ))
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get("/api/daily", params={"days": 14})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 14
+        assert data[0]["date"] == (today - timedelta(days=13)).isoformat()
+        assert data[-1]["date"] == today.isoformat()
 
     @pytest.mark.asyncio
     async def test_results_are_oldest_first(self, async_session):
