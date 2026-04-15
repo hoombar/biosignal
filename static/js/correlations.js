@@ -104,6 +104,13 @@ function buildMetricTargetOptions() {
 
 async function loadTargetSelector() {
     try {
+        // Fetch metadata here as well so the selector is independent of legend-load timing.
+        if (Object.keys(metricMetadata).length === 0) {
+            const metadataResp = await fetch('/api/export/metadata');
+            const metadataBody = await metadataResp.json();
+            metricMetadata = metadataBody.features || {};
+        }
+
         const habitsResp = await fetch('/api/habits/names');
         const habitNames = await habitsResp.json();
 
@@ -115,19 +122,18 @@ async function loadTargetSelector() {
             .map(name => `habit:${name}`);
 
         let html = '<option value="">-- Select a target --</option>';
+
         if (metricTargets.length > 0) {
-            html += '<optgroup label="Metrics">' +
-                metricTargets.map(key =>
-                    `<option value="${key}">${formatTargetOptionLabel(key)}</option>`
-                ).join('') +
-                '</optgroup>';
+            html += '<option value="" disabled>──────── Metrics ────────</option>';
+            html += metricTargets.map(key =>
+                `<option value="${key}">Metric: ${formatTargetOptionLabel(key)}</option>`
+            ).join('');
         }
         if (habitTargets.length > 0) {
-            html += '<optgroup label="Habits">' +
-                habitTargets.map(key =>
-                    `<option value="${key}">${formatTargetOptionLabel(key)}</option>`
-                ).join('') +
-                '</optgroup>';
+            html += '<option value="" disabled>──────── Habits ────────</option>';
+            html += habitTargets.map(key =>
+                `<option value="${key}">Habit: ${formatTargetOptionLabel(key)}</option>`
+            ).join('');
         }
 
         select.innerHTML = html;
