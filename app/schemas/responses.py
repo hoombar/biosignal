@@ -151,6 +151,9 @@ class CorrelationResult(BaseModel):
     fog_day_avg: float | None = None
     clear_day_avg: float | None = None
     difference_pct: float | None = None
+    target_is_binary: bool | None = None
+    positive_label: str | None = None
+    negative_label: str | None = None
 
 
 class PatternResult(BaseModel):

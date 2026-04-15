@@ -164,6 +164,31 @@ class TestComputeCorrelations:
         sleep_corr = next((r for r in result if r["metric"] == "sleep_hours"), None)
         assert sleep_corr is not None, "sleep_hours should be found from days 1-9 even if day 0 has no data"
 
+    @pytest.mark.asyncio
+    async def test_supports_top_level_metric_as_target(self, async_session):
+        """Correlations should support non-habit targets like sleep_hours."""
+        # Create a pattern: low sleep -> slump, high sleep -> clear day
+        for i in range(10):
+            if i % 2 == 0:
+                await _seed_day(async_session, i, sleep_hours=5.5, slump=True)
+            else:
+                await _seed_day(async_session, i, sleep_hours=8.5, slump=False)
+        await async_session.commit()
+
+        result = await compute_correlations(async_session, target="sleep_hours", min_days=5)
+
+        assert len(result) > 0
+        assert result[0]["target_is_binary"] is False
+        assert result[0]["positive_label"] == "Higher target"
+        assert result[0]["negative_label"] == "Lower target"
+        # Must not self-correlate the chosen target
+        assert all(r["metric"] != "sleep_hours" for r in result)
+
+        # Habit should be represented as a correlate against sleep_hours
+        slump_corr = next((r for r in result if r["metric"] == "habit_pm_slump"), None)
+        assert slump_corr is not None
+        assert slump_corr["coefficient"] < 0, "More sleep should correlate with fewer slump events"
+
 
 class TestComputePatterns:
 

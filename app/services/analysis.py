@@ -43,9 +43,40 @@ def _flatten_habits(features: dict, exclude_habit: str | None = None) -> dict:
     return result
 
 
+def _parse_correlation_target(
+    target: str | None,
+    target_habit: str | None,
+) -> tuple[str, str]:
+    """Resolve target selector into kind+name.
+
+    Returns:
+        ("habit", "<habit_name>") for habit targets
+        ("metric", "<metric_key>") for top-level numeric metric targets
+    """
+    if target:
+        target = target.strip()
+        if target.startswith("habit:"):
+            return "habit", target[6:]
+        return "metric", target
+
+    if target_habit:
+        return "habit", target_habit
+
+    # Backward-compatible default for internal callers.
+    return "habit", "pm_slump"
+
+
+def _get_target_value(features: dict, target_kind: str, target_name: str) -> float | None:
+    """Extract target value from either habits list or top-level metric field."""
+    if target_kind == "habit":
+        return _get_habit_value(features, target_name)
+    return _to_numeric(features.get(target_name))
+
+
 async def compute_correlations(
     session: AsyncSession,
     timezone: str = "Europe/London",
+    target: str | None = None,
     target_habit: str = "pm_slump",
     min_days: int = 5
 ) -> list[dict]:
@@ -55,12 +86,16 @@ async def compute_correlations(
     Args:
         session: Database session
         timezone: Timezone string
-        target_habit: The habit name to correlate against
+        target: Generic target selector. Use "habit:<name>" for habits or a
+            top-level DailySummary metric key (for example "steps_total").
+        target_habit: Legacy habit target parameter (backwards compatible)
         min_days: Minimum number of days required for analysis
 
     Returns:
         List of correlation results, sorted by |r| descending.
     """
+    target_kind, target_name = _parse_correlation_target(target, target_habit)
+
     # Get all available data
     end_date = date.today()
     start_date = end_date - timedelta(days=365)  # Look back 1 year max
@@ -68,18 +103,33 @@ async def compute_correlations(
     features_list = await compute_features_range(session, start_date, end_date, timezone)
 
     # Filter to days with target habit data
-    target_data = [f for f in features_list if _get_habit_value(f, target_habit) is not None]
+    target_data = [
+        (f, _get_target_value(f, target_kind, target_name))
+        for f in features_list
+    ]
+    target_data = [(f, v) for f, v in target_data if v is not None]
 
     if len(target_data) < min_days:
         logger.warning(f"Insufficient data: {len(target_data)} days (need {min_days})")
         return []
 
     # Extract target habit values
-    target_values = [_get_habit_value(f, target_habit) for f in target_data]
+    target_features = [f for f, _ in target_data]
+    target_values = [v for _, v in target_data]
+    target_is_binary = all(v in (0.0, 1.0) for v in target_values)
 
     # Separate positive and negative days for mean comparisons
-    positive_days = [f for f in target_data if _get_habit_value(f, target_habit) == 1.0]
-    negative_days = [f for f in target_data if _get_habit_value(f, target_habit) == 0.0]
+    if target_is_binary:
+        positive_days = [f for f, v in target_data if v == 1.0]
+        negative_days = [f for f, v in target_data if v == 0.0]
+        positive_label = "Positive target"
+        negative_label = "Negative target"
+    else:
+        split = float(np.median(target_values))
+        positive_days = [f for f, v in target_data if v >= split]
+        negative_days = [f for f, v in target_data if v < split]
+        positive_label = "Higher target"
+        negative_label = "Lower target"
 
     results = []
 
@@ -87,23 +137,29 @@ async def compute_correlations(
     # Collect feature names from ALL days to handle sparse data
     all_feature_names = set()
     all_habit_names = set()
-    for f in target_data:
+    for f in target_features:
         for k in f.keys():
             if k not in ["date", "habits"]:
                 all_feature_names.add(k)
         for h in f.get("habits", []):
-            if h["name"] != target_habit:
+            if not (target_kind == "habit" and h["name"] == target_name):
                 all_habit_names.add(f"habit_{h['name']}")
 
     feature_names = list(all_feature_names) + list(all_habit_names)
 
     for feature_name in feature_names:
+        # Skip self-correlation against the selected target.
+        if target_kind == "metric" and feature_name == target_name:
+            continue
+        if target_kind == "habit" and feature_name == f"habit_{target_name}":
+            continue
+
         # Extract feature values - check if it's a habit or regular feature
         if feature_name.startswith("habit_"):
             habit_name = feature_name[6:]  # Remove "habit_" prefix
-            feature_values = [_get_habit_value(f, habit_name) for f in target_data]
+            feature_values = [_get_habit_value(f, habit_name) for f in target_features]
         else:
-            feature_values = [_to_numeric(f.get(feature_name)) for f in target_data]
+            feature_values = [_to_numeric(f.get(feature_name)) for f in target_features]
 
         # Filter out None values
         valid_pairs = [(t, f) for t, f in zip(target_values, feature_values) if t is not None and f is not None]
@@ -162,12 +218,16 @@ async def compute_correlations(
             "fog_day_avg": float(pos_avg) if pos_avg is not None else None,
             "clear_day_avg": float(neg_avg) if neg_avg is not None else None,
             "difference_pct": float(diff_pct) if diff_pct is not None else None,
+            "target_is_binary": target_is_binary,
+            "positive_label": positive_label,
+            "negative_label": negative_label,
         })
 
     # Sort by absolute correlation coefficient
     results.sort(key=lambda x: abs(x["coefficient"]), reverse=True)
 
-    logger.info(f"Computed correlations for {len(results)} features against {target_habit}")
+    target_label = f"habit:{target_name}" if target_kind == "habit" else target_name
+    logger.info(f"Computed correlations for {len(results)} features against {target_label}")
     return results
 
 

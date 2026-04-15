@@ -1,8 +1,29 @@
 // Correlations page JavaScript
 
-const STORAGE_KEY = 'biosignal_target_habit';
+const TARGET_STORAGE_KEY = 'biosignal_correlation_target';
+const LEGACY_HABIT_STORAGE_KEY = 'biosignal_target_habit';
+
 let correlationChart = null;
 let metricMetadata = {};
+
+function isNumericTargetMeta(meta) {
+    const unit = (meta && meta.unit) || '';
+    return unit !== 'text' && unit !== 'low/medium/high';
+}
+
+function formatMetricName(metricName) {
+    if (metricName.startsWith('habit_')) {
+        return metricName.slice(6).replace(/_/g, ' ');
+    }
+    return metricName.replace(/_/g, ' ');
+}
+
+function formatTargetOptionLabel(value) {
+    if (value.startsWith('habit:')) {
+        return value.slice(6).replace(/_/g, ' ');
+    }
+    return value.replace(/_/g, ' ');
+}
 
 async function loadMetricMetadata() {
     try {
@@ -19,7 +40,6 @@ function renderLegend() {
     const container = document.getElementById('legend-content');
     if (!container || Object.keys(metricMetadata).length === 0) return;
 
-    // Group metrics by category
     const categories = {};
     for (const [key, meta] of Object.entries(metricMetadata)) {
         const cat = meta.category || 'Other';
@@ -27,7 +47,6 @@ function renderLegend() {
         categories[cat].push({ key, ...meta });
     }
 
-    // Render grouped tables
     let html = '';
     for (const [category, metrics] of Object.entries(categories)) {
         html += `<div class="legend-category">
@@ -62,7 +81,6 @@ function toggleLegend() {
 }
 
 function getMetricTooltip(metricName) {
-    // Handle habit_ prefix
     const lookupKey = metricName.startsWith('habit_') ? metricName.slice(6) : metricName;
     const meta = metricMetadata[lookupKey];
     if (meta) {
@@ -71,67 +89,104 @@ function getMetricTooltip(metricName) {
     return '';
 }
 
-async function loadHabitSelector() {
+function buildMetricTargetOptions() {
+    const metricEntries = Object.entries(metricMetadata)
+        .filter(([, meta]) => meta.category !== 'Habits' && isNumericTargetMeta(meta))
+        .sort((a, b) => {
+            const catA = a[1].category || '';
+            const catB = b[1].category || '';
+            if (catA !== catB) return catA.localeCompare(catB);
+            return a[0].localeCompare(b[0]);
+        });
+
+    return metricEntries.map(([key]) => key);
+}
+
+async function loadTargetSelector() {
     try {
-        const resp = await fetch('/api/habits/names');
-        const habitNames = await resp.json();
+        const habitsResp = await fetch('/api/habits/names');
+        const habitNames = await habitsResp.json();
 
         const select = document.getElementById('target-habit');
-        const savedHabit = localStorage.getItem(STORAGE_KEY);
+        const metricTargets = buildMetricTargetOptions();
+        const habitTargets = habitNames
+            .slice()
+            .sort((a, b) => a.localeCompare(b))
+            .map(name => `habit:${name}`);
 
-        select.innerHTML = '<option value="">-- Select a habit --</option>' +
-            habitNames.map(name =>
-                `<option value="${name}" ${name === savedHabit ? 'selected' : ''}>${name.replace(/_/g, ' ')}</option>`
-            ).join('');
+        let html = '<option value="">-- Select a target --</option>';
+        if (metricTargets.length > 0) {
+            html += '<optgroup label="Metrics">' +
+                metricTargets.map(key =>
+                    `<option value="${key}">${formatTargetOptionLabel(key)}</option>`
+                ).join('') +
+                '</optgroup>';
+        }
+        if (habitTargets.length > 0) {
+            html += '<optgroup label="Habits">' +
+                habitTargets.map(key =>
+                    `<option value="${key}">${formatTargetOptionLabel(key)}</option>`
+                ).join('') +
+                '</optgroup>';
+        }
 
-        // Load correlations if a habit was previously selected
-        if (savedHabit && habitNames.includes(savedHabit)) {
+        select.innerHTML = html;
+
+        let savedTarget = localStorage.getItem(TARGET_STORAGE_KEY);
+        if (!savedTarget) {
+            const legacyHabit = localStorage.getItem(LEGACY_HABIT_STORAGE_KEY);
+            if (legacyHabit) {
+                savedTarget = `habit:${legacyHabit}`;
+            }
+        }
+
+        const validValues = new Set([...metricTargets, ...habitTargets]);
+        if (savedTarget && validValues.has(savedTarget)) {
+            select.value = savedTarget;
             loadCorrelations();
         }
     } catch (error) {
-        console.error('Error loading habit names:', error);
-        document.getElementById('target-habit').innerHTML = '<option value="">Failed to load habits</option>';
+        console.error('Error loading correlation targets:', error);
+        document.getElementById('target-habit').innerHTML = '<option value="">Failed to load targets</option>';
     }
 }
 
 async function loadCorrelations() {
     const select = document.getElementById('target-habit');
-    const targetHabit = select.value;
+    const target = select.value;
     const tableContainer = document.getElementById('correlation-table');
 
-    if (!targetHabit) {
-        tableContainer.innerHTML = '<p>Select a habit to see correlations</p>';
+    if (!target) {
+        tableContainer.innerHTML = '<p>Select a target to see correlations</p>';
         return;
     }
 
-    // Save selection
-    localStorage.setItem(STORAGE_KEY, targetHabit);
-
+    localStorage.setItem(TARGET_STORAGE_KEY, target);
     tableContainer.innerHTML = '<p class="loading">Loading correlations...</p>';
 
     try {
-        const resp = await fetch(`/api/correlations?target_habit=${encodeURIComponent(targetHabit)}`);
+        const resp = await fetch(`/api/correlations?target=${encodeURIComponent(target)}`);
+        if (!resp.ok) {
+            throw new Error(`HTTP ${resp.status}`);
+        }
         const correlations = await resp.json();
 
         if (correlations.length === 0) {
-            tableContainer.innerHTML =
-                '<p>Insufficient data for correlations. Need at least 5 days with this habit tracked.</p>';
+            tableContainer.innerHTML = '<p>Insufficient data for correlations. Need at least 5 days with this target tracked.</p>';
             return;
         }
 
-        // Destroy existing chart if any
         if (correlationChart) {
             correlationChart.destroy();
         }
 
-        // Create bar chart (top 15 correlations)
         const top15 = correlations.slice(0, 15);
         const ctx = document.getElementById('correlation-chart').getContext('2d');
 
         correlationChart = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: top15.map(c => c.metric.replace(/_/g, ' ')),
+                labels: top15.map(c => formatMetricName(c.metric)),
                 datasets: [{
                     label: 'Correlation Coefficient',
                     data: top15.map(c => c.coefficient),
@@ -141,8 +196,8 @@ async function loadCorrelations() {
                     borderColor: top15.map(c =>
                         c.coefficient > 0 ? 'rgba(54, 162, 235, 1)' : 'rgba(255, 159, 64, 1)'
                     ),
-                    borderWidth: 1
-                }]
+                    borderWidth: 1,
+                }],
             },
             options: {
                 indexAxis: 'y',
@@ -152,20 +207,22 @@ async function loadCorrelations() {
                     x: {
                         beginAtZero: true,
                         min: -1,
-                        max: 1
-                    }
-                }
-            }
+                        max: 1,
+                    },
+                },
+            },
         });
 
-        // Create table
+        const positiveLabel = correlations[0].positive_label || 'Positive target';
+        const negativeLabel = correlations[0].negative_label || 'Negative target';
+
         tableContainer.innerHTML = '<table style="width: 100%; border-collapse: collapse;">' +
             '<thead><tr>' +
             '<th style="text-align: left; padding: 0.5rem;">Metric</th>' +
             '<th style="text-align: right; padding: 0.5rem;">r</th>' +
             '<th style="text-align: right; padding: 0.5rem;">Strength</th>' +
-            '<th style="text-align: right; padding: 0.5rem;">Positive Avg</th>' +
-            '<th style="text-align: right; padding: 0.5rem;">Negative Avg</th>' +
+            `<th style="text-align: right; padding: 0.5rem;">${positiveLabel} Avg</th>` +
+            `<th style="text-align: right; padding: 0.5rem;">${negativeLabel} Avg</th>` +
             '<th style="text-align: right; padding: 0.5rem;">Difference</th>' +
             '<th style="text-align: right; padding: 0.5rem;">n</th>' +
             '</tr></thead><tbody>' +
@@ -174,7 +231,7 @@ async function loadCorrelations() {
                 const titleAttr = tooltip ? ` title="${tooltip}"` : '';
                 return `
                 <tr style="border-top: 1px solid var(--border-color);">
-                    <td style="padding: 0.5rem; cursor: help;"${titleAttr}>${c.metric.replace(/_/g, ' ')}</td>
+                    <td style="padding: 0.5rem; cursor: help;"${titleAttr}>${formatMetricName(c.metric)}</td>
                     <td style="text-align: right; padding: 0.5rem; font-weight: bold;">${c.coefficient.toFixed(3)}</td>
                     <td style="text-align: right; padding: 0.5rem;">${c.strength}</td>
                     <td style="text-align: right; padding: 0.5rem;">${c.fog_day_avg !== null ? c.fog_day_avg.toFixed(1) : '-'}</td>
@@ -182,7 +239,8 @@ async function loadCorrelations() {
                     <td style="text-align: right; padding: 0.5rem;">${c.difference_pct !== null ? c.difference_pct.toFixed(1) + '%' : '-'}</td>
                     <td style="text-align: right; padding: 0.5rem;">${c.n}</td>
                 </tr>
-            `}).join('') +
+            `;
+            }).join('') +
             '</tbody></table>';
 
     } catch (error) {
@@ -191,8 +249,7 @@ async function loadCorrelations() {
     }
 }
 
-// Load on page load
 document.addEventListener('DOMContentLoaded', async () => {
     await loadMetricMetadata();
-    loadHabitSelector();
+    loadTargetSelector();
 });

@@ -1,6 +1,6 @@
 """Analysis API endpoints."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -13,7 +13,8 @@ router = APIRouter(prefix="/api", tags=["analysis"])
 
 @router.get("/correlations", response_model=list[CorrelationResult])
 async def get_correlations(
-    target_habit: str,
+    target: str | None = None,
+    target_habit: str | None = None,
     min_days: int = 5,
     db: AsyncSession = Depends(get_db)
 ):
@@ -21,12 +22,21 @@ async def get_correlations(
     Get correlation analysis between all metrics and a target habit.
 
     Args:
-        target_habit: The habit name to correlate against
+        target: Generic target selector. Use "habit:<name>" for habits or
+            top-level metric keys like "steps_total".
+        target_habit: Legacy habit target selector (backwards compatible)
         min_days: Minimum days of data required for analysis
     """
+    if not target and not target_habit:
+        raise HTTPException(status_code=422, detail="Either 'target' or 'target_habit' is required")
+
     settings = get_settings()
     correlations = await compute_correlations(
-        db, settings.tz, target_habit=target_habit, min_days=min_days
+        db,
+        settings.tz,
+        target=target,
+        target_habit=target_habit,
+        min_days=min_days,
     )
 
     return [CorrelationResult(**c) for c in correlations]
