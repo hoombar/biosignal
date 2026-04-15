@@ -156,6 +156,14 @@ class CorrelationResult(BaseModel):
     negative_label: str | None = None
 
 
+class CorrelationTargetOption(BaseModel):
+    """Selectable target option for correlation analysis."""
+    target: str
+    label: str
+    kind: str
+    category: str
+
+
 class PatternResult(BaseModel):
     """Pattern detection result."""
     description: str

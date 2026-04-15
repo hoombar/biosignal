@@ -85,3 +85,31 @@ class TestCorrelationsApi:
         assert resp.status_code == 200
         data = resp.json()
         assert isinstance(data, list)
+
+
+class TestCorrelationTargetsApi:
+    """Tests for GET /api/correlation-targets."""
+
+    @pytest.mark.asyncio
+    async def test_includes_metric_and_habit_targets(self, async_session):
+        """Target options should include Garmin metrics and DB habits."""
+        d = _make_date(0)
+        async_session.add(DailyHabit(
+            date=d,
+            habit_name="pm_slump",
+            habit_value="true",
+            habit_type="boolean",
+        ))
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get("/api/correlation-targets")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        targets = {row["target"] for row in data}
+
+        assert "sleep_hours" in targets
+        assert "steps_total" in targets
+        assert "habit:pm_slump" in targets

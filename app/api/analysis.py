@@ -1,14 +1,61 @@
 """Analysis API endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select, distinct
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.config import get_settings
-from app.schemas.responses import CorrelationResult, PatternResult, InsightResult
+from app.models.database import DailyHabit
+from app.api.export import FEATURE_METADATA
+from app.schemas.responses import (
+    CorrelationResult,
+    CorrelationTargetOption,
+    PatternResult,
+    InsightResult,
+)
 from app.services.analysis import compute_correlations, compute_patterns, generate_insights
 
 router = APIRouter(prefix="/api", tags=["analysis"])
+
+
+@router.get("/correlation-targets", response_model=list[CorrelationTargetOption])
+async def get_correlation_targets(db: AsyncSession = Depends(get_db)):
+    """Return all selectable targets for correlations UI.
+
+    Includes:
+    - numeric/boolean non-habit metrics from FEATURE_METADATA
+    - distinct tracked habits from daily_habits table (as "habit:<name>")
+    """
+    targets: list[CorrelationTargetOption] = []
+
+    for key, meta in sorted(FEATURE_METADATA.items(), key=lambda kv: kv[0]):
+        category = meta.get("category", "Other")
+        unit = meta.get("unit", "")
+        if category == "Habits":
+            continue
+        if unit in {"text", "low/medium/high"}:
+            continue
+        targets.append(CorrelationTargetOption(
+            target=key,
+            label=key.replace("_", " "),
+            kind="metric",
+            category=category,
+        ))
+
+    habits_result = await db.execute(
+        select(distinct(DailyHabit.habit_name)).order_by(DailyHabit.habit_name.asc())
+    )
+    habit_names = [row[0] for row in habits_result.all()]
+    for name in habit_names:
+        targets.append(CorrelationTargetOption(
+            target=f"habit:{name}",
+            label=name.replace("_", " "),
+            kind="habit",
+            category="Habits",
+        ))
+
+    return targets
 
 
 @router.get("/correlations", response_model=list[CorrelationResult])

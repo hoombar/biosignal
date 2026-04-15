@@ -103,57 +103,76 @@ function buildMetricTargetOptions() {
 }
 
 async function loadTargetSelector() {
+    const select = document.getElementById('target-habit');
+    let metricTargets = [];
+    let habitTargets = [];
+
     try {
-        // Fetch metadata here as well so the selector is independent of legend-load timing.
-        if (Object.keys(metricMetadata).length === 0) {
-            const metadataResp = await fetch('/api/export/metadata');
-            const metadataBody = await metadataResp.json();
-            metricMetadata = metadataBody.features || {};
+        const targetsResp = await fetch('/api/correlation-targets');
+        if (!targetsResp.ok) {
+            throw new Error(`HTTP ${targetsResp.status}`);
         }
+        const allTargets = await targetsResp.json();
 
-        const habitsResp = await fetch('/api/habits/names');
-        const habitNames = await habitsResp.json();
-
-        const select = document.getElementById('target-habit');
-        const metricTargets = buildMetricTargetOptions();
-        const habitTargets = habitNames
-            .slice()
-            .sort((a, b) => a.localeCompare(b))
-            .map(name => `habit:${name}`);
-
-        let html = '<option value="">-- Select a target --</option>';
-
-        if (metricTargets.length > 0) {
-            html += '<option value="" disabled>──────── Metrics ────────</option>';
-            html += metricTargets.map(key =>
-                `<option value="${key}">Metric: ${formatTargetOptionLabel(key)}</option>`
-            ).join('');
-        }
-        if (habitTargets.length > 0) {
-            html += '<option value="" disabled>──────── Habits ────────</option>';
-            html += habitTargets.map(key =>
-                `<option value="${key}">Habit: ${formatTargetOptionLabel(key)}</option>`
-            ).join('');
-        }
-
-        select.innerHTML = html;
-
-        let savedTarget = localStorage.getItem(TARGET_STORAGE_KEY);
-        if (!savedTarget) {
-            const legacyHabit = localStorage.getItem(LEGACY_HABIT_STORAGE_KEY);
-            if (legacyHabit) {
-                savedTarget = `habit:${legacyHabit}`;
-            }
-        }
-
-        const validValues = new Set([...metricTargets, ...habitTargets]);
-        if (savedTarget && validValues.has(savedTarget)) {
-            select.value = savedTarget;
-            loadCorrelations();
-        }
+        metricTargets = allTargets
+            .filter(t => t.kind === 'metric')
+            .map(t => t.target);
+        habitTargets = allTargets
+            .filter(t => t.kind === 'habit')
+            .map(t => t.target);
     } catch (error) {
-        console.error('Error loading correlation targets:', error);
-        document.getElementById('target-habit').innerHTML = '<option value="">Failed to load targets</option>';
+        console.warn('Correlation targets endpoint unavailable, falling back to client-built target list:', error);
+        try {
+            if (Object.keys(metricMetadata).length === 0) {
+                const metadataResp = await fetch('/api/export/metadata');
+                const metadataBody = await metadataResp.json();
+                metricMetadata = metadataBody.features || {};
+            }
+
+            const habitsResp = await fetch('/api/habits/names');
+            const habitNames = await habitsResp.json();
+
+            metricTargets = buildMetricTargetOptions();
+            habitTargets = habitNames
+                .slice()
+                .sort((a, b) => a.localeCompare(b))
+                .map(name => `habit:${name}`);
+        } catch (fallbackError) {
+            console.error('Error loading fallback correlation targets:', fallbackError);
+            select.innerHTML = '<option value="">Failed to load targets</option>';
+            return;
+        }
+    }
+
+    let html = '<option value="">-- Select a target --</option>';
+
+    if (metricTargets.length > 0) {
+        html += '<option value="" disabled>Metrics</option>';
+        html += metricTargets.map(key =>
+            `<option value="${key}">Metric: ${formatTargetOptionLabel(key)}</option>`
+        ).join('');
+    }
+    if (habitTargets.length > 0) {
+        html += '<option value="" disabled>Habits</option>';
+        html += habitTargets.map(key =>
+            `<option value="${key}">Habit: ${formatTargetOptionLabel(key)}</option>`
+        ).join('');
+    }
+
+    select.innerHTML = html;
+
+    let savedTarget = localStorage.getItem(TARGET_STORAGE_KEY);
+    if (!savedTarget) {
+        const legacyHabit = localStorage.getItem(LEGACY_HABIT_STORAGE_KEY);
+        if (legacyHabit) {
+            savedTarget = `habit:${legacyHabit}`;
+        }
+    }
+
+    const validValues = new Set([...metricTargets, ...habitTargets]);
+    if (savedTarget && validValues.has(savedTarget)) {
+        select.value = savedTarget;
+        loadCorrelations();
     }
 }
 
