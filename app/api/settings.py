@@ -2,12 +2,13 @@
 
 import logging
 from fastapi import APIRouter, Depends
-from sqlalchemy import select, distinct
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.models.database import DailyHabit, HabitDisplayConfig
+from app.models.database import HabitDisplayConfig
 from app.schemas.responses import HabitDisplayConfigResponse, HabitDisplayConfigUpdate
+from app.services.habit_config import list_habit_display_entries
 
 logger = logging.getLogger(__name__)
 
@@ -22,39 +23,8 @@ async def get_habit_display_configs(db: AsyncSession = Depends(get_db)):
     Each entry includes any saved display config, or null defaults if not configured.
     Results are sorted by sort_order ascending, then habit_name.
     """
-    # Get all distinct habit names ever synced
-    names_result = await db.execute(
-        select(distinct(DailyHabit.habit_name))
-    )
-    known_names = set(names_result.scalars().all())
-
-    # Get all existing configs
-    configs_result = await db.execute(
-        select(HabitDisplayConfig)
-    )
-    configs_by_name = {c.habit_name: c for c in configs_result.scalars().all()}
-
-    # Merge: every known habit gets an entry
-    entries = []
-    for name in known_names:
-        if name in configs_by_name:
-            cfg = configs_by_name[name]
-            entries.append(HabitDisplayConfigResponse(
-                habit_name=cfg.habit_name,
-                display_name=cfg.display_name,
-                emoji=cfg.emoji,
-                sort_order=cfg.sort_order,
-            ))
-        else:
-            entries.append(HabitDisplayConfigResponse(
-                habit_name=name,
-                display_name=None,
-                emoji=None,
-                sort_order=0,
-            ))
-
-    entries.sort(key=lambda e: (e.sort_order, e.habit_name))
-    return entries
+    entries = await list_habit_display_entries(db)
+    return [HabitDisplayConfigResponse(**entry) for entry in entries]
 
 
 @router.put("/habits/{habit_name}", response_model=HabitDisplayConfigResponse)
@@ -75,6 +45,7 @@ async def upsert_habit_display_config(
 
     config.display_name = body.display_name
     config.emoji = body.emoji
+    config.color = body.color.lower() if body.color else None
     if body.sort_order is not None:
         config.sort_order = body.sort_order
 
@@ -85,5 +56,6 @@ async def upsert_habit_display_config(
         habit_name=config.habit_name,
         display_name=config.display_name,
         emoji=config.emoji,
+        color=config.color,
         sort_order=config.sort_order,
     )

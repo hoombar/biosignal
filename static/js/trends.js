@@ -3,6 +3,7 @@
 // ─── State ────────────────────────────────────────────────────────────────────
 let trendsData = [];
 let metricMetadata = {};   // { key: { description, unit, category } }
+let habitSettings = [];
 let habitNames = [];
 let activeMetrics = new Set();
 let metricColors = {};     // key → hex color (persistent per key)
@@ -37,14 +38,15 @@ const CATEGORY_ORDER = ['Sleep', 'HRV', 'SpO2', 'Heart Rate', 'Body Battery', 'S
 // ─── Initialization ───────────────────────────────────────────────────────────
 async function init() {
     try {
-        const [metaResp, habitsResp] = await Promise.all([
+        const [metaResp, habitSettingsResp] = await Promise.all([
             fetch('/api/export/metadata'),
-            fetch('/api/habits/names'),
+            fetch('/api/settings/habits'),
         ]);
 
         const metaData = await metaResp.json();
         metricMetadata = metaData.features || {};
-        habitNames = await habitsResp.json();
+        habitSettings = await habitSettingsResp.json();
+        habitNames = habitSettings.map(h => h.habit_name);
 
         buildHabitSelector();
         initializeRangeControls();
@@ -189,6 +191,13 @@ async function applyCustomRange() {
 // ─── Color assignment ─────────────────────────────────────────────────────────
 function assignColor(key) {
     if (!metricColors[key]) {
+        if (key.startsWith('habit:')) {
+            const habitColor = getHabitColorSetting(key.slice(6));
+            if (habitColor) {
+                metricColors[key] = habitColor;
+                return metricColors[key];
+            }
+        }
         metricColors[key] = PALETTE[paletteIndex % PALETTE.length];
         paletteIndex++;
     }
@@ -197,8 +206,8 @@ function assignColor(key) {
 
 // ─── Default active metrics ───────────────────────────────────────────────────
 function activateDefaults() {
-    if (habitNames.includes('pm_slump')) {
-        enableMetric('habit:pm_slump');
+    if (habitNames.length > 0) {
+        enableMetric(`habit:${habitNames[0]}`);
     }
     if (trendsData.some(d => d.sleep_score != null)) {
         enableMetric('sleep_score');
@@ -218,9 +227,23 @@ function keyToId(key) {
     return key.replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
+function getHabitSetting(name) {
+    return habitSettings.find(h => h.habit_name === name);
+}
+
+function getHabitLabel(name) {
+    const setting = getHabitSetting(name);
+    return (setting && setting.display_name) || name.replace(/_/g, ' ');
+}
+
+function getHabitColorSetting(name) {
+    const setting = getHabitSetting(name);
+    return (setting && setting.color) || null;
+}
+
 // ─── Habit range detection ────────────────────────────────────────────────────
 // HabitSync stores all habits with type="counter" regardless of whether they are
-// binary (pm_slump: 0/1) or a real count (beer: 0-5). We can't use habit.type to
+// binary (0/1) or a real count (0-N). We can't use habit.type to
 // distinguish them. Instead, inspect the actual data: if every non-null value is
 // 0 or 1 the habit is binary; if any value exceeds 1 it's a count metric.
 function isHabitBinary(habitName) {
@@ -240,7 +263,7 @@ function buildHabitSelector() {
     const select = document.getElementById('correlate-habit');
     select.innerHTML = '<option value="">-- Select habit --</option>' +
         habitNames.map(name =>
-            `<option value="${name}">${name.replace(/_/g, ' ')}</option>`
+            `<option value="${name}">${getHabitLabel(name)}</option>`
         ).join('');
 }
 
@@ -291,7 +314,7 @@ function renderSuggestions(correlations) {
         const barColor = r > 0 ? '#4488ff' : '#fb923c';
         const barWidth = (Math.abs(r) * 100).toFixed(0);
         const label = key.startsWith('habit:')
-            ? key.slice(6).replace(/_/g, ' ')
+            ? getHabitLabel(key.slice(6))
             : key.replace(/_/g, ' ');
         const safeId = 'sug-' + keyToId(key);
         const safeKey = key.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
@@ -364,7 +387,7 @@ function buildMetricPicker() {
     if (habitNames.length > 0) {
         categories['Habits'] = habitNames.map(name => ({
             key: `habit:${name}`,
-            description: name.replace(/_/g, ' '),
+            description: getHabitLabel(name),
             unit: 'habit',
             category: 'Habits',
         }));
@@ -405,7 +428,7 @@ function buildMetricPicker() {
 
 function buildCheckboxHtml(key, meta) {
     const label = key.startsWith('habit:')
-        ? key.slice(6).replace(/_/g, ' ')
+        ? getHabitLabel(key.slice(6))
         : key.replace(/_/g, ' ');
     const title = meta.description + (meta.unit && meta.unit !== 'habit' ? ` (${meta.unit})` : '');
     const domId = keyToId(key);
@@ -487,7 +510,7 @@ function getAxisForKey(key) {
 
 function getMetricLabel(key) {
     if (key.startsWith('habit:')) {
-        return key.slice(6).replace(/_/g, ' ');
+        return getHabitLabel(key.slice(6));
     }
     const meta = metricMetadata[key];
     return meta ? meta.description : key.replace(/_/g, ' ');

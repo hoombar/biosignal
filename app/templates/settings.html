@@ -22,6 +22,7 @@
                         <th>Habit name</th>
                         <th>Display label</th>
                         <th>Emoji</th>
+                        <th>Color</th>
                         <th>Order</th>
                         <th></th>
                     </tr>
@@ -60,6 +61,7 @@
     function renderRow(habit) {
         const label = habit.display_name ?? '';
         const emoji = habit.emoji ?? '';
+        const color = habit.color ?? '';
         const order = habit.sort_order ?? 0;
 
         const tr = document.createElement('tr');
@@ -88,6 +90,17 @@
                     placeholder="—"
                     maxlength="8"
                     aria-label="Emoji for ${habit.habit_name}"
+                >
+            </td>
+            <td>
+                <input
+                    type="text"
+                    class="settings-input settings-input--color"
+                    name="color"
+                    value="${color}"
+                    placeholder="#4488ff"
+                    pattern="^#[0-9a-fA-F]{6}$"
+                    aria-label="Accent color for ${habit.habit_name}"
                 >
             </td>
             <td>
@@ -142,6 +155,7 @@
             const name = row.dataset.habitName;
             const display_name = row.querySelector('[name=display_name]').value.trim() || null;
             const emoji = row.querySelector('[name=emoji]').value.trim() || null;
+            const color = row.querySelector('[name=color]').value.trim() || null;
             const sort_order = parseInt(row.querySelector('[name=sort_order]').value, 10) || 0;
             const rowStatus = row.querySelector('.row-status');
 
@@ -149,7 +163,7 @@
                 const resp = await fetch(`/api/settings/habits/${encodeURIComponent(name)}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ display_name, emoji, sort_order }),
+                    body: JSON.stringify({ display_name, emoji, color, sort_order }),
                 });
                 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                 rowStatus.textContent = '✓';

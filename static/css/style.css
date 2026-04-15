@@ -47,14 +47,6 @@
     --color-activity: #60a5fa;
     --color-habits: #e879f9;
 
-    /* Habit-specific colors */
-    --habit-pmslump-clear: #00ff88;
-    --habit-pmslump-slump: #ff4466;
-    --habit-coffee: #c4a77d;
-    --habit-beer: #f59e0b;
-    --habit-lunch-healthy: #22c55e;
-    --habit-lunch-carbs: #ef4444;
-
     /* Header */
     --header-bg: #08080c;
     --header-text: var(--text-primary);
@@ -553,14 +545,6 @@ main > h1 {
     background: var(--text-muted);
 }
 
-.habit-dot.pm-clear { background: var(--habit-pmslump-clear); }
-.habit-dot.pm-slump { background: var(--habit-pmslump-slump); }
-.habit-dot.coffee { background: var(--habit-coffee); }
-.habit-dot.beer { background: var(--habit-beer); }
-.habit-dot.healthy { background: var(--habit-lunch-healthy); }
-.habit-dot.carbs { background: var(--habit-lunch-carbs); }
-.habit-dot.empty { background: var(--text-muted); opacity: 0.3; }
-
 /* Sleep score in cell */
 .calendar-cell .sleep-score {
     font-family: var(--font-mono);
@@ -733,9 +717,6 @@ main > h1 {
     color: var(--text-primary);
     flex-shrink: 0;
 }
-
-.habit-sidebar-item.clear .habit-sidebar-value { color: var(--habit-pmslump-clear); }
-.habit-sidebar-item.slump .habit-sidebar-value { color: var(--habit-pmslump-slump); }
 
 .habits-empty {
     font-size: 0.75rem;
@@ -1363,6 +1344,12 @@ input:focus {
 .settings-input--order {
     width: 60px;
     text-align: center;
+}
+
+.settings-input--color {
+    width: 90px;
+    font-family: var(--font-mono);
+    text-transform: lowercase;
 }
 
 .settings-actions {

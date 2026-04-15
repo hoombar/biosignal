@@ -1,7 +1,7 @@
 """Pydantic response models for API endpoints."""
 
 from datetime import datetime, date
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Any
 
 
@@ -130,7 +130,7 @@ class CalendarDaySummary(BaseModel):
     """Lightweight day summary for year heatmap."""
     date: str
     sleep_score: int | None = None
-    has_slump: bool = False
+    has_habit_event: bool = False
 
 
 class NotableDay(BaseModel):
@@ -186,6 +186,7 @@ class HabitDisplayConfigResponse(BaseModel):
     habit_name: str
     display_name: str | None = None
     emoji: str | None = None
+    color: str | None = None
     sort_order: int = 0
 
     class Config:
@@ -196,4 +197,5 @@ class HabitDisplayConfigUpdate(BaseModel):
     """Request body for updating a habit's display config."""
     display_name: str | None = None
     emoji: str | None = None
+    color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
     sort_order: int | None = None

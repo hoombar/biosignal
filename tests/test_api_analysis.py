@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.api.analysis import router
 from app.core.database import get_db
-from app.models.database import SleepSession, DailyHabit
+from app.models.database import SleepSession, DailyHabit, HabitDisplayConfig
 
 
 def _make_test_app(session):
@@ -113,3 +113,79 @@ class TestCorrelationTargetsApi:
         assert "sleep_hours" in targets
         assert "steps_total" in targets
         assert "habit:pm_slump" in targets
+
+
+class TestPatternsAndInsightsApi:
+    """Tests for GET /api/patterns and GET /api/insights."""
+
+    @pytest.mark.asyncio
+    async def test_patterns_defaults_to_first_habit_by_sort_order(self, async_session):
+        """When target_habit is omitted, endpoint should choose first configured habit."""
+        for i in range(10):
+            d = _make_date(i)
+            fatigue = i % 2 == 0
+            async_session.add(SleepSession(
+                date=d,
+                total_sleep_seconds=int((5.5 if fatigue else 8.5) * 3600),
+                sleep_score=70,
+            ))
+            async_session.add(DailyHabit(
+                date=d,
+                habit_name="morning_fatigue",
+                habit_value="true" if fatigue else "false",
+                habit_type="boolean",
+            ))
+            async_session.add(DailyHabit(
+                date=d,
+                habit_name="pm_slump",
+                habit_value="false",
+                habit_type="boolean",
+            ))
+        async_session.add(HabitDisplayConfig(habit_name="morning_fatigue", sort_order=0))
+        async_session.add(HabitDisplayConfig(habit_name="pm_slump", sort_order=10))
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            default_resp = client.get("/api/patterns")
+            explicit_resp = client.get("/api/patterns", params={"target_habit": "morning_fatigue"})
+
+        assert default_resp.status_code == 200
+        assert explicit_resp.status_code == 200
+        assert default_resp.json() == explicit_resp.json()
+
+    @pytest.mark.asyncio
+    async def test_insights_defaults_to_first_habit_by_sort_order(self, async_session):
+        """Insights endpoint should mirror explicit target when omitted."""
+        for i in range(14):
+            d = _make_date(i)
+            fatigue = i % 2 == 0
+            async_session.add(SleepSession(
+                date=d,
+                total_sleep_seconds=int((5.5 if fatigue else 8.5) * 3600),
+                sleep_score=70,
+            ))
+            async_session.add(DailyHabit(
+                date=d,
+                habit_name="morning_fatigue",
+                habit_value="true" if fatigue else "false",
+                habit_type="boolean",
+            ))
+            async_session.add(DailyHabit(
+                date=d,
+                habit_name="pm_slump",
+                habit_value="false",
+                habit_type="boolean",
+            ))
+        async_session.add(HabitDisplayConfig(habit_name="morning_fatigue", sort_order=0))
+        async_session.add(HabitDisplayConfig(habit_name="pm_slump", sort_order=10))
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            default_resp = client.get("/api/insights")
+            explicit_resp = client.get("/api/insights", params={"target_habit": "morning_fatigue"})
+
+        assert default_resp.status_code == 200
+        assert explicit_resp.status_code == 200
+        assert default_resp.json() == explicit_resp.json()

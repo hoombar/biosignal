@@ -11,6 +11,7 @@ from sqlalchemy import select
 from app.core.database import get_db
 from app.core.config import get_settings
 from app.models.database import DailyHabit, SleepSession
+from app.services.habit_config import list_ordered_habit_names
 from app.schemas.responses import (
     HabitResponse,
     DailySummary,
@@ -25,10 +26,7 @@ router = APIRouter(prefix="/api", tags=["daily"])
 @router.get("/habits/names", response_model=list[str])
 async def get_habit_names(db: AsyncSession = Depends(get_db)):
     """Get list of distinct habit names."""
-    result = await db.execute(
-        select(DailyHabit.habit_name).distinct()
-    )
-    return [row[0] for row in result.all()]
+    return await list_ordered_habit_names(db)
 
 
 @router.get("/habits", response_model=list[HabitResponse])
@@ -109,7 +107,7 @@ async def get_calendar_year(
 ):
     """Lightweight year summary for the heatmap.
 
-    Returns one entry per day of the year with only sleep_score and has_slump.
+    Returns one entry per day of the year with only sleep_score and has_habit_event.
     Queries the database directly (no feature computation) for speed.
     """
     start_date = date(year, 1, 1)
@@ -122,21 +120,17 @@ async def get_calendar_year(
     )
     sleep_by_date = {row.date: row.sleep_score for row in sleep_result.all()}
 
-    # Fetch afternoon_slump habits for the year
-    slump_result = await db.execute(
+    # Fetch all habit values for the year and mark days with any positive event.
+    habits_result = await db.execute(
         select(DailyHabit.date, DailyHabit.habit_value)
-        .where(
-            DailyHabit.date >= start_date,
-            DailyHabit.date <= end_date,
-            DailyHabit.habit_name == "afternoon_slump",
-        )
+        .where(DailyHabit.date >= start_date, DailyHabit.date <= end_date)
     )
-    slump_by_date = {}
-    for row in slump_result.all():
-        try:
-            slump_by_date[row.date] = int(row.habit_value) > 0
-        except (ValueError, TypeError):
-            slump_by_date[row.date] = False
+    has_habit_event_by_date: dict[date, bool] = {}
+    for row in habits_result.all():
+        has_habit_event_by_date[row.date] = (
+            has_habit_event_by_date.get(row.date, False)
+            or _habit_value_indicates_event(row.habit_value)
+        )
 
     # Build entries for every day of the year
     days_in_year = (end_date - start_date).days + 1
@@ -146,10 +140,27 @@ async def get_calendar_year(
         summaries.append(CalendarDaySummary(
             date=d.isoformat(),
             sleep_score=sleep_by_date.get(d),
-            has_slump=slump_by_date.get(d, False),
+            has_habit_event=has_habit_event_by_date.get(d, False),
         ))
 
     return summaries
+
+
+def _habit_value_indicates_event(raw_value: str | None) -> bool:
+    """Interpret raw habit value as a positive event flag."""
+    if raw_value is None:
+        return False
+
+    normalized = raw_value.strip().lower()
+    if normalized in {"", "0", "false", "no", "n", "off"}:
+        return False
+    if normalized in {"1", "true", "yes", "y", "on"}:
+        return True
+
+    try:
+        return float(normalized) > 0
+    except (TypeError, ValueError):
+        return False
 
 
 @router.get("/daily/notable", response_model=list[NotableDay])

@@ -7,7 +7,7 @@ compute_correlations() and compute_patterns() detect them correctly.
 import pytest
 from datetime import date, timedelta
 
-from app.models.database import SleepSession, DailyHabit
+from app.models.database import SleepSession, DailyHabit, HabitDisplayConfig
 from app.services.analysis import compute_correlations, compute_patterns, generate_insights
 
 
@@ -225,13 +225,13 @@ class TestComputePatterns:
         )
 
     @pytest.mark.asyncio
-    async def test_compute_patterns_beer_count_condition(self, async_session):
-        """Pattern for beer_count > 2 must read from habits list, not f.get('beer_count')."""
-        # Seed 15 days; on high-beer days always have a slump
+    async def test_compute_patterns_detects_custom_numeric_habit_pattern(self, async_session):
+        """Pattern detection should work for arbitrary habit names, not fixed known habits."""
+        # Seed 15 days; on high custom-counter days always have a slump
         for i in range(15):
             d = _make_date(i)
-            high_beer = i < 6  # first 6 days have high beer
-            slump = high_beer  # high beer always causes slump
+            high_counter = i < 6
+            slump = high_counter
             async_session.add(SleepSession(
                 date=d,
                 total_sleep_seconds=int(7.5 * 3600),
@@ -245,17 +245,16 @@ class TestComputePatterns:
             ))
             async_session.add(DailyHabit(
                 date=d,
-                habit_name="beer_count",
-                habit_value=str(4 if high_beer else 0),
+                habit_name="custom_counter",
+                habit_value=str(4 if high_counter else 0),
                 habit_type="numeric",
             ))
         await async_session.commit()
 
         result = await compute_patterns(async_session, target_habit="pm_slump")
         descriptions = [p["description"] for p in result]
-        assert any("alcoholic drinks" in d for d in descriptions), (
-            f"Expected a beer-count pattern. Got: {descriptions}. "
-            "Bug: f.get('beer_count') was always None; must use _get_habit_value()."
+        assert any("custom counter" in d.lower() for d in descriptions), (
+            f"Expected a custom-counter pattern. Got: {descriptions}."
         )
 
     @pytest.mark.asyncio
@@ -299,6 +298,45 @@ class TestComputePatterns:
         result = await compute_patterns(async_session, target_habit="pm_slump")
         assert result == []
 
+    @pytest.mark.asyncio
+    async def test_compute_patterns_defaults_to_first_habit_by_sort_order(self, async_session):
+        """Without explicit target, compute_patterns should use first configured habit."""
+        for i in range(10):
+            d = _make_date(i)
+            fatigue = i % 2 == 0
+            slump = i % 3 == 0
+            async_session.add(SleepSession(
+                date=d,
+                total_sleep_seconds=int((5.5 if fatigue else 8.5) * 3600),
+                sleep_score=70,
+            ))
+            async_session.add(DailyHabit(
+                date=d,
+                habit_name="morning_fatigue",
+                habit_value="true" if fatigue else "false",
+                habit_type="boolean",
+            ))
+            async_session.add(DailyHabit(
+                date=d,
+                habit_name="pm_slump",
+                habit_value="true" if slump else "false",
+                habit_type="boolean",
+            ))
+
+        async_session.add(HabitDisplayConfig(
+            habit_name="morning_fatigue",
+            sort_order=0,
+        ))
+        async_session.add(HabitDisplayConfig(
+            habit_name="pm_slump",
+            sort_order=10,
+        ))
+        await async_session.commit()
+
+        auto = await compute_patterns(async_session)
+        explicit = await compute_patterns(async_session, target_habit="morning_fatigue")
+        assert auto == explicit
+
 
 class TestGenerateInsights:
 
@@ -307,6 +345,38 @@ class TestGenerateInsights:
         """generate_insights always returns a list."""
         result = await generate_insights(async_session)
         assert isinstance(result, list)
+
+    @pytest.mark.asyncio
+    async def test_defaults_to_first_habit_by_sort_order(self, async_session):
+        """Without explicit target, generate_insights should use first configured habit."""
+        for i in range(14):
+            d = _make_date(i)
+            fatigue = i % 2 == 0
+            async_session.add(SleepSession(
+                date=d,
+                total_sleep_seconds=int((5.5 if fatigue else 8.5) * 3600),
+                sleep_score=70,
+            ))
+            async_session.add(DailyHabit(
+                date=d,
+                habit_name="morning_fatigue",
+                habit_value="true" if fatigue else "false",
+                habit_type="boolean",
+            ))
+            async_session.add(DailyHabit(
+                date=d,
+                habit_name="pm_slump",
+                habit_value="false",
+                habit_type="boolean",
+            ))
+
+        async_session.add(HabitDisplayConfig(habit_name="morning_fatigue", sort_order=0))
+        async_session.add(HabitDisplayConfig(habit_name="pm_slump", sort_order=10))
+        await async_session.commit()
+
+        auto = await generate_insights(async_session)
+        explicit = await generate_insights(async_session, target_habit="morning_fatigue")
+        assert auto == explicit
 
     @pytest.mark.asyncio
     async def test_insight_shape(self, async_session):

@@ -11,6 +11,9 @@ let currentMonth = new Date().getMonth() + 1; // 1-indexed
 let selectedDate = null;
 let selectedIndex = -1;
 let currentMonthData = [];  // data for the displayed month
+let calendarHabitNames = [];
+
+const CALENDAR_DOT_LIMIT = 3;
 
 const MONTH_NAMES = [
     '', 'January', 'February', 'March', 'April', 'May', 'June',
@@ -153,22 +156,66 @@ function getHabitValue(habits, name) {
     return habit ? habit.value : null;
 }
 
+function getHabitAccentColor(habitName) {
+    const display = getHabitDisplay(habitName);
+    return display.color || getHabitColor(habitName);
+}
+
+function getCalendarHabitNames(data) {
+    const names = new Set();
+    data.forEach(day => {
+        (day.habits || []).forEach(h => names.add(h.name));
+    });
+
+    return [...names]
+        .sort((a, b) => {
+            const da = getHabitDisplay(a);
+            const db = getHabitDisplay(b);
+            if (da.sort_order !== db.sort_order) return da.sort_order - db.sort_order;
+            return a.localeCompare(b);
+        })
+        .slice(0, CALENDAR_DOT_LIMIT);
+}
+
+function renderCalendarLegend(habitNames) {
+    const container = document.getElementById('calendar-legend');
+    if (!container) return;
+
+    if (!habitNames.length) {
+        container.innerHTML = '<span class="legend-item">No tracked habits this month</span>';
+        return;
+    }
+
+    container.innerHTML = habitNames.map(habitName => {
+        const display = getHabitDisplay(habitName);
+        const color = getHabitAccentColor(habitName);
+        return `
+            <div class="legend-item">
+                <span class="legend-dot" style="background: ${color}"></span>
+                <span>${display.label}</span>
+            </div>
+        `;
+    }).join('');
+}
+
 function renderCalendarCell(day, index) {
     const date = parseLocalDate(day.date);
     const dateNum = date.getDate();
-
-    const pmSlump = getHabitValue(day.habits, 'afternoon_slump');
-    const coffee = getHabitValue(day.habits, 'coffee');
-    const beer = getHabitValue(day.habits, 'beer');
-
-    const pmClass = pmSlump === null ? 'empty' :
-                    pmSlump > 0 ? 'pm-slump' : 'pm-clear';
-
-    const coffeeClass = coffee === null ? 'empty' :
-                        coffee > 0 ? 'coffee' : 'empty';
-
-    const beerClass = beer === null ? 'empty' :
-                      beer > 0 ? 'beer' : 'empty';
+    const habitDots = calendarHabitNames.map(habitName => {
+        const value = getHabitValue(day.habits, habitName);
+        const numeric = Number(value);
+        const isPositive = value !== null && !Number.isNaN(numeric) && numeric > 0;
+        const color = isPositive ? getHabitAccentColor(habitName) : 'var(--text-muted)';
+        const opacity = value === null ? 0.25 : isPositive ? 1 : 0.45;
+        const label = getHabitDisplay(habitName).label;
+        return `
+            <span
+                class="habit-dot"
+                style="background: ${color}; opacity: ${opacity};"
+                title="${label}: ${value ?? '-'}"
+            ></span>
+        `;
+    }).join('');
 
     const hasData = day.sleep_score !== null || (day.habits && day.habits.length > 0);
     const noDataClass = hasData ? '' : 'no-data';
@@ -182,11 +229,7 @@ function renderCalendarCell(day, index) {
                 <span class="date-num">${dateNum}</span>
                 ${day.sleep_score ? `<span class="sleep-score">${day.sleep_score}</span>` : ''}
             </div>
-            <div class="habit-strip">
-                <span class="habit-dot ${pmClass}" title="PM Slump: ${pmSlump ?? '-'}"></span>
-                <span class="habit-dot ${coffeeClass}" title="Coffee: ${coffee ?? '-'}"></span>
-                <span class="habit-dot ${beerClass}" title="Beer: ${beer ?? '-'}"></span>
-            </div>
+            <div class="habit-strip">${habitDots}</div>
         </div>
     `;
 }
@@ -205,9 +248,12 @@ async function renderMonth(year, month) {
     try {
         const data = await fetchMonth(year, month);
         currentMonthData = data;
+        calendarHabitNames = getCalendarHabitNames(data);
+        renderCalendarLegend(calendarHabitNames);
 
         if (data.length === 0) {
             container.innerHTML = '<p class="empty-state">No data available.</p>';
+            renderCalendarLegend([]);
             renderNotableDays([]);
             return;
         }
@@ -282,7 +328,7 @@ async function renderYearHeatmap(year) {
 
             html += `<div class="heatmap-cell ${currentMonthClass}"
                           style="background: ${getHeatmapColor(day.sleep_score)}"
-                          title="${formatShortDate(day.date)}: ${day.sleep_score ?? 'No data'}${day.has_slump ? ' (Slump)' : ''}"
+                          title="${formatShortDate(day.date)}: ${day.sleep_score ?? 'No data'}${day.has_habit_event ? ' (Habit event)' : ''}"
                           onclick="jumpToDate('${day.date}')"></div>`;
         });
 
@@ -552,24 +598,22 @@ function renderHabitsPanel(day) {
     return sorted.map(habit => {
         const { label, emoji } = getHabitDisplay(habit.name);
         const displayValue = formatHabitValue(habit);
-
-        // Special colour class for afternoon_slump
-        let stateClass = '';
-        if (habit.name === 'afternoon_slump') {
-            stateClass = habit.value > 0 ? 'slump' : 'clear';
-        }
+        const accent = getHabitAccentColor(habit.name);
+        const numericValue = Number(habit.value);
+        const isPositive = !Number.isNaN(numericValue) && numericValue > 0;
+        const valueStyle = isPositive ? ` style="color: ${accent};"` : '';
 
         const emojiHtml = emoji
             ? `<span class="habit-emoji" aria-hidden="true">${emoji}</span>`
             : '';
 
         return `
-            <div class="habit-sidebar-item ${stateClass}">
+            <div class="habit-sidebar-item" style="border-left: 2px solid ${accent};">
                 <div class="habit-sidebar-header">
                     ${emojiHtml}
                     <span class="habit-sidebar-label">${label}</span>
                 </div>
-                <span class="habit-sidebar-value">${displayValue}</span>
+                <span class="habit-sidebar-value"${valueStyle}>${displayValue}</span>
             </div>
         `;
     }).join('');
@@ -854,9 +898,9 @@ async function init() {
         selectedDate = hashDate;
     }
 
-    // Load habit config and initial data in parallel
+    // Load habit config first so calendar ordering/colors can use it.
+    await loadHabitConfig();
     await Promise.all([
-        loadHabitConfig(),
         renderYearHeatmap(currentYear),
         renderMonth(currentYear, currentMonth),
     ]);

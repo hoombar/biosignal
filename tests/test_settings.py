@@ -60,6 +60,7 @@ class TestGetHabitsSettings:
         assert data[0]["habit_name"] == "afternoon_slump"
         assert data[0]["display_name"] is None
         assert data[0]["emoji"] is None
+        assert data[0]["color"] is None
         assert data[0]["sort_order"] == 0
 
     @pytest.mark.asyncio
@@ -75,6 +76,7 @@ class TestGetHabitsSettings:
             habit_name="afternoon_slump",
             display_name="Low energy afternoon",
             emoji="😮‍💨",
+            color="#ff4466",
             sort_order=1,
         ))
         await async_session.commit()
@@ -90,6 +92,7 @@ class TestGetHabitsSettings:
         assert entry["habit_name"] == "afternoon_slump"
         assert entry["display_name"] == "Low energy afternoon"
         assert entry["emoji"] == "😮‍💨"
+        assert entry["color"] == "#ff4466"
         assert entry["sort_order"] == 1
 
     @pytest.mark.asyncio
@@ -158,7 +161,12 @@ class TestPutHabitSettings:
         with TestClient(app) as client:
             resp = client.put(
                 "/api/settings/habits/afternoon_slump",
-                json={"display_name": "Low energy afternoon", "emoji": "😮‍💨", "sort_order": 1},
+                json={
+                    "display_name": "Low energy afternoon",
+                    "emoji": "😮‍💨",
+                    "color": "#ff4466",
+                    "sort_order": 1,
+                },
             )
 
         assert resp.status_code == 200
@@ -166,6 +174,7 @@ class TestPutHabitSettings:
         assert data["habit_name"] == "afternoon_slump"
         assert data["display_name"] == "Low energy afternoon"
         assert data["emoji"] == "😮‍💨"
+        assert data["color"] == "#ff4466"
         assert data["sort_order"] == 1
 
     @pytest.mark.asyncio
@@ -175,6 +184,7 @@ class TestPutHabitSettings:
             habit_name="coffee",
             display_name="Old name",
             emoji="🍵",
+            color="#aabbcc",
             sort_order=0,
         ))
         await async_session.commit()
@@ -183,13 +193,14 @@ class TestPutHabitSettings:
         with TestClient(app) as client:
             resp = client.put(
                 "/api/settings/habits/coffee",
-                json={"display_name": "Coffee", "emoji": "☕", "sort_order": 2},
+                json={"display_name": "Coffee", "emoji": "☕", "color": "#c4a77d", "sort_order": 2},
             )
 
         assert resp.status_code == 200
         data = resp.json()
         assert data["display_name"] == "Coffee"
         assert data["emoji"] == "☕"
+        assert data["color"] == "#c4a77d"
         assert data["sort_order"] == 2
 
     @pytest.mark.asyncio
@@ -199,6 +210,7 @@ class TestPutHabitSettings:
             habit_name="beer",
             display_name="Beer",
             emoji="🍺",
+            color="#f59e0b",
             sort_order=3,
         ))
         await async_session.commit()
@@ -207,11 +219,13 @@ class TestPutHabitSettings:
         with TestClient(app) as client:
             resp = client.put(
                 "/api/settings/habits/beer",
-                json={"display_name": "Beer", "emoji": None, "sort_order": 3},
+                json={"display_name": "Beer", "emoji": None, "color": None, "sort_order": 3},
             )
 
         assert resp.status_code == 200
-        assert resp.json()["emoji"] is None
+        body = resp.json()
+        assert body["emoji"] is None
+        assert body["color"] is None
 
     @pytest.mark.asyncio
     async def test_persists_across_requests(self, async_session):
@@ -229,7 +243,7 @@ class TestPutHabitSettings:
         with TestClient(app) as client:
             client.put(
                 "/api/settings/habits/afternoon_slump",
-                json={"display_name": "PM slump", "emoji": "😩", "sort_order": 0},
+                json={"display_name": "PM slump", "emoji": "😩", "color": "#ff4466", "sort_order": 0},
             )
             resp = client.get("/api/settings/habits")
 
@@ -237,3 +251,16 @@ class TestPutHabitSettings:
         entry = next(d for d in data if d["habit_name"] == "afternoon_slump")
         assert entry["display_name"] == "PM slump"
         assert entry["emoji"] == "😩"
+        assert entry["color"] == "#ff4466"
+
+    @pytest.mark.asyncio
+    async def test_rejects_invalid_color(self, async_session):
+        """PUT rejects non-hex color values."""
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.put(
+                "/api/settings/habits/afternoon_slump",
+                json={"display_name": "PM slump", "emoji": "😩", "color": "red", "sort_order": 0},
+            )
+
+        assert resp.status_code == 422

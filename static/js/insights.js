@@ -1,9 +1,17 @@
 // Insights page JavaScript
 
+let habitSettings = [];
+
+function getHabitLabel(habitName) {
+    const setting = habitSettings.find(h => h.habit_name === habitName);
+    return (setting && setting.display_name) || habitName.replace(/_/g, ' ');
+}
+
 async function loadHabits() {
     try {
-        const resp = await fetch('/api/habits/names');
-        const habitNames = await resp.json();
+        const resp = await fetch('/api/settings/habits');
+        habitSettings = await resp.json();
+        const habitNames = habitSettings.map(h => h.habit_name);
 
         const select = document.getElementById('target-habit');
         if (!habitNames || habitNames.length === 0) {
@@ -12,17 +20,18 @@ async function loadHabits() {
         }
 
         select.innerHTML = habitNames.map(name =>
-            `<option value="${name}"${name === 'pm_slump' ? ' selected' : ''}>${name.replace(/_/g, ' ')}</option>`
+            `<option value="${name}">${getHabitLabel(name)}</option>`
         ).join('');
 
     } catch (error) {
         console.error('Error loading habits:', error);
-        document.getElementById('target-habit').innerHTML = '<option value="pm_slump">pm_slump</option>';
+        habitSettings = [];
+        document.getElementById('target-habit').innerHTML = '<option value="">No habits found</option>';
     }
 }
 
 function getTargetHabit() {
-    return document.getElementById('target-habit').value || 'pm_slump';
+    return document.getElementById('target-habit').value || null;
 }
 
 async function loadInsights() {
@@ -30,13 +39,18 @@ async function loadInsights() {
     const container = document.getElementById('insights-list');
     container.innerHTML = '<p class="loading">Loading insights...</p>';
 
+    if (!targetHabit) {
+        container.innerHTML = '<p>No habits available for analysis yet.</p>';
+        return;
+    }
+
     try {
         const resp = await fetch(`/api/insights?target_habit=${encodeURIComponent(targetHabit)}`);
         const insights = await resp.json();
 
         if (insights.length === 0) {
             const select = document.getElementById('target-habit');
-            const label = select.options[select.selectedIndex]?.text || targetHabit;
+            const label = select.options[select.selectedIndex]?.text || getHabitLabel(targetHabit);
             container.innerHTML = `<p>No insights yet. Need at least 7 days of <strong>${label}</strong> data.</p>`;
             return;
         }
@@ -74,6 +88,11 @@ async function loadPatterns() {
     const targetHabit = getTargetHabit();
     const container = document.getElementById('patterns-list');
     container.innerHTML = '<p class="loading">Loading patterns...</p>';
+
+    if (!targetHabit) {
+        container.innerHTML = '<p>No habits available for pattern analysis yet.</p>';
+        return;
+    }
 
     try {
         const resp = await fetch(`/api/patterns?target_habit=${encodeURIComponent(targetHabit)}`);

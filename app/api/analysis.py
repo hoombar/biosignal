@@ -1,12 +1,11 @@
 """Analysis API endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, distinct
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.config import get_settings
-from app.models.database import DailyHabit
+from app.services.habit_config import list_habit_display_entries
 from app.api.export import FEATURE_METADATA
 from app.schemas.responses import (
     CorrelationResult,
@@ -43,14 +42,13 @@ async def get_correlation_targets(db: AsyncSession = Depends(get_db)):
             category=category,
         ))
 
-    habits_result = await db.execute(
-        select(distinct(DailyHabit.habit_name)).order_by(DailyHabit.habit_name.asc())
-    )
-    habit_names = [row[0] for row in habits_result.all()]
-    for name in habit_names:
+    habit_entries = await list_habit_display_entries(db)
+    for entry in habit_entries:
+        name = entry["habit_name"]
+        label = entry["display_name"] or name.replace("_", " ")
         targets.append(CorrelationTargetOption(
             target=f"habit:{name}",
-            label=name.replace("_", " "),
+            label=label,
             kind="habit",
             category="Habits",
         ))
@@ -91,7 +89,7 @@ async def get_correlations(
 
 @router.get("/patterns", response_model=list[PatternResult])
 async def get_patterns(
-    target_habit: str = "pm_slump",
+    target_habit: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     """Get pattern detection results with conditional probabilities."""
@@ -103,7 +101,7 @@ async def get_patterns(
 
 @router.get("/insights", response_model=list[InsightResult])
 async def get_insights(
-    target_habit: str = "pm_slump",
+    target_habit: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     """Get plain-English insights generated from analysis."""

@@ -6,6 +6,7 @@ import numpy as np
 from scipy import stats
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.habit_config import get_default_habit_name
 from app.services.features import compute_features_range
 
 logger = logging.getLogger(__name__)
@@ -62,8 +63,7 @@ def _parse_correlation_target(
     if target_habit:
         return "habit", target_habit
 
-    # Backward-compatible default for internal callers.
-    return "habit", "pm_slump"
+    raise ValueError("Either target or target_habit must be provided")
 
 
 def _get_target_value(features: dict, target_kind: str, target_name: str) -> float | None:
@@ -77,7 +77,7 @@ async def compute_correlations(
     session: AsyncSession,
     timezone: str = "Europe/London",
     target: str | None = None,
-    target_habit: str = "pm_slump",
+    target_habit: str | None = None,
     min_days: int = 5
 ) -> list[dict]:
     """
@@ -94,6 +94,11 @@ async def compute_correlations(
     Returns:
         List of correlation results, sorted by |r| descending.
     """
+    if not target and not target_habit:
+        target_habit = await get_default_habit_name(session)
+        if not target_habit:
+            return []
+
     target_kind, target_name = _parse_correlation_target(target, target_habit)
 
     # Get all available data
@@ -234,7 +239,7 @@ async def compute_correlations(
 async def compute_patterns(
     session: AsyncSession,
     timezone: str = "Europe/London",
-    target_habit: str = "pm_slump",
+    target_habit: str | None = None,
 ) -> list[dict]:
     """
     Detect specific patterns using conditional probabilities.
@@ -242,11 +247,17 @@ async def compute_patterns(
     Args:
         session: Database session
         timezone: Timezone string
-        target_habit: The habit name to use as the outcome variable
+        target_habit: The habit name to use as the outcome variable. If omitted,
+            the first habit in settings order is used.
 
     Returns:
         List of pattern results with probabilities and relative risk.
     """
+    if not target_habit:
+        target_habit = await get_default_habit_name(session)
+        if not target_habit:
+            return []
+
     # Get all available data
     end_date = date.today()
     start_date = end_date - timedelta(days=365)
@@ -254,22 +265,24 @@ async def compute_patterns(
     features_list = await compute_features_range(session, start_date, end_date, timezone)
 
     # Filter to days with target habit data
-    fog_data = [f for f in features_list if _get_habit_value(f, target_habit) is not None]
+    target_data = [f for f in features_list if _get_habit_value(f, target_habit) is not None]
 
-    if len(fog_data) < 7:
+    if len(target_data) < 7:
         return []
 
     # Calculate baseline probability (target habit == 1)
-    fog_count = sum(1 for f in fog_data if _get_habit_value(f, target_habit) == 1.0)
-    baseline_prob = fog_count / len(fog_data)
+    target_positive_count = sum(1 for f in target_data if _get_habit_value(f, target_habit) == 1.0)
+    baseline_prob = target_positive_count / len(target_data)
 
     patterns = []
 
     def _add_pattern(subset: list[dict], description: str) -> None:
         if len(subset) < 5:
             return
-        fog_in_pattern = sum(1 for f in subset if _get_habit_value(f, target_habit) == 1.0)
-        prob = fog_in_pattern / len(subset)
+        target_positive_in_subset = sum(1 for f in subset if _get_habit_value(f, target_habit) == 1.0)
+        prob = target_positive_in_subset / len(subset)
+        if abs(prob - baseline_prob) < 0.01:
+            return
         rel_risk = prob / baseline_prob if baseline_prob > 0 else 0
         patterns.append({
             "description": description,
@@ -279,38 +292,66 @@ async def compute_patterns(
             "sample_size": len(subset),
         })
 
-    # Pattern: Sleep < 7 hours
-    _add_pattern(
-        [f for f in fog_data if f.get("sleep_hours") is not None and f["sleep_hours"] < 7],
-        "Sleep less than 7 hours",
-    )
+    feature_pairs: dict[str, list[tuple[dict, float]]] = {}
+    for day in target_data:
+        for key, value in day.items():
+            if key in {"date", "habits"}:
+                continue
+            numeric = _to_numeric(value)
+            if numeric is None:
+                continue
+            feature_pairs.setdefault(key, []).append((day, numeric))
 
-    # Pattern: Beer count > 2
-    _add_pattern(
-        [f for f in fog_data if _get_habit_value(f, "beer_count") is not None and _get_habit_value(f, "beer_count") > 2],
-        "More than 2 alcoholic drinks previous evening",
-    )
+        for habit in day.get("habits", []):
+            name = habit["name"]
+            if name == target_habit:
+                continue
+            numeric = _to_numeric(habit.get("value"))
+            if numeric is None:
+                continue
+            feature_pairs.setdefault(f"habit:{name}", []).append((day, numeric))
 
-    # Pattern: Coffee > 3
-    _add_pattern(
-        [f for f in fog_data if _get_habit_value(f, "coffee_count") is not None and _get_habit_value(f, "coffee_count") > 3],
-        "More than 3 coffees",
-    )
+    for feature_key, pairs in feature_pairs.items():
+        if len(pairs) < 7:
+            continue
 
-    # Pattern: Carb-heavy lunch
-    _add_pattern(
-        [f for f in fog_data if _get_habit_value(f, "carb_heavy_lunch") == 1.0],
-        "Carb-heavy lunch",
-    )
+        values = [value for _, value in pairs]
+        unique_values = set(values)
+        if len(unique_values) < 2:
+            continue
 
-    # Pattern: Had training (inverse - does training REDUCE fog?)
-    _add_pattern(
-        [f for f in fog_data if f.get("had_training") is True],
-        "Training day (previous day or same day)",
-    )
+        label = feature_key[6:] if feature_key.startswith("habit:") else feature_key
+        label = label.replace("_", " ")
 
-    # Sort by relative risk (descending)
-    patterns.sort(key=lambda x: x["relative_risk"], reverse=True)
+        if unique_values.issubset({0.0, 1.0}):
+            _add_pattern(
+                [day for day, value in pairs if value == 1.0],
+                f"{label} present",
+            )
+            continue
+
+        q25 = float(np.quantile(values, 0.25))
+        q75 = float(np.quantile(values, 0.75))
+        min_value = min(values)
+        max_value = max(values)
+
+        if q75 > min_value:
+            _add_pattern(
+                [day for day, value in pairs if value >= q75],
+                f"Higher {label} (>= {q75:.2f})",
+            )
+
+        if q25 < max_value:
+            _add_pattern(
+                [day for day, value in pairs if value <= q25],
+                f"Lower {label} (<= {q25:.2f})",
+            )
+
+    # Sort by effect size (distance from neutral risk=1.0), then sample size.
+    patterns.sort(
+        key=lambda x: (abs(x["relative_risk"] - 1.0), x["sample_size"]),
+        reverse=True,
+    )
 
     logger.info(f"Identified {len(patterns)} patterns against {target_habit}")
     return patterns
@@ -319,7 +360,7 @@ async def compute_patterns(
 async def generate_insights(
     session: AsyncSession,
     timezone: str = "Europe/London",
-    target_habit: str = "pm_slump",
+    target_habit: str | None = None,
 ) -> list[dict]:
     """
     Generate plain-English insights from correlations and patterns.
@@ -327,11 +368,17 @@ async def generate_insights(
     Args:
         session: Database session
         timezone: Timezone string
-        target_habit: The habit name to analyze as the outcome variable
+        target_habit: The habit name to analyze as the outcome variable. If
+            omitted, the first habit in settings order is used.
 
     Returns:
         List of insights with confidence ratings.
     """
+    if not target_habit:
+        target_habit = await get_default_habit_name(session)
+        if not target_habit:
+            return []
+
     correlations = await compute_correlations(session, timezone, target_habit=target_habit)
     patterns = await compute_patterns(session, timezone, target_habit=target_habit)
 

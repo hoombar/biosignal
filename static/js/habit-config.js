@@ -6,11 +6,16 @@
  *
  * Usage:
  *   await loadHabitConfig();
- *   const display = getHabitDisplay('afternoon_slump');
- *   // => { label: 'Low energy afternoon', emoji: '😮‍💨' }
+ *   const display = getHabitDisplay('custom_habit');
+ *   // => { label: 'Custom Habit', emoji: '✅', color: '#4488ff' }
  */
 
 let _habitConfigMap = null;
+const _habitFallbackPalette = [
+    '#4488ff', '#dc2626', '#16a34a', '#f59e0b',
+    '#a78bfa', '#34d399', '#38bdf8', '#f87171',
+    '#fbbf24', '#fb923c', '#60a5fa', '#e879f9',
+];
 
 /**
  * Load the habit display config from the API.
@@ -38,14 +43,19 @@ async function loadHabitConfig() {
  * Returns saved config values, falling back to auto-generated label and no emoji.
  *
  * @param {string} habitName - snake_case habit name (as stored in DB)
- * @returns {{ label: string, emoji: string|null, sort_order: number }}
+ * @returns {{ label: string, emoji: string|null, color: string, sort_order: number }}
  */
 function getHabitDisplay(habitName) {
     const cfg = _habitConfigMap?.[habitName];
     const label = cfg?.display_name || _toTitleCase(habitName);
     const emoji = cfg?.emoji || null;
+    const color = cfg?.color || _fallbackColorForHabit(habitName);
     const sort_order = cfg?.sort_order ?? 0;
-    return { label, emoji, sort_order };
+    return { label, emoji, color, sort_order };
+}
+
+function getHabitColor(habitName) {
+    return getHabitDisplay(habitName).color;
 }
 
 /**
@@ -67,4 +77,14 @@ function formatHabitValue(habit) {
 
 function _toTitleCase(snakeName) {
     return snakeName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+function _fallbackColorForHabit(habitName) {
+    let hash = 0;
+    for (let i = 0; i < habitName.length; i++) {
+        hash = ((hash << 5) - hash) + habitName.charCodeAt(i);
+        hash |= 0;
+    }
+    const idx = Math.abs(hash) % _habitFallbackPalette.length;
+    return _habitFallbackPalette[idx];
 }

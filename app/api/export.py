@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.config import get_settings
+from app.services.habit_config import list_habit_display_entries
 from app.services.features import compute_features_range
 
 router = APIRouter(prefix="/api/export", tags=["export"])
@@ -66,13 +67,23 @@ FEATURE_METADATA = {
     "training_intensity": {"description": "Training intensity classification", "unit": "low/medium/high", "category": "Activity"},
     "hours_since_training": {"description": "Hours from training end to 2pm", "unit": "hours", "category": "Activity"},
 
-    # Habit features
-    "pm_slump": {"description": "PM energy slump occurred", "unit": "boolean", "category": "Habits"},
-    "coffee_count": {"description": "Number of coffees", "unit": "count", "category": "Habits"},
-    "beer_count": {"description": "Alcohol drinks (previous evening)", "unit": "count", "category": "Habits"},
-    "healthy_lunch": {"description": "Had healthy lunch", "unit": "boolean", "category": "Habits"},
-    "carb_heavy_lunch": {"description": "Had carb-heavy lunch", "unit": "boolean", "category": "Habits"},
 }
+
+
+async def _build_feature_metadata(db: AsyncSession) -> dict[str, dict]:
+    """Return metadata including dynamic habit entries from settings/data."""
+    features = {k: v.copy() for k, v in FEATURE_METADATA.items()}
+
+    for entry in await list_habit_display_entries(db):
+        habit_name = entry["habit_name"]
+        label = entry["display_name"] or habit_name.replace("_", " ")
+        features[habit_name] = {
+            "description": f"Tracked habit: {label}",
+            "unit": "count",
+            "category": "Habits",
+        }
+
+    return features
 
 
 @router.get("")
@@ -95,6 +106,7 @@ async def export_features(
         include_metadata: Include metadata header (CSV only)
     """
     settings = get_settings()
+    metadata = await _build_feature_metadata(db)
 
     # Determine date range
     if start and end:
@@ -146,7 +158,7 @@ async def export_features(
 
     # Add known columns by category
     for category in ["Sleep", "HRV", "SpO2", "Heart Rate", "Body Battery", "Stress", "Activity", "Habits"]:
-        for col, meta in FEATURE_METADATA.items():
+        for col, meta in metadata.items():
             if meta["category"] == category and col in all_columns:
                 ordered_columns.append(col)
 
@@ -240,16 +252,17 @@ async def export_timeseries(
 
 
 @router.get("/metadata")
-async def get_metadata():
+async def get_metadata(db: AsyncSession = Depends(get_db)):
     """Get feature metadata including definitions and units."""
+    features = await _build_feature_metadata(db)
     return {
-        "features": FEATURE_METADATA,
+        "features": features,
         "suggested_analysis_prompts": [
-            "Analyze the correlation between sleep metrics and pm_slump to identify patterns",
-            "Identify which lifestyle factors (coffee, alcohol, lunch type) most strongly predict energy slumps",
-            "Compare body battery trends on fog days vs clear days",
-            "Determine if training intensity or timing affects next-day energy levels",
-            "Find the optimal sleep duration and quality metrics for avoiding PM slumps"
+            "Analyze correlations between sleep metrics and a selected habit outcome",
+            "Identify which tracked habits and physiology metrics best predict your selected target",
+            "Compare body battery trends between positive and negative target days",
+            "Determine whether training intensity or timing affects your selected target",
+            "Find the sleep duration and quality range associated with better target outcomes",
         ],
         "data_completeness_note": "Some features may have null values if data was not available for that day"
     }

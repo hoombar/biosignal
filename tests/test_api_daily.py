@@ -162,7 +162,7 @@ class TestCalendarEndpoint:
 
     @pytest.mark.asyncio
     async def test_returns_lightweight_summaries(self, async_session):
-        """Calendar endpoint returns date + sleep_score + has_slump only."""
+        """Calendar endpoint returns date + sleep_score + has_habit_event only."""
         async_session.add(SleepSession(
             date=date(2025, 3, 15),
             total_sleep_seconds=7 * 3600,
@@ -185,18 +185,18 @@ class TestCalendarEndpoint:
         assert march_15["sleep_score"] == 82
         assert "date" in march_15
         assert "sleep_score" in march_15
-        assert "has_slump" in march_15
+        assert "has_habit_event" in march_15
 
         # Should NOT include heavy fields
         assert "hrv_overnight_avg" not in march_15
         assert "bb_samples" not in march_15
 
     @pytest.mark.asyncio
-    async def test_has_slump_true_when_slump_logged(self, async_session):
-        """has_slump should be true when afternoon_slump habit value > 0."""
+    async def test_has_habit_event_true_for_any_positive_habit(self, async_session):
+        """has_habit_event should be true when any habit value > 0."""
         async_session.add(DailyHabit(
             date=date(2025, 3, 15),
-            habit_name="afternoon_slump",
+            habit_name="custom_flag",
             habit_value="1",
             habit_type="counter",
         ))
@@ -208,14 +208,14 @@ class TestCalendarEndpoint:
 
         data = resp.json()
         march_15 = next(d for d in data if d["date"] == "2025-03-15")
-        assert march_15["has_slump"] is True
+        assert march_15["has_habit_event"] is True
 
     @pytest.mark.asyncio
-    async def test_has_slump_false_when_clear(self, async_session):
-        """has_slump should be false when afternoon_slump habit value is 0."""
+    async def test_has_habit_event_false_when_all_habits_are_zero(self, async_session):
+        """has_habit_event should be false when all logged habits are 0/false."""
         async_session.add(DailyHabit(
             date=date(2025, 3, 15),
-            habit_name="afternoon_slump",
+            habit_name="custom_flag",
             habit_value="0",
             habit_type="counter",
         ))
@@ -227,11 +227,30 @@ class TestCalendarEndpoint:
 
         data = resp.json()
         march_15 = next(d for d in data if d["date"] == "2025-03-15")
-        assert march_15["has_slump"] is False
+        assert march_15["has_habit_event"] is False
+
+    @pytest.mark.asyncio
+    async def test_has_habit_event_true_for_boolean_true(self, async_session):
+        """has_habit_event should treat boolean-like values as events."""
+        async_session.add(DailyHabit(
+            date=date(2025, 3, 15),
+            habit_name="custom_bool",
+            habit_value="true",
+            habit_type="boolean",
+        ))
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get("/api/daily/calendar", params={"year": 2025})
+
+        data = resp.json()
+        march_15 = next(d for d in data if d["date"] == "2025-03-15")
+        assert march_15["has_habit_event"] is True
 
     @pytest.mark.asyncio
     async def test_days_without_data_have_nulls(self, async_session):
-        """Days with no data should have null sleep_score and false has_slump."""
+        """Days with no data should have null sleep_score and false has_habit_event."""
         app = _make_test_app(async_session)
         with TestClient(app) as client:
             resp = client.get("/api/daily/calendar", params={"year": 2025})
@@ -239,7 +258,7 @@ class TestCalendarEndpoint:
         data = resp.json()
         jan_1 = next(d for d in data if d["date"] == "2025-01-01")
         assert jan_1["sleep_score"] is None
-        assert jan_1["has_slump"] is False
+        assert jan_1["has_habit_event"] is False
 
 
 class TestNotableDaysEndpoint:

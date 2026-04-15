@@ -159,7 +159,7 @@ class DailyHabit(Base):
 
 
 class HabitDisplayConfig(Base):
-    """User-configured display settings for each habit (label, emoji, order)."""
+    """User-configured display settings for each habit (label, emoji, color, order)."""
 
     __tablename__ = "habit_display_config"
 
@@ -167,6 +167,7 @@ class HabitDisplayConfig(Base):
     habit_name = Column(String, nullable=False, unique=True, index=True)
     display_name = Column(String, nullable=True)
     emoji = Column(String, nullable=True)
+    color = Column(String, nullable=True)
     sort_order = Column(Integer, default=0, nullable=False)
 
 

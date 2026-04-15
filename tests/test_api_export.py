@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 
 from app.api.export import router
 from app.core.database import get_db
-from app.models.database import SleepSession
+from app.models.database import SleepSession, DailyHabit, HabitDisplayConfig
 
 
 def _make_test_app(session):
@@ -187,3 +187,30 @@ class TestExportMetadata:
         assert "description" in sleep_hours
         assert "unit" in sleep_hours
         assert "category" in sleep_hours
+
+    @pytest.mark.asyncio
+    async def test_metadata_includes_dynamic_habit_features(self, async_session):
+        """Habit feature metadata should be generated from synced habit names."""
+        async_session.add(DailyHabit(
+            date=date(2025, 1, 28),
+            habit_name="custom_focus",
+            habit_value="1",
+            habit_type="counter",
+        ))
+        async_session.add(HabitDisplayConfig(
+            habit_name="custom_focus",
+            display_name="Focus Session",
+            color="#4488ff",
+            sort_order=1,
+        ))
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get("/api/export/metadata")
+
+        assert resp.status_code == 200
+        features = resp.json()["features"]
+        assert "custom_focus" in features
+        assert features["custom_focus"]["category"] == "Habits"
+        assert "Focus Session" in features["custom_focus"]["description"]
