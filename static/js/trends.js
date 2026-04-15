@@ -9,6 +9,8 @@ let metricColors = {};     // key → hex color (persistent per key)
 let chart = null;
 let paletteIndex = 0;
 let selectedRangeDays = 14;
+let selectedStart = null;
+let selectedEnd = null;
 
 const ALLOWED_RANGE_DAYS = new Set([7, 14, 30, 60, 90]);
 const DEFAULT_RANGE_DAYS = 14;
@@ -45,31 +47,63 @@ async function init() {
         habitNames = await habitsResp.json();
 
         buildHabitSelector();
-        buildRangeSelector();
-        await reloadRange(selectedRangeDays);
+        initializeRangeControls();
+        await applyPresetRange(DEFAULT_RANGE_DAYS);
     } catch (err) {
         console.error('Failed to initialise trends:', err);
     }
 }
 
-function buildRangeSelector() {
-    const select = document.getElementById('trends-range');
-    if (!select) return;
-    select.value = String(selectedRangeDays);
+function formatDateForInput(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
 }
 
-async function fetchDailySummariesForRange(days) {
-    const safeDays = ALLOWED_RANGE_DAYS.has(days) ? days : DEFAULT_RANGE_DAYS;
-    const resp = await fetch(`/api/daily?days=${safeDays}`);
+function dateFromIso(isoDate) {
+    return new Date(`${isoDate}T00:00:00`);
+}
+
+function setDateInputs(startIso, endIso) {
+    const startInput = document.getElementById('range-start');
+    const endInput = document.getElementById('range-end');
+    if (startInput) startInput.value = startIso;
+    if (endInput) endInput.value = endIso;
+}
+
+function setPresetChipState(activeDaysOrNull) {
+    for (const days of ALLOWED_RANGE_DAYS) {
+        const chip = document.getElementById(`range-chip-${days}`);
+        if (!chip) continue;
+        chip.classList.toggle('active', activeDaysOrNull === days);
+    }
+}
+
+function initializeRangeControls() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = new Date(today);
+    start.setDate(start.getDate() - (DEFAULT_RANGE_DAYS - 1));
+
+    selectedStart = formatDateForInput(start);
+    selectedEnd = formatDateForInput(today);
+    selectedRangeDays = DEFAULT_RANGE_DAYS;
+
+    setDateInputs(selectedStart, selectedEnd);
+    setPresetChipState(DEFAULT_RANGE_DAYS);
+}
+
+async function fetchDailySummariesForWindow(startIso, endIso) {
+    const resp = await fetch(`/api/daily?start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(endIso)}`);
     if (!resp.ok) {
         throw new Error(`Failed to fetch daily summaries (${resp.status})`);
     }
-    selectedRangeDays = safeDays;
     trendsData = await resp.json();
 }
 
-async function reloadRange(days) {
-    await fetchDailySummariesForRange(days);
+async function reloadRangeWindow(startIso, endIso) {
+    await fetchDailySummariesForWindow(startIso, endIso);
     buildMetricPicker();
     if (activeMetrics.size === 0) {
         activateDefaults();
@@ -77,17 +111,78 @@ async function reloadRange(days) {
     updateChart();
 }
 
-async function onRangeChange() {
-    const select = document.getElementById('trends-range');
-    const nextDays = Number(select ? select.value : DEFAULT_RANGE_DAYS);
+async function refreshSuggestionsIfNeeded() {
+    if (document.getElementById('correlate-habit').value) {
+        await onCorrelateHabitChange();
+    }
+}
+
+async function applyPresetRange(days) {
+    const safeDays = ALLOWED_RANGE_DAYS.has(days) ? days : DEFAULT_RANGE_DAYS;
+    const end = new Date();
+    end.setHours(0, 0, 0, 0);
+    const start = new Date(end);
+    start.setDate(start.getDate() - (safeDays - 1));
+
+    selectedStart = formatDateForInput(start);
+    selectedEnd = formatDateForInput(end);
+    selectedRangeDays = safeDays;
+
+    setDateInputs(selectedStart, selectedEnd);
+    setPresetChipState(safeDays);
+
+    await reloadRangeWindow(selectedStart, selectedEnd);
+    await refreshSuggestionsIfNeeded();
+}
+
+async function onRangePresetClick(days) {
+    try {
+        await applyPresetRange(days);
+    } catch (err) {
+        console.error('Failed to apply preset range:', err);
+    }
+}
+
+function onCustomRangeInputChange() {
+    // User is adjusting custom window; clear preset highlight until apply.
+    setPresetChipState(null);
+}
+
+async function applyCustomRange() {
+    const startInput = document.getElementById('range-start');
+    const endInput = document.getElementById('range-end');
+    const startIso = startInput ? startInput.value : '';
+    const endIso = endInput ? endInput.value : '';
+
+    if (!startIso || !endIso) {
+        alert('Please choose both a start and end date.');
+        return;
+    }
+
+    const start = dateFromIso(startIso);
+    const end = dateFromIso(endIso);
+    if (start > end) {
+        alert('Start date must be on or before end date.');
+        return;
+    }
+
+    selectedStart = startIso;
+    selectedEnd = endIso;
+
+    const days = Math.floor((end - start) / (24 * 3600 * 1000)) + 1;
+    if (ALLOWED_RANGE_DAYS.has(days)) {
+        selectedRangeDays = days;
+        setPresetChipState(days);
+    } else {
+        selectedRangeDays = null;
+        setPresetChipState(null);
+    }
 
     try {
-        await reloadRange(nextDays);
-        if (document.getElementById('correlate-habit').value) {
-            onCorrelateHabitChange();
-        }
+        await reloadRangeWindow(startIso, endIso);
+        await refreshSuggestionsIfNeeded();
     } catch (err) {
-        console.error('Failed to reload trends range:', err);
+        console.error('Failed to apply custom range:', err);
     }
 }
 

@@ -20,25 +20,38 @@
     <!-- Left column: chart + metric picker -->
     <div class="trends-left">
         <div class="chart-container">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap;">
                 <h2 style="margin-bottom: 0;">Metrics Over Time</h2>
-                <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; justify-content: flex-end;">
-                    <label style="font-size: 0.8125rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.5rem;">
-                        Range
-                        <select id="trends-range" onchange="onRangeChange()">
-                            <option value="7">7d</option>
-                            <option value="14" selected>14d</option>
-                            <option value="30">30d</option>
-                            <option value="60">60d</option>
-                            <option value="90">90d</option>
-                        </select>
+                <label style="font-size: 0.8125rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" id="rolling-avg-toggle" checked onchange="updateChart()">
+                    Show frequency overlay (binary habits)
+                </label>
+            </div>
+
+            <div class="trends-range-controls">
+                <div class="trends-range-presets">
+                    <span class="trends-range-caption">Quick Ranges</span>
+                    <button type="button" class="range-chip" id="range-chip-7" onclick="onRangePresetClick(7)">7d</button>
+                    <button type="button" class="range-chip" id="range-chip-14" onclick="onRangePresetClick(14)">14d</button>
+                    <button type="button" class="range-chip" id="range-chip-30" onclick="onRangePresetClick(30)">30d</button>
+                    <button type="button" class="range-chip" id="range-chip-60" onclick="onRangePresetClick(60)">60d</button>
+                    <button type="button" class="range-chip" id="range-chip-90" onclick="onRangePresetClick(90)">90d</button>
+                </div>
+
+                <div class="trends-range-custom">
+                    <span class="trends-range-caption">Custom Window</span>
+                    <label class="trends-range-field">
+                        From
+                        <input type="date" id="range-start" onchange="onCustomRangeInputChange()">
                     </label>
-                    <label style="font-size: 0.8125rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                        <input type="checkbox" id="rolling-avg-toggle" checked onchange="updateChart()">
-                        Show frequency overlay (binary habits)
+                    <label class="trends-range-field">
+                        To
+                        <input type="date" id="range-end" onchange="onCustomRangeInputChange()">
                     </label>
+                    <button type="button" class="range-apply-btn" onclick="applyCustomRange()">Apply</button>
                 </div>
             </div>
+
             <canvas id="trends-chart" style="height: 420px;"></canvas>
         </div>
 
@@ -76,12 +89,110 @@
     align-items: start;
 }
 
+/* Trends date-window controls */
+.trends-range-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.9rem;
+    padding: 0.7rem 0.8rem;
+    background: linear-gradient(135deg, var(--bg-tertiary) 0%, rgba(68, 136, 255, 0.06) 100%);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+}
+
+.trends-range-caption {
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.trends-range-presets,
+.trends-range-custom {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+}
+
+.range-chip {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.75rem;
+    line-height: 1.2;
+}
+
+.range-chip:hover {
+    background: var(--bg-hover);
+    border-color: var(--primary-color);
+    color: var(--text-primary);
+}
+
+.range-chip.active {
+    color: var(--text-primary);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(68, 136, 255, 0.16);
+}
+
+.trends-range-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+}
+
+.trends-range-field input[type="date"] {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    padding: 0.32rem 0.45rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    min-width: 9.5rem;
+}
+
+.trends-range-field input[type="date"]:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(68, 136, 255, 0.15);
+}
+
+.range-apply-btn {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-strong);
+    color: var(--text-secondary);
+    padding: 0.3rem 0.65rem;
+    font-size: 0.76rem;
+    border-radius: var(--radius-sm);
+}
+
+.range-apply-btn:hover {
+    border-color: var(--color-positive);
+    color: var(--color-positive);
+    background: var(--bg-hover);
+}
+
 @media (max-width: 1100px) {
     .trends-layout {
         grid-template-columns: 1fr;
     }
     .trends-right .chart-container {
         position: static !important;
+    }
+    .trends-range-controls {
+        justify-content: flex-start;
+    }
+    .trends-range-field input[type="date"] {
+        min-width: 8rem;
     }
 }
 
