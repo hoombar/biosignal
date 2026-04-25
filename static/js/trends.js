@@ -538,6 +538,46 @@ function hexToRgba(hex, alpha) {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+// ─── Habit lanes (below main chart) ───────────────────────────────────────────
+function renderHabitLanes() {
+    const container = document.getElementById('habit-lanes');
+    if (!container) return;
+
+    const habitKeys = [...activeMetrics].filter(k => k.startsWith('habit:'));
+
+    if (habitKeys.length === 0 || trendsData.length === 0) {
+        container.classList.add('is-empty');
+        container.innerHTML = '';
+        return;
+    }
+    container.classList.remove('is-empty');
+    container.style.setProperty('--day-count', trendsData.length);
+
+    const dates = trendsData.map(d => d.date);
+
+    container.innerHTML = habitKeys.map(key => {
+        const habitName = key.slice(6);
+        const color = metricColors[key] || getHabitColorSetting(habitName) || '#888888';
+        const label = getHabitLabel(habitName);
+        const values = getMetricValues(key); // null | 0 | positive number
+
+        const cells = values.map((v, i) => {
+            let state;
+            if (v === null) state = 'null';
+            else if (v > 0) state = 'on';
+            else state = 'off';
+            return `<span class="habit-cell ${state}" title="${dates[i]}: ${v ?? '—'}"></span>`;
+        }).join('');
+
+        return `
+            <div class="habit-lane" data-habit="${habitName}" style="--cell-color: ${color}; --day-count: ${trendsData.length};">
+                <div class="habit-lane-label" title="${label}">${label}</div>
+                <div class="habit-lane-cells">${cells}</div>
+            </div>
+        `;
+    }).join('');
+}
+
 // ─── Chart update ─────────────────────────────────────────────────────────────
 function updateChart() {
     if (!trendsData.length) return;
@@ -617,6 +657,8 @@ function updateChart() {
             else if (axis === 'y-count') showCount = true;
         }
     }
+
+    renderHabitLanes();
 
     if (chart) chart.destroy();
 

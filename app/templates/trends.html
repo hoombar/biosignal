@@ -53,6 +53,9 @@
             </div>
 
             <canvas id="trends-chart" style="height: 420px;"></canvas>
+
+            <!-- Binary habits render below the chart as one strip per habit. -->
+            <div id="habit-lanes" class="habit-lanes is-empty"></div>
         </div>
 
         <!-- Metric picker accordion -->
@@ -194,6 +197,66 @@
     .trends-range-field input[type="date"] {
         min-width: 8rem;
     }
+}
+
+/* Habit lanes — binary habits stacked under the main chart */
+.habit-lanes {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 0.75rem;
+}
+
+.habit-lanes.is-empty {
+    display: none;
+}
+
+.habit-lane {
+    display: flex;
+    align-items: center;
+    height: 44px;
+    gap: 0.5rem;
+    /* --cell-color is set inline per-lane from the habit's configured color */
+    --cell-color: var(--border-strong);
+}
+
+.habit-lane-label {
+    flex: 0 0 96px;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    text-align: right;
+    padding-right: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.habit-lane-cells {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(var(--day-count, 14), 1fr);
+    gap: 2px;
+    height: 28px;
+}
+
+.habit-cell {
+    border-radius: 2px;
+    background: transparent;
+    transition: background var(--transition-fast);
+}
+
+.habit-cell.on {
+    background: var(--cell-color);
+}
+
+.habit-cell.off {
+    background: color-mix(in srgb, var(--cell-color) 14%, transparent);
+}
+
+.habit-cell.null {
+    background: var(--bg-tertiary);
+    opacity: 0.4;
 }
 
 /* Accordion */
