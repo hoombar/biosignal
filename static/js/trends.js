@@ -530,6 +530,17 @@ function calculateRollingAverage(data, windowSize = 7) {
     return result;
 }
 
+// ─── Correlations target (shared with /correlations via localStorage) ────────
+const TARGET_STORAGE_KEY = 'biosignal_correlation_target';
+
+function getTargetMetricKey() {
+    try {
+        return localStorage.getItem(TARGET_STORAGE_KEY) || null;
+    } catch {
+        return null;
+    }
+}
+
 // ─── Hex → rgba helper ────────────────────────────────────────────────────────
 function hexToRgba(hex, alpha) {
     const r = parseInt(hex.slice(1, 3), 16);
@@ -593,11 +604,13 @@ function renderHabitLanes() {
     const dates = trendsData.map(d => d.date);
     const showRolling = document.getElementById('rolling-avg-toggle').checked;
     const dayCount = trendsData.length;
+    const targetKey = getTargetMetricKey();
 
     container.innerHTML = habitKeys.map(key => {
         const habitName = key.slice(6);
         const color = metricColors[key] || getHabitColorSetting(habitName) || '#888888';
-        const label = getHabitLabel(habitName);
+        const isTarget = key === targetKey;
+        const label = getHabitLabel(habitName) + (isTarget ? ' (target)' : '');
         const values = getMetricValues(key); // null | 0 | positive number
 
         const cells = values.map((v, i) => {
@@ -618,7 +631,7 @@ function renderHabitLanes() {
         }
 
         return `
-            <div class="habit-lane" data-habit="${habitName}" style="--cell-color: ${color}; --day-count: ${dayCount};">
+            <div class="habit-lane${isTarget ? ' is-target' : ''}" data-habit="${habitName}" style="--cell-color: ${color}; --day-count: ${dayCount};">
                 <div class="habit-lane-label" title="${label}">${label}</div>
                 <div class="habit-lane-cells">${cells}${rollingSvg}</div>
             </div>
@@ -633,6 +646,7 @@ function updateChart() {
     const labels = trendsData.map(d => d.date);
     const datasets = [];
     const useRolling = document.getElementById('rolling-avg-toggle').checked;
+    const targetKey = getTargetMetricKey();
 
     let showScore = false;
     let showHrv = false;
@@ -647,7 +661,9 @@ function updateChart() {
         const axis = getAxisForKey(key);
         const color = metricColors[key] || '#888888';
         const bgColor = hexToRgba(color, 0.1);
-        const label = getMetricLabel(key);
+        const isTarget = key === targetKey;
+        const label = getMetricLabel(key) + (isTarget ? ' (target)' : '');
+        const targetDash = isTarget ? [6, 4] : undefined;
 
         if (axis === 'y-binary') {
             // Stepped raw line — clearly shows yes/no per day, alternating patterns visible
@@ -663,6 +679,7 @@ function updateChart() {
                 borderWidth: 1.5,
                 spanGaps: false,
                 tension: 0,
+                borderDash: targetDash,
             });
 
             // Optional dotted frequency overlay (0–1) when toggle is on
@@ -686,7 +703,7 @@ function updateChart() {
             showBinary = true;
 
         } else {
-            // Smooth line for all non-binary metrics (score, hrv, count, numeric habits)
+            // Smooth line for all non-binary metrics (score, hrv, count)
             datasets.push({
                 label,
                 data: rawValues,
@@ -696,8 +713,9 @@ function updateChart() {
                 tension: 0.3,
                 pointRadius: 0,
                 pointHoverRadius: 4,
-                borderWidth: 1.5,
+                borderWidth: isTarget ? 2 : 1.5,
                 spanGaps: true,
+                borderDash: targetDash,
             });
 
             if (axis === 'y-score') showScore = true;
@@ -808,3 +826,8 @@ function updateChart() {
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', init);
+
+// Cross-tab: re-render if the correlations target is changed elsewhere.
+window.addEventListener('storage', (e) => {
+    if (e.key === TARGET_STORAGE_KEY && trendsData.length) updateChart();
+});

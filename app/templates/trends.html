@@ -219,6 +219,15 @@
     --cell-color: var(--border-strong);
 }
 
+.habit-lane.is-target .habit-lane-cells {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cell-color) 60%, transparent);
+    border-radius: 3px;
+}
+
+.habit-lane.is-target .habit-lane-label {
+    color: var(--text-secondary);
+}
+
 .habit-lane-label {
     /* --lane-label-width is set by JS to match the chart's left gutter
        (chart.chartArea.left) so cells line up under the chart x-positions. */
