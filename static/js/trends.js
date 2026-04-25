@@ -550,9 +550,11 @@ function updateChart() {
     let showHrv = false;
     let showCount = false;
     let showBinary = false;
-    let showNumeric = false;
 
     for (const key of activeMetrics) {
+        // Habits live in their own lanes below the chart, never on the main canvas.
+        if (key.startsWith('habit:')) continue;
+
         const rawValues = getMetricValues(key);
         const axis = getAxisForKey(key);
         const color = metricColors[key] || '#888888';
@@ -613,7 +615,6 @@ function updateChart() {
             if (axis === 'y-score') showScore = true;
             else if (axis === 'y-hrv') showHrv = true;
             else if (axis === 'y-count') showCount = true;
-            else if (axis === 'y-numeric') showNumeric = true;
         }
     }
 
@@ -706,23 +707,6 @@ function updateChart() {
                         font: { size: 10 },
                         stepSize: 1,
                         callback: v => v === 0 ? 'No' : v === 1 ? 'Yes' : null,
-                    },
-                    grid: { drawOnChartArea: false },
-                },
-                'y-numeric': {
-                    type: 'linear',
-                    display: showNumeric,
-                    position: 'right',
-                    title: {
-                        display: true,
-                        text: 'Habit value',
-                        color: '#8888a0',
-                        font: { size: 10 },
-                    },
-                    ticks: {
-                        color: '#555566',
-                        font: { size: 10 },
-                        precision: 0,
                     },
                     grid: { drawOnChartArea: false },
                 },
