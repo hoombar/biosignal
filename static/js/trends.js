@@ -549,6 +549,30 @@ function hexToRgba(hex, alpha) {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+// ─── Latest 7-days band ───────────────────────────────────────────────────────
+// Chart.js plugin: shade the rightmost 7 days with a faint band so the user
+// can see at a glance which window the in-lane rolling-frequency line is
+// summarising. Drawn before datasets so chart lines stay on top.
+const latest7DaysBandPlugin = {
+    id: 'latest7DaysBand',
+    beforeDatasetsDraw(chartInstance) {
+        const { ctx, chartArea, scales } = chartInstance;
+        if (!chartArea || !scales.x) return;
+        const labels = chartInstance.data.labels;
+        if (!labels || labels.length < 8) return;
+
+        const startIdx = labels.length - 7;
+        const cellCenter = scales.x.getPixelForValue(startIdx);
+        const prevCenter = scales.x.getPixelForValue(startIdx - 1);
+        const xStart = (cellCenter + prevCenter) / 2;
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(96, 165, 250, 0.07)';
+        ctx.fillRect(xStart, chartArea.top, chartArea.right - xStart, chartArea.bottom - chartArea.top);
+        ctx.restore();
+    },
+};
+
 // ─── Habit lanes (below main chart) ───────────────────────────────────────────
 // Chart.js plugin: after each layout pass, sync the habit lanes container's
 // horizontal padding with the main chart's plot area so day cells line up
@@ -732,7 +756,7 @@ function updateChart() {
     chart = new Chart(ctx, {
         type: 'line',
         data: { labels, datasets },
-        plugins: [habitLaneAlignmentPlugin],
+        plugins: [latest7DaysBandPlugin, habitLaneAlignmentPlugin],
         options: {
             responsive: true,
             maintainAspectRatio: false,

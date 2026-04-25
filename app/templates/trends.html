@@ -21,7 +21,13 @@
     <div class="trends-left">
         <div class="chart-container">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap;">
-                <h2 style="margin-bottom: 0;">Metrics Over Time</h2>
+                <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                    <h2 style="margin-bottom: 0;">Metrics Over Time</h2>
+                    <span class="latest7-legend" title="The faint band on the chart highlights the latest 7 days — the same window the in-lane rolling-frequency line summarises.">
+                        <span class="latest7-swatch"></span>
+                        Latest 7 days
+                    </span>
+                </div>
                 <label style="font-size: 0.8125rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                     <input type="checkbox" id="rolling-avg-toggle" checked onchange="updateChart()">
                     Show frequency overlay (binary habits)
@@ -197,6 +203,25 @@
     .trends-range-field input[type="date"] {
         min-width: 8rem;
     }
+}
+
+/* "Latest 7 days" legend chip next to the chart title */
+.latest7-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    cursor: help;
+}
+
+.latest7-swatch {
+    display: inline-block;
+    width: 14px;
+    height: 10px;
+    border-radius: 2px;
+    background: rgba(96, 165, 250, 0.18);
+    border: 1px solid rgba(96, 165, 250, 0.3);
 }
 
 /* Habit lanes — binary habits stacked under the main chart */
