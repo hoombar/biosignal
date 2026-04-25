@@ -555,6 +555,27 @@ const habitLaneAlignmentPlugin = {
 };
 
 
+function buildRollingPath(values) {
+    // Build an SVG path d-string in viewBox units (x = day index, y = 0..1)
+    // for the 7-day rolling frequency. Breaks the path on null gaps so we
+    // don't draw straight lines across days with no data.
+    const rolling = calculateRollingAverage(values, 7);
+    let d = '';
+    let started = false;
+    rolling.forEach((v, i) => {
+        if (v === null || v === undefined) {
+            started = false;
+            return;
+        }
+        const clamped = Math.min(1, Math.max(0, v));
+        const x = (i + 0.5).toFixed(3);
+        const y = (1 - clamped).toFixed(4);
+        d += (started ? ' L' : 'M') + x + ',' + y;
+        started = true;
+    });
+    return d;
+}
+
 function renderHabitLanes() {
     const container = document.getElementById('habit-lanes');
     if (!container) return;
@@ -570,6 +591,8 @@ function renderHabitLanes() {
     container.style.setProperty('--day-count', trendsData.length);
 
     const dates = trendsData.map(d => d.date);
+    const showRolling = document.getElementById('rolling-avg-toggle').checked;
+    const dayCount = trendsData.length;
 
     container.innerHTML = habitKeys.map(key => {
         const habitName = key.slice(6);
@@ -585,10 +608,19 @@ function renderHabitLanes() {
             return `<span class="habit-cell ${state}" title="${dates[i]}: ${v ?? '—'}"></span>`;
         }).join('');
 
+        // Rolling line only on binary habits; counts won't fit a 0..1 axis.
+        let rollingSvg = '';
+        if (showRolling && isHabitBinary(habitName)) {
+            const d = buildRollingPath(values);
+            if (d) {
+                rollingSvg = `<svg class="habit-lane-rolling" viewBox="0 0 ${dayCount} 1" preserveAspectRatio="none"><path d="${d}" /></svg>`;
+            }
+        }
+
         return `
-            <div class="habit-lane" data-habit="${habitName}" style="--cell-color: ${color}; --day-count: ${trendsData.length};">
+            <div class="habit-lane" data-habit="${habitName}" style="--cell-color: ${color}; --day-count: ${dayCount};">
                 <div class="habit-lane-label" title="${label}">${label}</div>
-                <div class="habit-lane-cells">${cells}</div>
+                <div class="habit-lane-cells">${cells}${rollingSvg}</div>
             </div>
         `;
     }).join('');

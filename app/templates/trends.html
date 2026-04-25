@@ -235,6 +235,7 @@
 
 .habit-lane-cells {
     flex: 1;
+    position: relative;
     display: grid;
     grid-template-columns: repeat(var(--day-count, 14), 1fr);
     gap: 2px;
@@ -258,6 +259,24 @@
 .habit-cell.null {
     background: var(--bg-tertiary);
     opacity: 0.4;
+}
+
+.habit-lane-rolling {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.habit-lane-rolling path {
+    fill: none;
+    stroke: color-mix(in srgb, var(--cell-color) 75%, white 25%);
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
 }
 
 /* Accordion */
