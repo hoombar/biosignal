@@ -539,6 +539,22 @@ function hexToRgba(hex, alpha) {
 }
 
 // ─── Habit lanes (below main chart) ───────────────────────────────────────────
+// Chart.js plugin: after each layout pass, sync the habit lanes container's
+// horizontal padding with the main chart's plot area so day cells line up
+// under the same x-positions as the chart points.
+const habitLaneAlignmentPlugin = {
+    id: 'habitLaneAlignment',
+    afterLayout(chartInstance) {
+        const lanes = document.getElementById('habit-lanes');
+        if (!lanes || !chartInstance.chartArea) return;
+        const { left, right } = chartInstance.chartArea;
+        const total = chartInstance.width;
+        lanes.style.setProperty('--lane-label-width', `${left}px`);
+        lanes.style.paddingRight = `${Math.max(0, total - right)}px`;
+    },
+};
+
+
 function renderHabitLanes() {
     const container = document.getElementById('habit-lanes');
     if (!container) return;
@@ -666,6 +682,7 @@ function updateChart() {
     chart = new Chart(ctx, {
         type: 'line',
         data: { labels, datasets },
+        plugins: [habitLaneAlignmentPlugin],
         options: {
             responsive: true,
             maintainAspectRatio: false,

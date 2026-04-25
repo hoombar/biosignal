@@ -215,18 +215,19 @@
     display: flex;
     align-items: center;
     height: 44px;
-    gap: 0.5rem;
     /* --cell-color is set inline per-lane from the habit's configured color */
     --cell-color: var(--border-strong);
 }
 
 .habit-lane-label {
-    flex: 0 0 96px;
+    /* --lane-label-width is set by JS to match the chart's left gutter
+       (chart.chartArea.left) so cells line up under the chart x-positions. */
+    flex: 0 0 var(--lane-label-width, 60px);
     font-family: var(--font-mono);
     font-size: 0.72rem;
     color: var(--text-muted);
     text-align: right;
-    padding-right: 0.25rem;
+    padding-right: 0.5rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
