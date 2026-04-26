@@ -3,32 +3,75 @@
 {% block title %}Correlations - Energy Tracker{% endblock %}
 
 {% block content %}
-<h1>Correlations</h1>
-
-<div class="habit-selector">
-    <span class="habit-selector-indicator"></span>
-    <span class="habit-selector-label">Analyze target</span>
-    <select id="target-habit" onchange="loadCorrelations()">
-        <option value="">Loading targets...</option>
-    </select>
-</div>
-
-<div class="metric-legend">
-    <button class="legend-toggle" onclick="toggleLegend()">Metric Legend</button>
-    <div id="legend-content" class="legend-content" style="display: none;"></div>
-</div>
-
-<div class="chart-container">
-    <h2>Correlation Coefficients</h2>
-    <canvas id="correlation-chart"></canvas>
-</div>
-
-<div class="chart-container">
-    <h2>Detailed Results</h2>
-    <div id="correlation-table">
-        <p class="loading">Select a target to see correlations</p>
+<section class="correlations-page">
+    <div class="correlations-header">
+        <div class="correlations-title-block">
+            <h1>Correlations</h1>
+            <p class="correlations-subtitle">
+                target: <span id="corr-target-label" class="corr-subtitle-em">—</span>
+                · <span id="corr-metric-count">0</span> metrics
+                · last <span id="corr-day-count">0</span> days
+            </p>
+        </div>
+        <div class="correlations-pills">
+            <button type="button" class="corr-pill corr-pill--target" id="corr-target-pill" aria-haspopup="listbox">
+                <span class="corr-pill-dot"></span>
+                <span id="corr-target-pill-label">Select target</span>
+            </button>
+            <div class="corr-pill-group" role="tablist" aria-label="Sort and filter">
+                <button type="button" class="corr-pill corr-sort active" data-sort="abs">|R|</button>
+                <button type="button" class="corr-pill corr-sort" data-sort="signed">SIGNED R</button>
+                <button type="button" class="corr-pill corr-sort" data-sort="n">N</button>
+            </div>
+        </div>
     </div>
-</div>
+
+    <div class="corr-target-picker" id="corr-target-picker" hidden>
+        <label for="target-habit" class="corr-target-picker-label">Analyze target</label>
+        <select id="target-habit" onchange="loadCorrelations()">
+            <option value="">Loading targets...</option>
+        </select>
+    </div>
+
+    <div class="correlations-legend-bar">
+        <span class="corr-legend-item"><span class="corr-dot corr-dot--pos"></span>POSITIVE</span>
+        <span class="corr-legend-item"><span class="corr-dot corr-dot--neg"></span>NEGATIVE</span>
+        <span class="corr-legend-item">
+            <span class="corr-sample-dots">
+                <span class="corr-dot corr-dot--neutral corr-dot--sm"></span>
+                <span class="corr-dot corr-dot--neutral corr-dot--md"></span>
+                <span class="corr-dot corr-dot--neutral corr-dot--lg"></span>
+            </span>
+            DOT SIZE = SAMPLE CONFIDENCE
+        </span>
+        <span class="corr-legend-item corr-legend-item--end">DIMMED ROWS: N &lt; 15</span>
+    </div>
+
+    <div class="correlations-grid" id="correlation-grid">
+        <div class="corr-grid-head">
+            <span class="corr-col-index"></span>
+            <span class="corr-col-metric">METRIC</span>
+            <span class="corr-col-chart">
+                <span class="corr-axis-label" style="left: 0%">-1.0</span>
+                <span class="corr-axis-label" style="left: 25%">-0.5</span>
+                <span class="corr-axis-label" style="left: 50%">0</span>
+                <span class="corr-axis-label" style="left: 75%">+0.5</span>
+                <span class="corr-axis-label" style="left: 100%">+1.0</span>
+            </span>
+            <span class="corr-col-r">R</span>
+            <span class="corr-col-n">N</span>
+            <span class="corr-col-strength">STRENGTH</span>
+        </div>
+        <div id="correlation-rows">
+            <p class="loading">Select a target to see correlations</p>
+        </div>
+    </div>
+
+    <div class="metric-legend">
+        <button class="legend-toggle" onclick="toggleLegend()">Metric Legend</button>
+        <div id="legend-content" class="legend-content" style="display: none;"></div>
+    </div>
+</section>
 
 <script src="/static/js/correlations.js"></script>
 {% endblock %}
