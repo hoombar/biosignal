@@ -3,6 +3,7 @@
 const TARGET_STORAGE_KEY = 'biosignal_correlation_target';
 const LEGACY_HABIT_STORAGE_KEY = 'biosignal_target_habit';
 const SORT_KEY = 'biosignal_correlation_sort';
+const FILTER_N30_KEY = 'biosignal_correlation_filter_n30';
 
 let metricMetadata = {};
 let lastCorrelations = [];
@@ -200,9 +201,15 @@ function getSortMode() {
     return v === 'signed' || v === 'n' ? v : 'abs';
 }
 
+function getN30Filter() {
+    return localStorage.getItem(FILTER_N30_KEY) === '1';
+}
+
 function applyView(correlations) {
     const sort = getSortMode();
+    const n30 = getN30Filter();
     let rows = correlations.slice();
+    if (n30) rows = rows.filter(c => c.n >= 30);
     if (sort === 'abs') {
         rows.sort((a, b) => Math.abs(b.coefficient) - Math.abs(a.coefficient));
     } else if (sort === 'signed') {
@@ -294,12 +301,25 @@ function syncPillStates() {
     document.querySelectorAll('.corr-sort').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.sort === sort);
     });
+    const n30 = getN30Filter();
+    document.querySelectorAll('.corr-filter[data-filter="n30"]').forEach(btn => {
+        btn.classList.toggle('active', n30);
+    });
 }
 
 function bindControls() {
     document.querySelectorAll('.corr-sort').forEach(btn => {
         btn.addEventListener('click', () => {
             localStorage.setItem(SORT_KEY, btn.dataset.sort);
+            syncPillStates();
+            renderRows();
+        });
+    });
+
+    document.querySelectorAll('.corr-filter[data-filter="n30"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const next = !getN30Filter();
+            localStorage.setItem(FILTER_N30_KEY, next ? '1' : '0');
             syncPillStates();
             renderRows();
         });
