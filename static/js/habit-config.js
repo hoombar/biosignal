@@ -61,18 +61,45 @@ function getHabitColor(habitName) {
 /**
  * Format a habit's value for display.
  *
- * Boolean habits (type === 'boolean'): renders "Yes"/"No".
+ * Binary habits (type === 'binary' or legacy 'boolean'): renders "Yes"/"No".
  * Counter habits: renders the numeric value.
- * Unknown types: renders raw value.
  *
  * @param {{ name: string, value: number, type: string }} habit
  * @returns {string}
  */
 function formatHabitValue(habit) {
-    if (habit.type === 'boolean') {
+    if (habit.type === 'binary' || habit.type === 'boolean') {
         return habit.value > 0 ? 'Yes' : 'No';
     }
     return String(habit.value);
+}
+
+/**
+ * Load the list of active habits (id, type, display config).
+ *
+ * Cached after first call. Use ``refreshHabitsList()`` to invalidate
+ * (e.g. after creating or archiving a habit in settings).
+ *
+ * @returns {Promise<Array<{id: number, name: string, habit_type: string,
+ *   archived: boolean, display_name: string|null, emoji: string|null,
+ *   color: string|null, sort_order: number}>>}
+ */
+let _habitsList = null;
+async function loadHabitsList() {
+    if (_habitsList !== null) return _habitsList;
+    try {
+        const resp = await fetch('/api/habits/list');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        _habitsList = await resp.json();
+    } catch (err) {
+        console.warn('Could not load habits list:', err);
+        _habitsList = [];
+    }
+    return _habitsList;
+}
+
+function refreshHabitsList() {
+    _habitsList = null;
 }
 
 function _toTitleCase(snakeName) {

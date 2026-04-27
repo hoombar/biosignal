@@ -728,6 +728,82 @@ main > h1 {
     font-style: italic;
 }
 
+.habit-sidebar-item--unlogged {
+    opacity: 0.65;
+}
+
+.habit-sidebar-item--saving {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.habit-toggle {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 4px 12px;
+    cursor: pointer;
+    transition: background 0.1s, border-color 0.1s, color 0.1s;
+    flex-shrink: 0;
+    min-width: 48px;
+}
+
+.habit-toggle:hover {
+    border-color: var(--text-secondary);
+    color: var(--text-primary);
+}
+
+.habit-toggle--on {
+    color: white;
+    font-weight: 700;
+}
+
+.habit-counter {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.habit-counter-btn {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    width: 24px;
+    height: 24px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+}
+
+.habit-counter-btn:hover:not(:disabled) {
+    border-color: var(--text-secondary);
+    color: var(--text-primary);
+}
+
+.habit-counter-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.habit-counter-value {
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    font-weight: 600;
+    min-width: 1.5em;
+    text-align: center;
+}
+
 /* ============================================
    METRIC CARDS GRID
    ============================================ */
