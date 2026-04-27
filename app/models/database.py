@@ -29,17 +29,6 @@ class RawGarminResponse(Base):
     __table_args__ = (UniqueConstraint("date", "endpoint", name="uix_garmin_date_endpoint"),)
 
 
-class RawHabitSyncResponse(Base):
-    """Raw HabitSync API responses."""
-
-    __tablename__ = "raw_habitsync_responses"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    date = Column(Date, nullable=False, unique=True)
-    response = Column(JSON, nullable=False)
-    fetched_at = Column(DateTime, default=datetime.utcnow)
-
-
 class HeartRateSample(Base):
     """Heart rate samples at ~15 minute intervals."""
 

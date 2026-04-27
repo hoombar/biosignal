@@ -10,7 +10,6 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models.database import (
     RawGarminResponse,
-    RawHabitSyncResponse,
     HeartRateSample,
     BodyBatterySample,
     StressSample,
@@ -61,25 +60,6 @@ class TestRawGarminResponseConstraints:
             response={"data": 2},
         ))
         await async_session.commit()  # should not raise
-
-
-class TestRawHabitSyncConstraints:
-
-    @pytest.mark.asyncio
-    async def test_duplicate_date_raises(self, async_session):
-        """date must be unique in raw_habitsync_responses."""
-        async_session.add(RawHabitSyncResponse(
-            date=date(2025, 1, 28),
-            response={"habits": []},
-        ))
-        await async_session.commit()
-
-        async_session.add(RawHabitSyncResponse(
-            date=date(2025, 1, 28),
-            response={"habits": ["x"]},
-        ))
-        with pytest.raises(IntegrityError):
-            await async_session.commit()
 
 
 class TestTimestampUniqueness:

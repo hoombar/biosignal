@@ -1,7 +1,6 @@
 # Database models
 from app.models.database import (
     RawGarminResponse,
-    RawHabitSyncResponse,
     HeartRateSample,
     BodyBatterySample,
     StressSample,
@@ -10,14 +9,15 @@ from app.models.database import (
     StepsSample,
     SleepSession,
     Activity,
+    Habit,
     DailyHabit,
+    HabitDisplayConfig,
     DailySummaryCache,
 )
 from app.models.sync_log import SyncLog
 
 __all__ = [
     "RawGarminResponse",
-    "RawHabitSyncResponse",
     "HeartRateSample",
     "BodyBatterySample",
     "StressSample",
@@ -26,7 +26,9 @@ __all__ = [
     "StepsSample",
     "SleepSession",
     "Activity",
+    "Habit",
     "DailyHabit",
+    "HabitDisplayConfig",
     "DailySummaryCache",
     "SyncLog",
 ]
