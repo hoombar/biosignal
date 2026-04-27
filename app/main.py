@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
 from jinja2 import Environment, FileSystemLoader
 
-from app.api import config, sync, raw, daily, analysis, export, garmin_auth, settings
+from app.api import config, sync, raw, daily, analysis, export, garmin_auth, habits, settings
 from app.core.version import APP_VERSION
 from app.services.scheduler import start_scheduler, stop_scheduler
 
@@ -44,6 +44,7 @@ app.include_router(daily.router)
 app.include_router(analysis.router)
 app.include_router(export.router)
 app.include_router(garmin_auth.router)
+app.include_router(habits.router)
 app.include_router(settings.router)
 
 

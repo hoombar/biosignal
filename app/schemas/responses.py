@@ -199,3 +199,27 @@ class HabitDisplayConfigUpdate(BaseModel):
     emoji: str | None = None
     color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
     sort_order: int | None = None
+
+
+class HabitListEntry(BaseModel):
+    """One row returned by GET /api/habits/list."""
+    id: int
+    name: str
+    habit_type: str
+    archived: bool
+    display_name: str | None = None
+    emoji: str | None = None
+    color: str | None = None
+    sort_order: int = 0
+
+
+class HabitLogUpdate(BaseModel):
+    """Request body for PUT /api/habits/log/{date}/{habit_id}."""
+    value: int = Field(..., ge=0)
+
+
+class HabitLogEntry(BaseModel):
+    """One logged habit value for a date."""
+    date: str
+    habit_id: int
+    value: int
