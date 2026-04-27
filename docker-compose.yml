@@ -9,9 +9,6 @@ services:
       - GARMIN_EMAIL=${GARMIN_EMAIL}
       - GARMIN_PASSWORD=${GARMIN_PASSWORD}
       - GARMIN_TOKEN_DIR=/data/.garmin_tokens
-      # HabitSync connection
-      - HABITSYNC_URL=${HABITSYNC_URL}
-      - HABITSYNC_API_KEY=${HABITSYNC_API_KEY}
       # Optional settings
       - TZ=${TZ:-Europe/London}
       - SYNC_HOUR=${SYNC_HOUR:-6}

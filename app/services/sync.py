@@ -8,11 +8,9 @@ from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert
 
 from app.services.garmin import GarminClient
-from app.services.habitsync import HabitSyncClient
 from app.services import parsers
 from app.models.database import (
     RawGarminResponse,
-    RawHabitSyncResponse,
     HeartRateSample,
     BodyBatterySample,
     StressSample,
@@ -21,50 +19,17 @@ from app.models.database import (
     StepsSample,
     SleepSession,
     Activity,
-    DailyHabit,
-    Habit,
 )
 
 logger = logging.getLogger(__name__)
 
 
 class SyncService:
-    """Orchestrates syncing data from Garmin and HabitSync."""
+    """Orchestrates syncing Garmin biometric data."""
 
-    def __init__(self, garmin: GarminClient, habitsync: HabitSyncClient, timezone: str):
+    def __init__(self, garmin: GarminClient, timezone: str):
         self.garmin = garmin
-        self.habitsync = habitsync
         self.timezone = timezone
-
-    @staticmethod
-    def _coerce_habitsync_value(raw, habit_type: str) -> int:
-        """Coerce a HabitSync API value into the integer encoding."""
-        if raw is None:
-            return 0
-        try:
-            n = int(float(raw))
-        except (TypeError, ValueError):
-            return 0
-        if habit_type == "binary":
-            return 1 if n > 0 else 0
-        return max(n, 0)
-
-    async def _get_or_create_habit(
-        self,
-        session: AsyncSession,
-        name: str,
-        fallback_type: str,
-    ) -> Habit:
-        """Look up a habit by name; create it if missing."""
-        existing = await session.execute(select(Habit).where(Habit.name == name))
-        habit = existing.scalar_one_or_none()
-        if habit is not None:
-            return habit
-        habit_type = fallback_type if fallback_type in {"binary", "counter"} else "counter"
-        habit = Habit(name=name, habit_type=habit_type)
-        session.add(habit)
-        await session.flush()
-        return habit
 
     async def _upsert_samples(
         self,
@@ -211,94 +176,13 @@ class SyncService:
 
         return status
 
-    async def sync_habitsync_day(self, target_date: date, session: AsyncSession) -> dict[str, Any]:
-        """
-        Sync HabitSync data for a specific day.
-
-        Returns:
-            Status dict with counts.
-        """
-        date_str = target_date.strftime("%Y-%m-%d")
-        logger.info(f"Syncing HabitSync data for {date_str}")
-
-        status = {
-            "date": date_str,
-            "success": True,
-            "errors": [],
-            "counts": {}
-        }
-
-        try:
-            # Fetch all habits for the date
-            habits_data = await self.habitsync.fetch_all_for_date(target_date, self.timezone)
-
-            # Store raw response (upsert by date)
-            existing = await session.execute(
-                select(RawHabitSyncResponse).where(RawHabitSyncResponse.date == target_date)
-            )
-            existing_record = existing.scalar_one_or_none()
-            if existing_record:
-                existing_record.response = habits_data
-                existing_record.fetched_at = datetime.utcnow()
-            else:
-                session.add(RawHabitSyncResponse(
-                    date=target_date,
-                    response=habits_data,
-                    fetched_at=datetime.utcnow()
-                ))
-
-            # Resolve / create Habit rows, upsert daily values keyed by (date, habit_id).
-            written = 0
-            for habit_name, payload in habits_data.items():
-                habit = await self._get_or_create_habit(
-                    session, habit_name, payload.get("type") or "counter"
-                )
-                value = self._coerce_habitsync_value(
-                    payload.get("value"), habit.habit_type
-                )
-                stmt = insert(DailyHabit).values(
-                    date=target_date,
-                    habit_id=habit.id,
-                    habit_value=value,
-                )
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=["date", "habit_id"],
-                    set_={"habit_value": stmt.excluded.habit_value},
-                )
-                await session.execute(stmt)
-                written += 1
-
-            status["counts"]["habits"] = written
-
-            await session.commit()
-            logger.info(f"HabitSync sync completed for {date_str}: {status['counts']}")
-
-        except Exception as e:
-            logger.error(f"HabitSync sync failed for {date_str}: {e}")
-            status["success"] = False
-            status["errors"].append(str(e))
-            await session.rollback()
-
-        return status
-
     async def sync_day(self, target_date: date, session: AsyncSession) -> dict[str, Any]:
-        """
-        Sync both Garmin and HabitSync data for a specific day.
-
-        Returns:
-            Combined status dict.
-        """
-        logger.info(f"Syncing all data for {target_date}")
-
+        """Sync Garmin data for a specific day. Alias kept for the backfill flow."""
         garmin_status = await self.sync_garmin_day(target_date, session)
-        habitsync_status = await self.sync_habitsync_day(target_date, session)
-
-        # Consider day successful if Garmin succeeds (HabitSync is supplementary)
         return {
             "date": target_date.strftime("%Y-%m-%d"),
             "garmin": garmin_status,
-            "habitsync": habitsync_status,
-            "overall_success": garmin_status["success"]
+            "overall_success": garmin_status["success"],
         }
 
     async def sync_date_range(

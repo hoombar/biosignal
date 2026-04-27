@@ -44,10 +44,10 @@ class TestSyncStatus:
         assert resp.status_code == 200
         data = resp.json()
         assert data["garmin_status"] == "never_synced"
-        assert data["habitsync_status"] == "never_synced"
         assert data["garmin_last_sync"] is None
-        assert data["habitsync_last_sync"] is None
         assert data["last_sync_date"] is None
+        assert "habitsync_status" not in data
+        assert "habitsync_last_sync" not in data
 
     @pytest.mark.asyncio
     async def test_returns_last_sync_when_logs_exist(self, async_session):
@@ -86,13 +86,12 @@ class TestSyncPostEndpoints:
         assert data["date"] == "2025-01-28"
 
     @pytest.mark.asyncio
-    async def test_post_habitsync_returns_200(self, async_session):
+    async def test_post_habitsync_returns_404(self, async_session):
+        """The habitsync endpoint was removed; the path now 404s."""
         app = _make_test_app(async_session)
         with TestClient(app) as client:
             resp = client.post("/api/sync/habitsync?date_param=2025-01-28")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["date"] == "2025-01-28"
+        assert resp.status_code == 404
 
     @pytest.mark.asyncio
     async def test_post_all_returns_200(self, async_session):

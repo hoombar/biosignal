@@ -13,7 +13,6 @@ from zoneinfo import ZoneInfo
 from app.core.database import get_db, async_session_maker
 from app.core.config import get_settings
 from app.services.garmin import GarminClient, GarminMfaRequiredError
-from app.services.habitsync import HabitSyncClient
 from app.services.sync import SyncService
 from app.models.sync_log import SyncLog
 
@@ -30,8 +29,6 @@ class SyncResponse(BaseModel):
 class SyncStatusResponse(BaseModel):
     garmin_last_sync: datetime | None
     garmin_status: str
-    habitsync_last_sync: datetime | None
-    habitsync_status: str
     last_sync_date: str | None
 
 
@@ -97,12 +94,7 @@ async def _get_sync_service() -> SyncService:
     )
     await garmin.connect()
 
-    habitsync = HabitSyncClient(
-        settings.habitsync_url,
-        settings.habitsync_api_key
-    )
-
-    return SyncService(garmin, habitsync, settings.tz)
+    return SyncService(garmin, settings.tz)
 
 
 async def _run_sync_in_background(
@@ -129,12 +121,9 @@ async def _run_sync_in_background(
     started_at = datetime.utcnow()
 
     try:
-        if sync_type == "garmin":
-            result = await sync_service.sync_garmin_day(target_date, session)
-        elif sync_type == "habitsync":
-            result = await sync_service.sync_habitsync_day(target_date, session)
-        else:  # "all"
-            result = await sync_service.sync_day(target_date, session)
+        # "garmin" and "all" both run the Garmin sync; "all" is kept as a
+        # back-compat alias for any existing UI/scripts.
+        result = await sync_service.sync_garmin_day(target_date, session)
 
         # Log success
         sync_log = SyncLog(
@@ -184,78 +173,48 @@ async def sync_garmin(
     )
 
 
-@router.post("/habitsync", response_model=SyncResponse)
-async def sync_habitsync(
-    background_tasks: BackgroundTasks,
-    date_param: str | None = None,
-    db: AsyncSession = Depends(get_db)
-):
-    """Trigger manual HabitSync sync."""
-    target_date = date.fromisoformat(date_param) if date_param else _today_in_app_timezone()
-
-    background_tasks.add_task(
-        _run_sync_in_background,
-        "habitsync",
-        target_date,
-        db
-    )
-
-    return SyncResponse(
-        message="HabitSync sync started",
-        date=target_date.isoformat()
-    )
-
-
 @router.post("/all", response_model=SyncResponse)
 async def sync_all(
     background_tasks: BackgroundTasks,
     date_param: str | None = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """Trigger full sync (both Garmin and HabitSync)."""
+    """Back-compat alias for ``/api/sync/garmin``.
+
+    Habits are now logged natively in biosignal, so "sync all" is just
+    "sync Garmin." Kept so any existing UI buttons or scripts pointing
+    at /api/sync/all keep working.
+    """
     target_date = date.fromisoformat(date_param) if date_param else _today_in_app_timezone()
 
     background_tasks.add_task(
         _run_sync_in_background,
         "all",
         target_date,
-        db
+        db,
     )
 
     return SyncResponse(
-        message="Full sync started",
-        date=target_date.isoformat()
+        message="Garmin sync started",
+        date=target_date.isoformat(),
     )
 
 
 @router.get("/status", response_model=SyncStatusResponse)
 async def sync_status(db: AsyncSession = Depends(get_db)):
-    """Get sync status - last sync times and statuses."""
-
-    # Get last Garmin sync
+    """Get sync status — last Garmin sync time and status."""
     garmin_result = await db.execute(
         select(SyncLog)
-        .where(SyncLog.sync_type.in_(["garmin", "all"]))
+        .where(SyncLog.sync_type.in_(["garmin", "all", "backfill"]))
         .order_by(desc(SyncLog.completed_at))
         .limit(1)
     )
     garmin_log = garmin_result.scalar_one_or_none()
 
-    # Get last HabitSync sync
-    habitsync_result = await db.execute(
-        select(SyncLog)
-        .where(SyncLog.sync_type.in_(["habitsync", "all"]))
-        .order_by(desc(SyncLog.completed_at))
-        .limit(1)
-    )
-    habitsync_log = habitsync_result.scalar_one_or_none()
-
     return SyncStatusResponse(
         garmin_last_sync=garmin_log.completed_at if garmin_log else None,
         garmin_status=garmin_log.status if garmin_log else "never_synced",
-        habitsync_last_sync=habitsync_log.completed_at if habitsync_log else None,
-        habitsync_status=habitsync_log.status if habitsync_log else "never_synced",
-        last_sync_date=garmin_log.date_synced.isoformat() if garmin_log else None
+        last_sync_date=garmin_log.date_synced.isoformat() if garmin_log else None,
     )
 
 

@@ -123,7 +123,6 @@ async function loadOverview() {
         const container = document.getElementById('sync-status');
         container.innerHTML = `
             <p><strong>Last Garmin sync:</strong> ${status.garmin_last_sync ? new Date(status.garmin_last_sync).toLocaleString() : 'Never'} (${status.garmin_status})</p>
-            <p><strong>Last HabitSync sync:</strong> ${status.habitsync_last_sync ? new Date(status.habitsync_last_sync).toLocaleString() : 'Never'} (${status.habitsync_status})</p>
         `;
     } catch (error) {
         console.error('Error loading sync status:', error);

@@ -242,10 +242,9 @@ function getHabitColorSetting(name) {
 }
 
 // ─── Habit range detection ────────────────────────────────────────────────────
-// HabitSync stores all habits with type="counter" regardless of whether they are
-// binary (0/1) or a real count (0-N). We can't use habit.type to
-// distinguish them. Instead, inspect the actual data: if every non-null value is
-// 0 or 1 the habit is binary; if any value exceeds 1 it's a count metric.
+// Habit metadata now carries an authoritative type, but legacy data may still
+// hide a small-range counter inside type='counter'. Inspect actual values: if
+// every non-null value is 0 or 1 treat as binary; otherwise as a count.
 function isHabitBinary(habitName) {
     const values = trendsData
         .map(d => (d.habits || []).find(h => h.name === habitName))
@@ -496,8 +495,6 @@ function getMetricValues(key) {
 //       y-binary (0–1 stepped, "No/Yes"), y-numeric (auto-scaled small counts).
 function getAxisForKey(key) {
     if (key.startsWith('habit:')) {
-        // Use actual data values to distinguish binary (0/1) from count (0-N) habits,
-        // since HabitSync stores all habits as type="counter" regardless of range.
         return isHabitBinary(key.slice(6)) ? 'y-binary' : 'y-numeric';
     }
     const meta = metricMetadata[key];

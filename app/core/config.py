@@ -19,15 +19,10 @@ class Settings(BaseSettings):
     garmin_password: str
     garmin_token_dir: str = "/data/.garmin_tokens"
 
-    # HabitSync connection
-    habitsync_url: str
-    habitsync_api_key: str
-
     # Optional settings
     tz: str = "Europe/London"
     sync_hour: int = 6
     sync_minute_garmin: int = 0
-    sync_minute_habitsync: int = 15
     debug: bool = False
 
 

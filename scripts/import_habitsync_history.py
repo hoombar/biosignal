@@ -23,23 +23,58 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import os
+import re
 import sys
 from datetime import date, datetime, timedelta
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.core.database import async_session_maker
 from app.models.database import DailyHabit, Habit
-from app.services.habitsync import HabitSyncClient, _normalize_habit_name
 
 
 logger = logging.getLogger("import_habitsync_history")
 
 
 EPOCH = date(1970, 1, 1)
+
+
+def _normalize_habit_name(name: str) -> str:
+    """Normalize a habit name to snake_case (matches HabitSync's rule)."""
+    normalized = re.sub(r"[^a-z0-9]+", "_", name.lower())
+    return normalized.strip("_")
+
+
+async def _fetch_habits(base_url: str, api_key: str) -> list[dict]:
+    """Pull every habit (with embedded records) from a HabitSync instance.
+
+    Tries the documented endpoint first and falls back to a couple of
+    older paths so this script keeps working across HabitSync versions.
+    """
+    base_url = base_url.rstrip("/")
+    endpoints = ["/api/habit/list", "/api/user/habit", "/api/habit"]
+    async with httpx.AsyncClient(
+        headers={"X-API-Key": api_key}, timeout=30.0
+    ) as client:
+        last_error: Exception | None = None
+        for path in endpoints:
+            try:
+                resp = await client.get(f"{base_url}{path}")
+                resp.raise_for_status()
+                if "application/json" not in resp.headers.get("content-type", ""):
+                    last_error = RuntimeError(f"non-JSON response from {path}")
+                    continue
+                data = resp.json()
+                logger.info("fetched %d habits via %s", len(data), path)
+                return data
+            except (httpx.HTTPError, ValueError) as exc:
+                last_error = exc
+                logger.warning("endpoint %s failed: %s", path, exc)
+        raise RuntimeError(f"all HabitSync endpoints failed: {last_error}")
 
 
 def _parse_csv(value: str | None) -> set[str]:
@@ -83,13 +118,15 @@ async def _import(
     binary_names: set[str],
     counter_names: set[str],
 ) -> None:
-    settings = get_settings()
-    client = HabitSyncClient(settings.habitsync_url, settings.habitsync_api_key)
+    base_url = os.environ.get("HABITSYNC_URL")
+    api_key = os.environ.get("HABITSYNC_API_KEY")
+    if not base_url or not api_key:
+        sys.exit(
+            "HABITSYNC_URL and HABITSYNC_API_KEY must be set in the environment "
+            "for this one-shot import."
+        )
 
-    try:
-        habits = await client.get_habits()
-    finally:
-        await client.close()
+    habits = await _fetch_habits(base_url, api_key)
 
     if not habits:
         logger.error("HabitSync returned no habits — aborting")

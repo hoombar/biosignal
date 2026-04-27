@@ -19,11 +19,9 @@ class ConfigResponse(BaseModel):
     db_revision: str | None
     db_path: str
     garmin_token_dir: str
-    habitsync_url: str
     tz: str
     sync_hour: int
     sync_minute_garmin: int
-    sync_minute_habitsync: int
     debug: bool
 
 
@@ -47,10 +45,8 @@ async def get_config() -> ConfigResponse:
         db_revision=db_revision,
         db_path=settings.db_path,
         garmin_token_dir=settings.garmin_token_dir,
-        habitsync_url=settings.habitsync_url,
         tz=settings.tz,
         sync_hour=settings.sync_hour,
         sync_minute_garmin=settings.sync_minute_garmin,
-        sync_minute_habitsync=settings.sync_minute_habitsync,
         debug=settings.debug,
     )
