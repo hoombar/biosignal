@@ -2,7 +2,8 @@
 
 ## Scope
 
-External integrations: Garmin and HabitSync.
+The single remaining external integration: **Garmin Connect**. Habits are
+logged natively (see `app/api/habits.py`) and have no external moving parts.
 
 ## Debug Sequence
 
@@ -17,12 +18,6 @@ External integrations: Garmin and HabitSync.
 - Token validity and token directory persistence.
 - Rate limiting handling and retries.
 - Day-specific data availability differences by endpoint.
-
-## HabitSync Checks
-
-- Endpoint compatibility (`/api/habit/list` variants).
-- Offset and timezone semantics for date lookups.
-- Embedded records vs fallback record endpoint behavior.
 
 ## Data Verification
 

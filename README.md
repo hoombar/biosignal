@@ -4,7 +4,8 @@ A self-hosted analysis dashboard that correlates Garmin biometric data with life
 
 ## Features
 
-- **Automated Data Collection**: Daily sync from Garmin Connect and HabitSync
+- **Automated Data Collection**: Daily Garmin Connect sync via cron
+- **Native Habit Logging**: Log habits directly in biosignal — binary (yes/no) or counter — with edit-any-day support
 - **35+ Computed Features**: Sleep quality, HRV, heart rate, body battery, stress, activity, and habit tracking
 - **Statistical Analysis**: Pearson correlations, pattern detection, conditional probabilities
 - **Interactive Dashboard**: 5 views (Overview, Daily, Correlations, Trends, Insights)
@@ -17,7 +18,6 @@ A self-hosted analysis dashboard that correlates Garmin biometric data with life
 
 - Docker and Docker Compose
 - Garmin Connect account with a compatible device (e.g., Garmin Venu 3)
-- HabitSync instance (optional, or set up alongside)
 
 ### 1. Clone and Configure
 
@@ -59,37 +59,51 @@ BIOSIGNAL_IMAGE_TAG=latest
 GARMIN_EMAIL=your@email.com
 GARMIN_PASSWORD=your_password
 
-# HabitSync connection
-HABITSYNC_URL=http://habitsync:6842
-HABITSYNC_API_KEY=your_api_key
-
 # Optional settings
 TZ=Europe/London          # Your timezone
 SYNC_HOUR=6               # Daily sync time (24h format)
 DEBUG=false               # Enable debug logging
 ```
 
-## HabitSync Setup
+## Habit Tracking
 
-Create these habits in HabitSync:
+Habits are logged natively in biosignal — no external service required. Two types are supported:
 
-| Habit Name | Type | Purpose |
-|------------|------|---------|
-| PM Energy Slump | Yes/No | Primary outcome - did brain fog occur? |
-| Coffee | Counter | Track caffeine intake |
-| Alcohol | Counter | Track evening drinks |
-| Healthy Lunch | Yes/No | Lunch quality assessment |
-| Carb-Heavy Lunch | Yes/No | High-carb meal tracking |
+- **Binary** habits (yes/no): toggle once per day. Example: "PM Energy Slump", "Healthy Lunch".
+- **Counter** habits (0+): increment/decrement throughout the day. Example: "Coffee", "Alcohol".
 
-The system automatically discovers and imports any habits you create.
+Manage habits in **Settings → Habits**: add new ones, customise display label/emoji/color, archive ones you no longer track. Archived habits keep their history (they still appear in correlations and trends for past dates) but are hidden from daily logging.
+
+Log habits in **Daily**: pick any date — including past days for retrospective entry — and the habits panel renders editable controls for every active habit.
+
+### Migrating from external HabitSync
+
+If you previously fed habit data into biosignal from a separate HabitSync instance, run the one-shot import once after upgrading:
+
+```bash
+docker compose exec biosignal python -m scripts.import_habitsync_history \
+    --from 2025-01-01 --to 2026-04-26 \
+    --binary pm_slump,healthy_lunch,carb_heavy_lunch \
+    --counter coffee,alcohol
+```
+
+Set `HABITSYNC_URL` and `HABITSYNC_API_KEY` in the environment for the duration of that one command. After the import succeeds and you've spot-checked the data, the external HabitSync container can be removed.
 
 ## API Endpoints
 
 ### Sync
 - `POST /api/sync/garmin` - Manual Garmin sync
-- `POST /api/sync/habitsync` - Manual HabitSync sync
-- `POST /api/sync/all` - Full sync
+- `POST /api/sync/all` - Back-compat alias for `/api/sync/garmin`
 - `GET /api/sync/status` - Last sync status
+
+### Habits
+- `GET /api/habits/list` - Active habits with id, type, and display config
+- `PUT /api/habits/log/{date}/{habit_id}` - Log/edit a habit value for a date
+- `DELETE /api/habits/log/{date}/{habit_id}` - Clear a logged value
+- `POST /api/habits` - Create a habit (`name`, `habit_type`, optional display fields)
+- `PATCH /api/habits/{id}` - Update display attributes (label/emoji/color/order)
+- `POST /api/habits/{id}/archive` - Archive a habit (keeps history)
+- `POST /api/habits/{id}/unarchive` - Restore an archived habit
 
 ### Data
 - `GET /api/raw/{type}?date=YYYY-MM-DD` - Raw time-series data
@@ -141,22 +155,23 @@ The system automatically discovers and imports any habits you create.
 ## Architecture
 
 ```
-┌─────────────────────┐     ┌─────────────────────┐
-│   Garmin Connect    │     │     HabitSync       │
-│   (Cloud API)       │     │  (Docker container) │
-└──────────┬──────────┘     └──────────┬──────────┘
-           │                           │
-           │    ┌────────────────────┐ │
-           │    │                    │ │
-           └───►│  Energy Tracker    │◄┘
-                │  (Docker container)│
-                │                    │
-                │  - FastAPI backend │
-                │  - SQLite database │
-                │  - APScheduler     │
-                │  - Chart.js UI     │
-                │                    │
-                └────────────────────┘
+┌─────────────────────┐
+│   Garmin Connect    │
+│   (Cloud API)       │
+└──────────┬──────────┘
+           │
+           ▼
+   ┌────────────────────┐
+   │  Energy Tracker    │
+   │  (Docker container)│
+   │                    │
+   │  - FastAPI backend │
+   │  - SQLite database │
+   │  - APScheduler     │
+   │  - Native habits   │
+   │  - Chart.js UI     │
+   │                    │
+   └────────────────────┘
 ```
 
 ## Data Storage
@@ -194,7 +209,6 @@ Garmin limits login attempts. Wait 1 hour and ensure tokens are persisting corre
 1. Check sync status on Overview page
 2. Manually trigger sync
 3. Check logs for errors
-4. Verify HabitSync is accessible from the container
 
 ### Database Locked Error
 

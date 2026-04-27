@@ -1,4 +1,4 @@
-"""Parsers to convert raw Garmin/HabitSync JSON into ORM models."""
+"""Parsers to convert raw Garmin JSON into ORM models."""
 
 from datetime import datetime, date, timedelta, timezone
 from typing import Optional

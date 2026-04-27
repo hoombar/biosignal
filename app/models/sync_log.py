@@ -12,7 +12,7 @@ class SyncLog(Base):
     __tablename__ = "sync_log"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    sync_type = Column(String, nullable=False)  # "garmin", "habitsync", "all"
+    sync_type = Column(String, nullable=False)  # "garmin", "all", "backfill"
     date_synced = Column(Date, nullable=False)
     started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)

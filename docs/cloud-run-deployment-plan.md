@@ -129,7 +129,7 @@ spec:
         env:
         - name: GARMIN_EMAIL
           valueFrom: { secretKeyRef: { name: garmin-email, key: latest } }
-        # ... HABITSYNC_*, BACKUP_BUCKET, TZ, etc.
+        # ... BACKUP_BUCKET, TZ, etc.
   traffic:
   - percent: 100
     latestRevision: true
@@ -202,7 +202,6 @@ new migration.
 - Repository / data-store abstraction — SQLAlchemy already abstracts the DB.
 - Multi-region, multi-instance, horizontal scale — single instance handles
   biosignal's expected load comfortably.
-- HabitSync absorption — complementary initiative tracked elsewhere.
 - On-load sync UX — Cloud Scheduler covers the daily case; banner/prompt UX is
   a separate concern.
 

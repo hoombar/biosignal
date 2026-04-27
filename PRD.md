@@ -1,8 +1,23 @@
 # Product Requirements Document: Energy Correlation Tracker
 
+> **2026-04-27 update — habits are now native.** The original design pulled
+> habit data from a separate HabitSync container via REST. That dependency
+> was removed: habits are now first-class entities in biosignal's own
+> database, with creation/edit/archive UI under Settings → Habits and
+> retrospective per-day logging on the Daily view. The HabitSync-shaped
+> sections below are kept for historical context; the live behavior is:
+>
+> - A canonical `habits` table (id, name, habit_type, archived_at) plus
+>   `daily_habits` keyed on `(date, habit_id)` with integer values.
+> - Habit lifecycle endpoints under `/api/habits/*` (see README).
+> - The `raw_habitsync_responses` table and the `/api/sync/habitsync`
+>   endpoint were removed in migration `d8a13b6f5042`.
+> - `scripts/import_habitsync_history.py` remains as a one-shot recovery
+>   tool for migrating historical data out of an external HabitSync.
+
 ## Overview
 
-A self-hosted analysis dashboard that correlates Garmin biometric data with lifestyle habits (logged via HabitSync) to identify patterns related to afternoon energy slumps and brain fog.
+A self-hosted analysis dashboard that correlates Garmin biometric data with lifestyle habits to identify patterns related to afternoon energy slumps and brain fog.
 
 **Primary User:** The system owner (single user)
 
