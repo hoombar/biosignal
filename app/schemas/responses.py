@@ -223,3 +223,26 @@ class HabitLogEntry(BaseModel):
     date: str
     habit_id: int
     value: int
+
+
+class HabitCreateRequest(BaseModel):
+    """Request body for POST /api/habits."""
+    name: str = Field(..., min_length=1, max_length=64)
+    habit_type: str = Field(..., pattern=r"^(binary|counter)$")
+    display_name: str | None = None
+    emoji: str | None = None
+    color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+    sort_order: int | None = None
+
+
+class HabitUpdateRequest(BaseModel):
+    """Request body for PATCH /api/habits/{id}.
+
+    Only display attributes are mutable. Habit type is fixed for the
+    lifetime of a habit (archive + create new if you need a different
+    type). The internal slug is also fixed.
+    """
+    display_name: str | None = None
+    emoji: str | None = None
+    color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+    sort_order: int | None = None

@@ -7,9 +7,24 @@
 
 <div class="settings-section">
     <div class="settings-header">
-        <h2>Habit Display</h2>
-        <p class="settings-desc">Customise how habits appear in the daily view. Changes take effect immediately after saving.</p>
+        <h2>Habits</h2>
+        <p class="settings-desc">Add new habits, customise how they display, or archive habits you no longer track. Archived habits keep their history but disappear from the daily logger.</p>
     </div>
+
+    <details class="add-habit-details" id="add-habit-details">
+        <summary>+ Add habit</summary>
+        <form id="add-habit-form" class="add-habit-form">
+            <input type="text" name="name" placeholder="Habit name (e.g. Coffee)" required maxlength="64" class="settings-input">
+            <select name="habit_type" class="settings-input" required>
+                <option value="binary">Binary (yes/no)</option>
+                <option value="counter">Counter (0, 1, 2, …)</option>
+            </select>
+            <input type="text" name="emoji" placeholder="Emoji (optional)" maxlength="8" class="settings-input settings-input--emoji">
+            <input type="text" name="color" placeholder="#4488ff" pattern="^#[0-9a-fA-F]{6}$" class="settings-input settings-input--color">
+            <button type="submit" class="btn-primary">Create</button>
+            <span id="add-habit-status" class="save-status"></span>
+        </form>
+    </details>
 
     <div id="habits-loading" class="loading">Loading habits...</div>
     <div id="habits-error" class="error" style="display:none;"></div>
@@ -20,6 +35,7 @@
                 <thead>
                     <tr>
                         <th>Habit name</th>
+                        <th>Type</th>
                         <th>Display label</th>
                         <th>Emoji</th>
                         <th>Color</th>
@@ -34,12 +50,13 @@
         </div>
         <div class="settings-actions">
             <button type="submit" class="btn-primary" id="save-btn">Save all</button>
+            <label class="archived-toggle"><input type="checkbox" id="show-archived"> Show archived</label>
             <span id="save-status" class="save-status"></span>
         </div>
     </form>
 
     <div id="no-habits" style="display:none;" class="empty-state">
-        No habits have been synced yet. Run a HabitSync sync first to populate habits here.
+        No habits configured yet. Use "+ Add habit" above to create one.
     </div>
 </div>
 
@@ -51,6 +68,10 @@
     const errorEl = document.getElementById('habits-error');
     const noHabits = document.getElementById('no-habits');
     const saveStatus = document.getElementById('save-status');
+    const showArchived = document.getElementById('show-archived');
+    const addForm = document.getElementById('add-habit-form');
+    const addStatus = document.getElementById('add-habit-status');
+    const addDetails = document.getElementById('add-habit-details');
 
     let habits = [];
 
@@ -63,85 +84,81 @@
         const emoji = habit.emoji ?? '';
         const color = habit.color ?? '';
         const order = habit.sort_order ?? 0;
+        const archivedClass = habit.archived ? ' habit-row--archived' : '';
+        const archiveBtnLabel = habit.archived ? 'Unarchive' : 'Archive';
+        const archiveAction = habit.archived ? 'unarchive' : 'archive';
 
         const tr = document.createElement('tr');
-        tr.dataset.habitName = habit.habit_name;
+        tr.className = `habit-row${archivedClass}`;
+        tr.dataset.habitId = String(habit.id);
+        tr.dataset.habitName = habit.name;
         tr.innerHTML = `
             <td class="habit-name-cell">
-                <span class="habit-raw-name">${habit.habit_name}</span>
-                <span class="habit-default-label">${defaultLabel(habit.habit_name)}</span>
+                <span class="habit-raw-name">${habit.name}</span>
+                <span class="habit-default-label">${defaultLabel(habit.name)}</span>
+            </td>
+            <td><span class="habit-type-tag">${habit.habit_type}</span></td>
+            <td>
+                <input type="text" class="settings-input" name="display_name"
+                    value="${label}" placeholder="${defaultLabel(habit.name)}"
+                    aria-label="Display label for ${habit.name}">
             </td>
             <td>
-                <input
-                    type="text"
-                    class="settings-input"
-                    name="display_name"
-                    value="${label}"
-                    placeholder="${defaultLabel(habit.habit_name)}"
-                    aria-label="Display label for ${habit.habit_name}"
-                >
+                <input type="text" class="settings-input settings-input--emoji" name="emoji"
+                    value="${emoji}" placeholder="—" maxlength="8"
+                    aria-label="Emoji for ${habit.name}">
             </td>
             <td>
-                <input
-                    type="text"
-                    class="settings-input settings-input--emoji"
-                    name="emoji"
-                    value="${emoji}"
-                    placeholder="—"
-                    maxlength="8"
-                    aria-label="Emoji for ${habit.habit_name}"
-                >
+                <input type="text" class="settings-input settings-input--color" name="color"
+                    value="${color}" placeholder="#4488ff"
+                    pattern="^#[0-9a-fA-F]{6}$" aria-label="Accent color for ${habit.name}">
             </td>
             <td>
-                <input
-                    type="text"
-                    class="settings-input settings-input--color"
-                    name="color"
-                    value="${color}"
-                    placeholder="#4488ff"
-                    pattern="^#[0-9a-fA-F]{6}$"
-                    aria-label="Accent color for ${habit.habit_name}"
-                >
-            </td>
-            <td>
-                <input
-                    type="number"
-                    class="settings-input settings-input--order"
-                    name="sort_order"
-                    value="${order}"
-                    min="0"
-                    max="999"
-                    aria-label="Sort order for ${habit.habit_name}"
-                >
+                <input type="number" class="settings-input settings-input--order" name="sort_order"
+                    value="${order}" min="0" max="999"
+                    aria-label="Sort order for ${habit.name}">
             </td>
             <td class="save-cell">
+                <button type="button" class="btn-secondary btn-archive"
+                    data-action="${archiveAction}" data-habit-id="${habit.id}">${archiveBtnLabel}</button>
                 <span class="row-status" aria-live="polite"></span>
             </td>
         `;
         return tr;
     }
 
+    function visibleHabits() {
+        return showArchived.checked ? habits : habits.filter(h => !h.archived);
+    }
+
+    function rerender() {
+        tbody.innerHTML = '';
+        const visible = visibleHabits();
+        if (visible.length === 0) {
+            form.style.display = 'none';
+            noHabits.style.display = '';
+            return;
+        }
+        noHabits.style.display = 'none';
+        visible.forEach(h => tbody.appendChild(renderRow(h)));
+        form.style.display = '';
+    }
+
     async function load() {
         try {
-            const resp = await fetch('/api/settings/habits');
+            const resp = await fetch('/api/habits/list?include_archived=true');
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             habits = await resp.json();
-
             loading.style.display = 'none';
-
-            if (habits.length === 0) {
-                noHabits.style.display = '';
-                return;
-            }
-
-            habits.forEach(h => tbody.appendChild(renderRow(h)));
-            form.style.display = '';
+            rerender();
         } catch (err) {
             loading.style.display = 'none';
             errorEl.textContent = `Failed to load habits: ${err.message}`;
             errorEl.style.display = '';
         }
     }
+
+    showArchived.addEventListener('change', rerender);
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -150,9 +167,9 @@
         saveStatus.textContent = 'Saving…';
         saveStatus.className = 'save-status';
 
-        const rows = tbody.querySelectorAll('tr[data-habit-name]');
+        const rows = tbody.querySelectorAll('tr[data-habit-id]');
         const promises = Array.from(rows).map(async row => {
-            const name = row.dataset.habitName;
+            const id = row.dataset.habitId;
             const display_name = row.querySelector('[name=display_name]').value.trim() || null;
             const emoji = row.querySelector('[name=emoji]').value.trim() || null;
             const color = row.querySelector('[name=color]').value.trim() || null;
@@ -160,8 +177,8 @@
             const rowStatus = row.querySelector('.row-status');
 
             try {
-                const resp = await fetch(`/api/settings/habits/${encodeURIComponent(name)}`, {
-                    method: 'PUT',
+                const resp = await fetch(`/api/habits/${id}`, {
+                    method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ display_name, emoji, color, sort_order }),
                 });
@@ -181,13 +198,71 @@
         saveStatus.className = anyErr ? 'save-status save-status--err' : 'save-status save-status--ok';
         saveBtn.disabled = false;
 
-        // Clear per-row statuses after 3s
         setTimeout(() => {
             tbody.querySelectorAll('.row-status').forEach(el => {
                 el.textContent = '';
                 el.className = 'row-status';
             });
             saveStatus.textContent = '';
+        }, 3000);
+    });
+
+    tbody.addEventListener('click', async (e) => {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        const id = btn.dataset.habitId;
+        const action = btn.dataset.action;
+        btn.disabled = true;
+        try {
+            const resp = await fetch(`/api/habits/${id}/${action}`, { method: 'POST' });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const updated = await resp.json();
+            const i = habits.findIndex(h => h.id === updated.id);
+            if (i >= 0) habits[i] = updated;
+            rerender();
+        } catch (err) {
+            btn.disabled = false;
+            alert(`${action} failed: ${err.message}`);
+        }
+    });
+
+    addForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        addStatus.textContent = 'Creating…';
+        addStatus.className = 'save-status';
+        const fd = new FormData(addForm);
+        const payload = {
+            name: fd.get('name'),
+            habit_type: fd.get('habit_type'),
+        };
+        const emoji = (fd.get('emoji') || '').trim();
+        const color = (fd.get('color') || '').trim();
+        if (emoji) payload.emoji = emoji;
+        if (color) payload.color = color;
+        try {
+            const resp = await fetch('/api/habits', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (!resp.ok) {
+                const errBody = await resp.json().catch(() => ({}));
+                throw new Error(errBody.detail || `HTTP ${resp.status}`);
+            }
+            const created = await resp.json();
+            habits.push(created);
+            rerender();
+            addForm.reset();
+            addDetails.open = false;
+            addStatus.textContent = 'Created';
+            addStatus.className = 'save-status save-status--ok';
+        } catch (err) {
+            addStatus.textContent = err.message;
+            addStatus.className = 'save-status save-status--err';
+        }
+        setTimeout(() => {
+            addStatus.textContent = '';
+            addStatus.className = 'save-status';
         }, 3000);
     });
 

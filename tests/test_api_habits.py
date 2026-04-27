@@ -241,3 +241,178 @@ class TestDeleteHabitLog:
             resp = client.delete(f"/api/habits/log/2026-04-15/{habit.id}")
 
         assert resp.status_code == 404
+
+
+class TestCreateHabit:
+
+    @pytest.mark.asyncio
+    async def test_creates_binary_habit(self, async_session):
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.post(
+                "/api/habits",
+                json={"name": "Stretch", "habit_type": "binary"},
+            )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["name"] == "stretch"  # normalized
+        assert body["habit_type"] == "binary"
+        assert body["archived"] is False
+        assert body["display_name"] is None
+
+    @pytest.mark.asyncio
+    async def test_creates_with_display_config(self, async_session):
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.post("/api/habits", json={
+                "name": "PM Slump",
+                "habit_type": "binary",
+                "display_name": "PM Slump",
+                "emoji": "😩",
+                "color": "#ff4466",
+                "sort_order": 3,
+            })
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["name"] == "pm_slump"
+        assert body["display_name"] == "PM Slump"
+        assert body["emoji"] == "😩"
+        assert body["color"] == "#ff4466"
+        assert body["sort_order"] == 3
+
+    @pytest.mark.asyncio
+    async def test_rejects_duplicate_name(self, async_session):
+        await ensure_habit(async_session, "coffee", habit_type="counter")
+        await async_session.commit()
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.post("/api/habits", json={
+                "name": "coffee",
+                "habit_type": "counter",
+            })
+        assert resp.status_code == 409
+
+    @pytest.mark.asyncio
+    async def test_rejects_invalid_type(self, async_session):
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.post("/api/habits", json={
+                "name": "thing",
+                "habit_type": "weekly",
+            })
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_rejects_blank_name_after_normalization(self, async_session):
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.post("/api/habits", json={
+                "name": "!@#$",
+                "habit_type": "binary",
+            })
+        assert resp.status_code == 422
+
+
+class TestUpdateHabit:
+
+    @pytest.mark.asyncio
+    async def test_creates_display_config_on_first_patch(self, async_session):
+        habit = await ensure_habit(async_session, "coffee", habit_type="counter")
+        await async_session.commit()
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.patch(f"/api/habits/{habit.id}", json={
+                "display_name": "Coffee",
+                "emoji": "☕",
+                "color": "#c4a77d",
+                "sort_order": 1,
+            })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["display_name"] == "Coffee"
+        assert body["emoji"] == "☕"
+        assert body["color"] == "#c4a77d"
+        assert body["sort_order"] == 1
+
+    @pytest.mark.asyncio
+    async def test_updates_existing_display_config(self, async_session):
+        habit = await ensure_habit(async_session, "coffee", habit_type="counter")
+        async_session.add(HabitDisplayConfig(
+            habit_name="coffee",
+            display_name="Old",
+            emoji="🍵",
+            color="#aabbcc",
+            sort_order=0,
+        ))
+        await async_session.commit()
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.patch(f"/api/habits/{habit.id}", json={
+                "display_name": "Coffee",
+                "emoji": "☕",
+                "color": None,
+                "sort_order": 5,
+            })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["display_name"] == "Coffee"
+        assert body["color"] is None
+        assert body["sort_order"] == 5
+
+    @pytest.mark.asyncio
+    async def test_unknown_habit_returns_404(self, async_session):
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.patch("/api/habits/9999", json={"display_name": "X"})
+        assert resp.status_code == 404
+
+
+class TestArchiveHabit:
+
+    @pytest.mark.asyncio
+    async def test_archive_marks_habit(self, async_session):
+        habit = await ensure_habit(async_session, "stretch", habit_type="binary")
+        await async_session.commit()
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.post(f"/api/habits/{habit.id}/archive")
+        assert resp.status_code == 200
+        assert resp.json()["archived"] is True
+
+    @pytest.mark.asyncio
+    async def test_archive_is_idempotent(self, async_session):
+        habit = await ensure_habit(async_session, "stretch", habit_type="binary")
+        await async_session.commit()
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            client.post(f"/api/habits/{habit.id}/archive")
+            resp = client.post(f"/api/habits/{habit.id}/archive")
+        assert resp.status_code == 200
+        assert resp.json()["archived"] is True
+
+    @pytest.mark.asyncio
+    async def test_unarchive(self, async_session):
+        from datetime import datetime
+        habit = await ensure_habit(async_session, "stretch", habit_type="binary")
+        habit.archived_at = datetime(2026, 1, 1)
+        await async_session.commit()
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.post(f"/api/habits/{habit.id}/unarchive")
+        assert resp.status_code == 200
+        assert resp.json()["archived"] is False
+
+    @pytest.mark.asyncio
+    async def test_archived_habit_history_still_accessible(self, async_session):
+        """Archived habits still hold their historic DailyHabit rows."""
+        habit = await ensure_habit(async_session, "stretch", habit_type="binary")
+        await log_habit(async_session, "stretch", date(2026, 1, 5), 1, habit_type="binary")
+        await async_session.commit()
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            client.post(f"/api/habits/{habit.id}/archive")
+        await async_session.commit()
+        rows = (await async_session.execute(
+            select(DailyHabit).where(DailyHabit.habit_id == habit.id)
+        )).scalars().all()
+        assert len(rows) == 1

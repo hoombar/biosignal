@@ -1836,3 +1836,83 @@ input:focus {
 
 .save-status--ok { color: var(--color-positive); }
 .save-status--err { color: var(--color-negative); }
+
+.add-habit-details {
+    margin-bottom: var(--space-md);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-tertiary);
+}
+
+.add-habit-details summary {
+    padding: var(--space-sm) var(--space-md);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text-secondary);
+    user-select: none;
+}
+
+.add-habit-details[open] summary {
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.add-habit-form {
+    padding: var(--space-md);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    align-items: center;
+}
+
+.add-habit-form .settings-input {
+    width: auto;
+    flex: 1 1 140px;
+    min-width: 0;
+}
+
+.add-habit-form select.settings-input {
+    flex: 0 0 auto;
+}
+
+.archived-toggle {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: var(--space-md);
+    cursor: pointer;
+}
+
+.habit-row--archived {
+    opacity: 0.55;
+}
+
+.habit-row--archived td {
+    text-decoration: line-through;
+    text-decoration-color: var(--text-muted);
+}
+
+.habit-row--archived .btn-archive,
+.habit-row--archived .row-status {
+    text-decoration: none;
+}
+
+.habit-type-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+}
+
+.btn-archive {
+    font-size: 0.75rem;
+    padding: 3px 10px;
+}
