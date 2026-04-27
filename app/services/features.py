@@ -18,6 +18,7 @@ from app.models.database import (
     SleepSession,
     Activity,
     DailyHabit,
+    Habit,
 )
 
 logger = logging.getLogger(__name__)
@@ -446,26 +447,19 @@ async def compute_habit_features(
 ) -> dict:
     """Compute habit features as a list of habit objects."""
     result = await session.execute(
-        select(DailyHabit).where(DailyHabit.date == target_date)
+        select(DailyHabit, Habit)
+        .join(Habit, Habit.id == DailyHabit.habit_id)
+        .where(DailyHabit.date == target_date)
     )
-    habits = result.scalars().all()
 
-    habit_list = []
-
-    for habit in habits:
-        # Convert value based on type
-        if habit.habit_type == "boolean":
-            value = 1 if habit.habit_value.lower() == "true" else 0
-        elif habit.habit_type == "counter":
-            value = int(habit.habit_value) if habit.habit_value else 0
-        else:
-            value = int(habit.habit_value) if habit.habit_value.isdigit() else 0
-
-        habit_list.append({
-            "name": habit.habit_name,
-            "value": value,
-            "type": habit.habit_type or "counter"
-        })
+    habit_list = [
+        {
+            "name": habit.name,
+            "value": daily.habit_value,
+            "type": habit.habit_type,
+        }
+        for daily, habit in result.all()
+    ]
 
     return {"habits": habit_list}
 

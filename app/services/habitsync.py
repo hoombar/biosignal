@@ -7,8 +7,6 @@ import httpx
 import re
 from zoneinfo import ZoneInfo
 
-from app.models.database import DailyHabit
-
 logger = logging.getLogger(__name__)
 
 
@@ -193,23 +191,3 @@ class HabitSyncClient:
         return results
 
 
-def parse_habitsync_response(habits_data: dict[str, Any], date: date) -> list[DailyHabit]:
-    """
-    Parse HabitSync data into DailyHabit objects.
-
-    Args:
-        habits_data: Dict from fetch_all_for_date (habit_name -> {value, type})
-        date: The date these habits are for
-    """
-    habit_rows = []
-
-    for habit_name, data in habits_data.items():
-        habit_rows.append(DailyHabit(
-            date=date,
-            habit_name=habit_name,
-            habit_value=data["value"],
-            habit_type=data["type"]
-        ))
-
-    logger.debug(f"Parsed {len(habit_rows)} daily habits for {date}")
-    return habit_rows

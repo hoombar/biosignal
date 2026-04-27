@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from app.core.database import get_db
 from app.core.config import get_settings
-from app.models.database import DailyHabit, SleepSession
+from app.models.database import DailyHabit, Habit, SleepSession
 from app.services.habit_config import list_ordered_habit_names
 from app.schemas.responses import (
     HabitResponse,
@@ -35,30 +35,23 @@ async def get_habits(days: int = 30, db: AsyncSession = Depends(get_db)):
     cutoff = date.today() - timedelta(days=days)
 
     result = await db.execute(
-        select(DailyHabit)
+        select(DailyHabit, Habit)
+        .join(Habit, Habit.id == DailyHabit.habit_id)
         .where(DailyHabit.date >= cutoff)
         .order_by(DailyHabit.date.desc())
     )
-    habits = result.scalars().all()
 
-    # Group by date
     by_date: dict[str, dict] = {}
-    for habit in habits:
-        date_str = habit.date.isoformat()
+    for daily, habit in result.all():
+        date_str = daily.date.isoformat()
         if date_str not in by_date:
             by_date[date_str] = {}
 
-        # Convert value based on type
-        if habit.habit_type == "boolean":
-            value = habit.habit_value.lower() == "true"
-        elif habit.habit_type == "counter":
-            value = int(habit.habit_value) if habit.habit_value else 0
+        if habit.habit_type == "binary":
+            by_date[date_str][habit.name] = bool(daily.habit_value)
         else:
-            value = habit.habit_value
+            by_date[date_str][habit.name] = daily.habit_value
 
-        by_date[date_str][habit.habit_name] = value
-
-    # Convert to list of responses
     responses = [
         HabitResponse(date=date_str, habits=habits_dict)
         for date_str, habits_dict in sorted(by_date.items(), reverse=True)
@@ -129,7 +122,7 @@ async def get_calendar_year(
     for row in habits_result.all():
         has_habit_event_by_date[row.date] = (
             has_habit_event_by_date.get(row.date, False)
-            or _habit_value_indicates_event(row.habit_value)
+            or row.habit_value > 0
         )
 
     # Build entries for every day of the year
@@ -144,23 +137,6 @@ async def get_calendar_year(
         ))
 
     return summaries
-
-
-def _habit_value_indicates_event(raw_value: str | None) -> bool:
-    """Interpret raw habit value as a positive event flag."""
-    if raw_value is None:
-        return False
-
-    normalized = raw_value.strip().lower()
-    if normalized in {"", "0", "false", "no", "n", "off"}:
-        return False
-    if normalized in {"1", "true", "yes", "y", "on"}:
-        return True
-
-    try:
-        return float(normalized) > 0
-    except (TypeError, ValueError):
-        return False
 
 
 @router.get("/daily/notable", response_model=list[NotableDay])

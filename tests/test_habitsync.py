@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.services.habitsync import HabitSyncClient, parse_habitsync_response, _normalize_habit_name
+from app.services.habitsync import HabitSyncClient, _normalize_habit_name
 
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -33,38 +33,6 @@ class TestNormalizeHabitName:
 
     def test_name_with_multiple_spaces(self):
         assert _normalize_habit_name("My  Cool   Habit") == "my_cool_habit"
-
-
-class TestParseHabitsyncResponse:
-    """Tests for parsing HabitSync response into DailyHabit objects."""
-
-    def test_parse_empty_response(self):
-        habits = parse_habitsync_response({}, date(2025, 1, 28))
-        assert habits == []
-
-    def test_parse_single_habit(self):
-        habits_data = {
-            "coffee": {"value": "3", "type": "counter"}
-        }
-        habits = parse_habitsync_response(habits_data, date(2025, 1, 28))
-
-        assert len(habits) == 1
-        assert habits[0].habit_name == "coffee"
-        assert habits[0].habit_value == "3"
-        assert habits[0].habit_type == "counter"
-        assert habits[0].date == date(2025, 1, 28)
-
-    def test_parse_multiple_habits(self):
-        habits_data = {
-            "coffee": {"value": "2", "type": "counter"},
-            "brain_fog": {"value": "1", "type": "counter"},
-            "stretch": {"value": "0", "type": "counter"},
-        }
-        habits = parse_habitsync_response(habits_data, date(2025, 2, 7))
-
-        assert len(habits) == 3
-        habit_names = {h.habit_name for h in habits}
-        assert habit_names == {"coffee", "brain_fog", "stretch"}
 
 
 class TestHabitSyncClientOffsetCalculation:

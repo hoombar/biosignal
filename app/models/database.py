@@ -7,6 +7,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     Float,
+    ForeignKey,
     JSON,
     Index,
     UniqueConstraint,
@@ -144,18 +145,29 @@ class Activity(Base):
     raw_data = Column(JSON, nullable=True)
 
 
+class Habit(Base):
+    """Canonical habit definition."""
+
+    __tablename__ = "habits"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False, unique=True, index=True)
+    habit_type = Column(String, nullable=False)  # 'binary' | 'counter'
+    archived_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class DailyHabit(Base):
-    """Habits from HabitSync (flexible schema)."""
+    """Per-date logged value for a habit."""
 
     __tablename__ = "daily_habits"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     date = Column(Date, nullable=False, index=True)
-    habit_name = Column(String, nullable=False, index=True)
-    habit_value = Column(String, nullable=False)
-    habit_type = Column(String, nullable=True)
+    habit_id = Column(Integer, ForeignKey("habits.id"), nullable=False, index=True)
+    habit_value = Column(Integer, nullable=False)
 
-    __table_args__ = (UniqueConstraint("date", "habit_name", name="uix_habit_date_name"),)
+    __table_args__ = (UniqueConstraint("date", "habit_id", name="uix_habit_date_habit"),)
 
 
 class HabitDisplayConfig(Base):

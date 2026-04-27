@@ -190,13 +190,9 @@ class TestExportMetadata:
 
     @pytest.mark.asyncio
     async def test_metadata_includes_dynamic_habit_features(self, async_session):
-        """Habit feature metadata should be generated from synced habit names."""
-        async_session.add(DailyHabit(
-            date=date(2025, 1, 28),
-            habit_name="custom_focus",
-            habit_value="1",
-            habit_type="counter",
-        ))
+        """Habit feature metadata should be generated from configured habits."""
+        from tests.conftest import ensure_habit
+        await ensure_habit(async_session, "custom_focus", habit_type="counter")
         async_session.add(HabitDisplayConfig(
             habit_name="custom_focus",
             display_name="Focus Session",

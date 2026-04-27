@@ -1,24 +1,26 @@
 """Helpers for dynamic habit display configuration."""
 
-from sqlalchemy import distinct, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.database import DailyHabit, HabitDisplayConfig
+from app.models.database import Habit, HabitDisplayConfig
 
 
 async def list_habit_display_entries(db: AsyncSession) -> list[dict]:
-    """Return one display-config entry per known habit, sorted for UI use."""
-    names_result = await db.execute(select(distinct(DailyHabit.habit_name)))
-    known_names = set(names_result.scalars().all())
+    """Return one display-config entry per active habit, sorted for UI use."""
+    habits_result = await db.execute(
+        select(Habit).where(Habit.archived_at.is_(None))
+    )
+    habits = list(habits_result.scalars().all())
 
     configs_result = await db.execute(select(HabitDisplayConfig))
     configs_by_name = {c.habit_name: c for c in configs_result.scalars().all()}
 
     entries = []
-    for name in known_names:
-        cfg = configs_by_name.get(name)
+    for habit in habits:
+        cfg = configs_by_name.get(habit.name)
         entries.append({
-            "habit_name": name,
+            "habit_name": habit.name,
             "display_name": cfg.display_name if cfg else None,
             "emoji": cfg.emoji if cfg else None,
             "color": cfg.color if cfg else None,

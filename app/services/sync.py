@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert
 
 from app.services.garmin import GarminClient
-from app.services.habitsync import HabitSyncClient, parse_habitsync_response
+from app.services.habitsync import HabitSyncClient
 from app.services import parsers
 from app.models.database import (
     RawGarminResponse,
@@ -22,6 +22,7 @@ from app.models.database import (
     SleepSession,
     Activity,
     DailyHabit,
+    Habit,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,36 @@ class SyncService:
         self.garmin = garmin
         self.habitsync = habitsync
         self.timezone = timezone
+
+    @staticmethod
+    def _coerce_habitsync_value(raw, habit_type: str) -> int:
+        """Coerce a HabitSync API value into the integer encoding."""
+        if raw is None:
+            return 0
+        try:
+            n = int(float(raw))
+        except (TypeError, ValueError):
+            return 0
+        if habit_type == "binary":
+            return 1 if n > 0 else 0
+        return max(n, 0)
+
+    async def _get_or_create_habit(
+        self,
+        session: AsyncSession,
+        name: str,
+        fallback_type: str,
+    ) -> Habit:
+        """Look up a habit by name; create it if missing."""
+        existing = await session.execute(select(Habit).where(Habit.name == name))
+        habit = existing.scalar_one_or_none()
+        if habit is not None:
+            return habit
+        habit_type = fallback_type if fallback_type in {"binary", "counter"} else "counter"
+        habit = Habit(name=name, habit_type=habit_type)
+        session.add(habit)
+        await session.flush()
+        return habit
 
     async def _upsert_samples(
         self,
@@ -216,22 +247,28 @@ class SyncService:
                     fetched_at=datetime.utcnow()
                 ))
 
-            # Parse and store habits (upsert by date+habit_name)
-            habit_rows = parse_habitsync_response(habits_data, target_date)
-            for habit in habit_rows:
+            # Resolve / create Habit rows, upsert daily values keyed by (date, habit_id).
+            written = 0
+            for habit_name, payload in habits_data.items():
+                habit = await self._get_or_create_habit(
+                    session, habit_name, payload.get("type") or "counter"
+                )
+                value = self._coerce_habitsync_value(
+                    payload.get("value"), habit.habit_type
+                )
                 stmt = insert(DailyHabit).values(
-                    date=habit.date,
-                    habit_name=habit.habit_name,
-                    habit_value=habit.habit_value,
-                    habit_type=habit.habit_type,
+                    date=target_date,
+                    habit_id=habit.id,
+                    habit_value=value,
                 )
                 stmt = stmt.on_conflict_do_update(
-                    index_elements=["date", "habit_name"],
-                    set_={"habit_value": stmt.excluded.habit_value, "habit_type": stmt.excluded.habit_type},
+                    index_elements=["date", "habit_id"],
+                    set_={"habit_value": stmt.excluded.habit_value},
                 )
                 await session.execute(stmt)
+                written += 1
 
-            status["counts"]["habits"] = len(habit_rows)
+            status["counts"]["habits"] = written
 
             await session.commit()
             logger.info(f"HabitSync sync completed for {date_str}: {status['counts']}")

@@ -194,12 +194,10 @@ class TestCalendarEndpoint:
     @pytest.mark.asyncio
     async def test_has_habit_event_true_for_any_positive_habit(self, async_session):
         """has_habit_event should be true when any habit value > 0."""
-        async_session.add(DailyHabit(
-            date=date(2025, 3, 15),
-            habit_name="custom_flag",
-            habit_value="1",
-            habit_type="counter",
-        ))
+        from tests.conftest import log_habit
+        await log_habit(
+            async_session, "custom_flag", date(2025, 3, 15), 1, habit_type="counter"
+        )
         await async_session.commit()
 
         app = _make_test_app(async_session)
@@ -212,13 +210,11 @@ class TestCalendarEndpoint:
 
     @pytest.mark.asyncio
     async def test_has_habit_event_false_when_all_habits_are_zero(self, async_session):
-        """has_habit_event should be false when all logged habits are 0/false."""
-        async_session.add(DailyHabit(
-            date=date(2025, 3, 15),
-            habit_name="custom_flag",
-            habit_value="0",
-            habit_type="counter",
-        ))
+        """has_habit_event should be false when all logged habits are 0."""
+        from tests.conftest import log_habit
+        await log_habit(
+            async_session, "custom_flag", date(2025, 3, 15), 0, habit_type="counter"
+        )
         await async_session.commit()
 
         app = _make_test_app(async_session)
@@ -230,14 +226,12 @@ class TestCalendarEndpoint:
         assert march_15["has_habit_event"] is False
 
     @pytest.mark.asyncio
-    async def test_has_habit_event_true_for_boolean_true(self, async_session):
-        """has_habit_event should treat boolean-like values as events."""
-        async_session.add(DailyHabit(
-            date=date(2025, 3, 15),
-            habit_name="custom_bool",
-            habit_value="true",
-            habit_type="boolean",
-        ))
+    async def test_has_habit_event_true_for_binary_habit_logged_one(self, async_session):
+        """has_habit_event treats a binary habit logged as 1 as an event."""
+        from tests.conftest import log_habit
+        await log_habit(
+            async_session, "custom_bool", date(2025, 3, 15), 1, habit_type="binary"
+        )
         await async_session.commit()
 
         app = _make_test_app(async_session)
@@ -366,12 +360,10 @@ class TestHabitsApiShape:
             total_sleep_seconds=7 * 3600,
             sleep_score=75,
         ))
-        async_session.add(DailyHabit(
-            date=date(2025, 1, 15),
-            habit_name="afternoon_slump",
-            habit_value="1",
-            habit_type="boolean",
-        ))
+        from tests.conftest import log_habit
+        await log_habit(
+            async_session, "afternoon_slump", date(2025, 1, 15), 1, habit_type="binary"
+        )
         await async_session.commit()
 
         app = _make_test_app(async_session)

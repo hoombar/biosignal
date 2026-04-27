@@ -11,7 +11,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.core.database import get_db
-from app.models.database import DailyHabit, HabitDisplayConfig
+from app.models.database import HabitDisplayConfig
+from tests.conftest import ensure_habit, log_habit
 
 
 def _make_test_app(session):
@@ -41,13 +42,8 @@ class TestGetHabitsSettings:
 
     @pytest.mark.asyncio
     async def test_returns_known_habits_with_defaults(self, async_session):
-        """Habits that exist in daily_habits but have no config are returned with null display fields."""
-        async_session.add(DailyHabit(
-            date=date(2025, 1, 15),
-            habit_name="afternoon_slump",
-            habit_value="1",
-            habit_type="boolean",
-        ))
+        """Active habits without config are returned with null display fields."""
+        await ensure_habit(async_session, "afternoon_slump", habit_type="binary")
         await async_session.commit()
 
         app = _make_test_app(async_session)
@@ -66,12 +62,7 @@ class TestGetHabitsSettings:
     @pytest.mark.asyncio
     async def test_returns_config_when_set(self, async_session):
         """Habits with saved config return the config values."""
-        async_session.add(DailyHabit(
-            date=date(2025, 1, 15),
-            habit_name="afternoon_slump",
-            habit_value="1",
-            habit_type="boolean",
-        ))
+        await ensure_habit(async_session, "afternoon_slump", habit_type="binary")
         async_session.add(HabitDisplayConfig(
             habit_name="afternoon_slump",
             display_name="Low energy afternoon",
@@ -98,13 +89,8 @@ class TestGetHabitsSettings:
     @pytest.mark.asyncio
     async def test_habits_sorted_by_sort_order_then_name(self, async_session):
         """Results are sorted by sort_order ascending, then habit_name."""
-        for name, val in [("coffee", "2"), ("beer", "1"), ("afternoon_slump", "0")]:
-            async_session.add(DailyHabit(
-                date=date(2025, 1, 15),
-                habit_name=name,
-                habit_value=val,
-                habit_type="counter",
-            ))
+        for name in ("coffee", "beer", "afternoon_slump"):
+            await ensure_habit(async_session, name, habit_type="counter")
         async_session.add(HabitDisplayConfig(
             habit_name="afternoon_slump",
             display_name="Low energy afternoon",
@@ -131,15 +117,10 @@ class TestGetHabitsSettings:
         assert names[2] == "coffee"
 
     @pytest.mark.asyncio
-    async def test_deduplicates_habit_names_across_dates(self, async_session):
-        """Same habit appearing on multiple dates is returned once."""
+    async def test_each_habit_listed_once(self, async_session):
+        """Each Habit row is listed once regardless of how many daily entries exist."""
         for d in [date(2025, 1, 10), date(2025, 1, 11), date(2025, 1, 12)]:
-            async_session.add(DailyHabit(
-                date=d,
-                habit_name="coffee",
-                habit_value="1",
-                habit_type="counter",
-            ))
+            await log_habit(async_session, "coffee", d, 1, habit_type="counter")
         await async_session.commit()
 
         app = _make_test_app(async_session)
@@ -232,12 +213,7 @@ class TestPutHabitSettings:
         """Config saved via PUT is returned in subsequent GET."""
         app = _make_test_app(async_session)
         # Seed a habit so it appears in the list
-        async_session.add(DailyHabit(
-            date=date(2025, 1, 15),
-            habit_name="afternoon_slump",
-            habit_value="1",
-            habit_type="boolean",
-        ))
+        await ensure_habit(async_session, "afternoon_slump", habit_type="binary")
         await async_session.commit()
 
         with TestClient(app) as client:

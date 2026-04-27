@@ -9,6 +9,7 @@ from datetime import date, timedelta
 
 from app.models.database import SleepSession, DailyHabit, HabitDisplayConfig
 from app.services.analysis import compute_correlations, compute_patterns, generate_insights
+from tests.conftest import log_habit
 
 
 def _make_date(offset: int) -> date:
@@ -27,12 +28,7 @@ async def _seed_day(session, day_offset: int, sleep_hours: float, slump: bool):
         total_sleep_seconds=int(sleep_hours * 3600),
         sleep_score=70,
     ))
-    session.add(DailyHabit(
-        date=d,
-        habit_name="pm_slump",
-        habit_value="true" if slump else "false",
-        habit_type="boolean",
-    ))
+    await log_habit(session, "pm_slump", d, 1 if slump else 0, habit_type="binary")
     return d
 
 
@@ -145,12 +141,7 @@ class TestComputeCorrelations:
         """
         # Day 0: habit only, NO sleep data
         d0 = _make_date(0)
-        async_session.add(DailyHabit(
-            date=d0,
-            habit_name="pm_slump",
-            habit_value="true",
-            habit_type="boolean",
-        ))
+        await log_habit(async_session, "pm_slump", d0, 1, habit_type="binary")
 
         # Days 1-9: both habit AND sleep data
         for i in range(1, 10):
@@ -209,12 +200,7 @@ class TestComputePatterns:
                 total_sleep_seconds=int((5.5 if slump else 8.5) * 3600),
                 sleep_score=70,
             ))
-            async_session.add(DailyHabit(
-                date=d,
-                habit_name="pm_slump",
-                habit_value="true" if slump else "false",
-                habit_type="boolean",
-            ))
+            await log_habit(async_session, "pm_slump", d, 1 if slump else 0, habit_type="binary")
         await async_session.commit()
 
         result = await compute_patterns(async_session, target_habit="pm_slump")
@@ -237,18 +223,14 @@ class TestComputePatterns:
                 total_sleep_seconds=int(7.5 * 3600),
                 sleep_score=70,
             ))
-            async_session.add(DailyHabit(
-                date=d,
-                habit_name="pm_slump",
-                habit_value="true" if slump else "false",
-                habit_type="boolean",
-            ))
-            async_session.add(DailyHabit(
-                date=d,
-                habit_name="custom_counter",
-                habit_value=str(4 if high_counter else 0),
-                habit_type="numeric",
-            ))
+            await log_habit(async_session, "pm_slump", d, 1 if slump else 0, habit_type="binary")
+            await log_habit(
+                async_session,
+                "custom_counter",
+                d,
+                4 if high_counter else 0,
+                habit_type="counter",
+            )
         await async_session.commit()
 
         result = await compute_patterns(async_session, target_habit="pm_slump")
@@ -270,12 +252,9 @@ class TestComputePatterns:
                 total_sleep_seconds=int((5.5 if fatigue else 8.5) * 3600),
                 sleep_score=70,
             ))
-            async_session.add(DailyHabit(
-                date=d,
-                habit_name="morning_fatigue",
-                habit_value="true" if fatigue else "false",
-                habit_type="boolean",
-            ))
+            await log_habit(
+                async_session, "morning_fatigue", d, 1 if fatigue else 0, habit_type="binary"
+            )
         await async_session.commit()
 
         result = await compute_patterns(async_session, target_habit="morning_fatigue")
@@ -310,18 +289,12 @@ class TestComputePatterns:
                 total_sleep_seconds=int((5.5 if fatigue else 8.5) * 3600),
                 sleep_score=70,
             ))
-            async_session.add(DailyHabit(
-                date=d,
-                habit_name="morning_fatigue",
-                habit_value="true" if fatigue else "false",
-                habit_type="boolean",
-            ))
-            async_session.add(DailyHabit(
-                date=d,
-                habit_name="pm_slump",
-                habit_value="true" if slump else "false",
-                habit_type="boolean",
-            ))
+            await log_habit(
+                async_session, "morning_fatigue", d, 1 if fatigue else 0, habit_type="binary"
+            )
+            await log_habit(
+                async_session, "pm_slump", d, 1 if slump else 0, habit_type="binary"
+            )
 
         async_session.add(HabitDisplayConfig(
             habit_name="morning_fatigue",
@@ -357,18 +330,10 @@ class TestGenerateInsights:
                 total_sleep_seconds=int((5.5 if fatigue else 8.5) * 3600),
                 sleep_score=70,
             ))
-            async_session.add(DailyHabit(
-                date=d,
-                habit_name="morning_fatigue",
-                habit_value="true" if fatigue else "false",
-                habit_type="boolean",
-            ))
-            async_session.add(DailyHabit(
-                date=d,
-                habit_name="pm_slump",
-                habit_value="false",
-                habit_type="boolean",
-            ))
+            await log_habit(
+                async_session, "morning_fatigue", d, 1 if fatigue else 0, habit_type="binary"
+            )
+            await log_habit(async_session, "pm_slump", d, 0, habit_type="binary")
 
         async_session.add(HabitDisplayConfig(habit_name="morning_fatigue", sort_order=0))
         async_session.add(HabitDisplayConfig(habit_name="pm_slump", sort_order=10))

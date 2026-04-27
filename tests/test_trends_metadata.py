@@ -106,6 +106,7 @@ class TestCorrelationsReturnsValidMetricKeys:
         """Metric names in compute_correlations() results must be DailySummary fields
         (or habit_-prefixed names from the dynamic habits list), not arbitrary keys.
         """
+        from tests.conftest import log_habit
         # Seed 10 days of alternating slump/no-slump with clear sleep pattern
         for i in range(10):
             d = _make_date(i)
@@ -115,12 +116,7 @@ class TestCorrelationsReturnsValidMetricKeys:
                 total_sleep_seconds=int((5.5 if slump else 8.5) * 3600),
                 sleep_score=70,
             ))
-            async_session.add(DailyHabit(
-                date=d,
-                habit_name="pm_slump",
-                habit_value="true" if slump else "false",
-                habit_type="boolean",
-            ))
+            await log_habit(async_session, "pm_slump", d, 1 if slump else 0, habit_type="binary")
         await async_session.commit()
 
         result = await compute_correlations(async_session, target_habit="pm_slump", min_days=5)
@@ -144,27 +140,17 @@ class TestCorrelationsReturnsValidMetricKeys:
 class TestDailyApiHabitTypeField:
     """Verify /api/daily returns habit.type so trends.js can read it.
 
-    NOTE: HabitSync stores all habits with habit_type='counter' regardless of
-    whether they are binary (pm_slump: 0/1) or a real count (beer: 0-5).
-    trends.js therefore does NOT use habit.type to distinguish binary vs numeric;
-    it uses isHabitBinary() which inspects the actual data values instead.
-    These tests verify the API faithfully passes through whatever type is stored.
+    The Habit table now carries an authoritative ``habit_type`` ('binary'
+    or 'counter'). The API must surface that value unchanged so the frontend
+    can rely on it.
     """
 
     @pytest.mark.asyncio
     async def test_daily_habits_include_type_field(self, async_session):
-        """The daily API must return habit.type for each habit.
-
-        The type value is whatever was stored — in practice always 'counter'
-        from HabitSync, but the API must not drop or transform it.
-        """
+        """The daily API must return habit.type for each habit."""
+        from tests.conftest import log_habit
         d = date.today()
-        async_session.add(DailyHabit(
-            date=d,
-            habit_name="pm_slump",
-            habit_value="1",
-            habit_type="counter",
-        ))
+        await log_habit(async_session, "pm_slump", d, 1, habit_type="counter")
         await async_session.commit()
 
         app = _make_daily_test_app(async_session)
@@ -179,25 +165,18 @@ class TestDailyApiHabitTypeField:
         habit = next((h for h in day["habits"] if h["name"] == "pm_slump"), None)
         assert habit is not None
         assert "type" in habit, "habit.type must be present — trends.js reads it"
-        assert habit["type"] == "counter", (
-            f"Expected habit.type='counter' (what HabitSync stores), got '{habit['type']}'."
-        )
+        assert habit["type"] == "counter"
 
     @pytest.mark.asyncio
     async def test_daily_habits_type_passed_through_unchanged(self, async_session):
-        """Whatever habit_type is in the DB must be returned unchanged by the API.
-
-        This ensures trends.js always receives the raw stored value so it can
-        apply its own logic (isHabitBinary) on top without surprises.
-        """
+        """The Habit.habit_type stored on the canonical row is what /api/daily returns."""
+        from tests.conftest import log_habit
         d = date.today()
         for name, val, htype in [
-            ("pm_slump", "1", "counter"),
-            ("coffee_count", "3", "counter"),
+            ("pm_slump", 1, "binary"),
+            ("coffee_count", 3, "counter"),
         ]:
-            async_session.add(DailyHabit(
-                date=d, habit_name=name, habit_value=val, habit_type=htype,
-            ))
+            await log_habit(async_session, name, d, val, habit_type=htype)
         await async_session.commit()
 
         app = _make_daily_test_app(async_session)
@@ -208,5 +187,5 @@ class TestDailyApiHabitTypeField:
         day = next((row for row in data if row.get("habits")), None)
         assert day is not None
         returned_types = {h["name"]: h["type"] for h in day["habits"]}
-        assert returned_types["pm_slump"] == "counter"
+        assert returned_types["pm_slump"] == "binary"
         assert returned_types["coffee_count"] == "counter"

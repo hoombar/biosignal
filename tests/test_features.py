@@ -376,13 +376,9 @@ class TestHabitFeatures:
         assert result == {"habits": []}
 
     @pytest.mark.asyncio
-    async def test_parses_boolean_habit(self, async_session):
-        async_session.add(DailyHabit(
-            date=TEST_DATE,
-            habit_name="pm_energy_slump",
-            habit_value="true",
-            habit_type="boolean",
-        ))
+    async def test_parses_binary_habit(self, async_session):
+        from tests.conftest import log_habit
+        await log_habit(async_session, "pm_energy_slump", TEST_DATE, 1, habit_type="binary")
         await async_session.commit()
 
         result = await compute_habit_features(async_session, TEST_DATE)
@@ -391,15 +387,12 @@ class TestHabitFeatures:
         habit = result["habits"][0]
         assert habit["name"] == "pm_energy_slump"
         assert habit["value"] == 1
+        assert habit["type"] == "binary"
 
     @pytest.mark.asyncio
     async def test_parses_counter_habit(self, async_session):
-        async_session.add(DailyHabit(
-            date=TEST_DATE,
-            habit_name="coffee",
-            habit_value="3",
-            habit_type="counter",
-        ))
+        from tests.conftest import log_habit
+        await log_habit(async_session, "coffee", TEST_DATE, 3, habit_type="counter")
         await async_session.commit()
 
         result = await compute_habit_features(async_session, TEST_DATE)
@@ -407,6 +400,7 @@ class TestHabitFeatures:
         habit = result["habits"][0]
         assert habit["name"] == "coffee"
         assert habit["value"] == 3
+        assert habit["type"] == "counter"
 
 
 class TestComputeDailyFeatures:

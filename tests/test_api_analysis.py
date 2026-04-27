@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from app.api.analysis import router
 from app.core.database import get_db
 from app.models.database import SleepSession, DailyHabit, HabitDisplayConfig
+from tests.conftest import log_habit
 
 
 def _make_test_app(session):
@@ -40,12 +41,9 @@ class TestCorrelationsApi:
                 total_sleep_seconds=int(sleep_hours * 3600),
                 sleep_score=int(sleep_hours * 10),
             ))
-            async_session.add(DailyHabit(
-                date=_make_date(i),
-                habit_name="pm_slump",
-                habit_value="true" if slump else "false",
-                habit_type="boolean",
-            ))
+            await log_habit(
+                async_session, "pm_slump", _make_date(i), 1 if slump else 0, habit_type="binary"
+            )
         await async_session.commit()
 
         app = _make_test_app(async_session)
@@ -70,12 +68,9 @@ class TestCorrelationsApi:
                 total_sleep_seconds=int((6.0 + i * 0.1) * 3600),
                 sleep_score=70,
             ))
-            async_session.add(DailyHabit(
-                date=_make_date(i),
-                habit_name="pm_slump",
-                habit_value="true" if slump else "false",
-                habit_type="boolean",
-            ))
+            await log_habit(
+                async_session, "pm_slump", _make_date(i), 1 if slump else 0, habit_type="binary"
+            )
         await async_session.commit()
 
         app = _make_test_app(async_session)
@@ -94,12 +89,7 @@ class TestCorrelationTargetsApi:
     async def test_includes_metric_and_habit_targets(self, async_session):
         """Target options should include Garmin metrics and DB habits."""
         d = _make_date(0)
-        async_session.add(DailyHabit(
-            date=d,
-            habit_name="pm_slump",
-            habit_value="true",
-            habit_type="boolean",
-        ))
+        await log_habit(async_session, "pm_slump", d, 1, habit_type="binary")
         await async_session.commit()
 
         app = _make_test_app(async_session)
@@ -129,18 +119,10 @@ class TestPatternsAndInsightsApi:
                 total_sleep_seconds=int((5.5 if fatigue else 8.5) * 3600),
                 sleep_score=70,
             ))
-            async_session.add(DailyHabit(
-                date=d,
-                habit_name="morning_fatigue",
-                habit_value="true" if fatigue else "false",
-                habit_type="boolean",
-            ))
-            async_session.add(DailyHabit(
-                date=d,
-                habit_name="pm_slump",
-                habit_value="false",
-                habit_type="boolean",
-            ))
+            await log_habit(
+                async_session, "morning_fatigue", d, 1 if fatigue else 0, habit_type="binary"
+            )
+            await log_habit(async_session, "pm_slump", d, 0, habit_type="binary")
         async_session.add(HabitDisplayConfig(habit_name="morning_fatigue", sort_order=0))
         async_session.add(HabitDisplayConfig(habit_name="pm_slump", sort_order=10))
         await async_session.commit()
@@ -165,18 +147,10 @@ class TestPatternsAndInsightsApi:
                 total_sleep_seconds=int((5.5 if fatigue else 8.5) * 3600),
                 sleep_score=70,
             ))
-            async_session.add(DailyHabit(
-                date=d,
-                habit_name="morning_fatigue",
-                habit_value="true" if fatigue else "false",
-                habit_type="boolean",
-            ))
-            async_session.add(DailyHabit(
-                date=d,
-                habit_name="pm_slump",
-                habit_value="false",
-                habit_type="boolean",
-            ))
+            await log_habit(
+                async_session, "morning_fatigue", d, 1 if fatigue else 0, habit_type="binary"
+            )
+            await log_habit(async_session, "pm_slump", d, 0, habit_type="binary")
         async_session.add(HabitDisplayConfig(habit_name="morning_fatigue", sort_order=0))
         async_session.add(HabitDisplayConfig(habit_name="pm_slump", sort_order=10))
         await async_session.commit()
