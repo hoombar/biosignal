@@ -605,7 +605,12 @@ function renderHabitsPanel(day) {
 
         const logged = Object.prototype.hasOwnProperty.call(valueByName, def.name);
         const value = logged ? Number(valueByName[def.name]) : 0;
-        const itemClass = logged ? 'habit-sidebar-item' : 'habit-sidebar-item habit-sidebar-item--unlogged';
+        const polarity = _dayPolarity(def, value, logged);  // 'good' | 'bad' | 'neutral'
+        const itemClass = [
+            'habit-sidebar-item',
+            logged ? '' : 'habit-sidebar-item--unlogged',
+            polarity === 'bad' ? 'habit-sidebar-item--bad' : '',
+        ].filter(Boolean).join(' ');
 
         return `
             <div class="${itemClass}"
@@ -617,18 +622,56 @@ function renderHabitsPanel(day) {
                 <div class="habit-sidebar-header">
                     ${emojiHtml}
                     <span class="habit-sidebar-label">${label}</span>
+                    ${renderStreakPill(def)}
                 </div>
-                ${renderHabitControl(def, value, logged, accent)}
+                ${renderHabitControl(def, value, logged, accent, polarity)}
             </div>
         `;
     }).join('');
 }
 
-function renderHabitControl(def, value, logged, accent) {
+// "good" → habit accent (positive logged ≥ target, or negative within limit)
+// "bad"  → red (negative habit over its limit)
+// "neutral" → muted grey (unlogged, or positive without enough)
+function _dayPolarity(def, value, logged) {
+    const target = def.target_value;
+    if (def.is_negative) {
+        const over = target == null ? value > 0 : value > target;
+        return over ? 'bad' : 'good';  // 0 (or unlogged-as-zero) is good for negatives
+    }
+    if (!logged) return 'neutral';
+    if (target == null) return value > 0 ? 'good' : 'neutral';
+    return value >= target ? 'good' : 'neutral';
+}
+
+function renderStreakPill(def) {
+    const streak = Number(def.streak ?? 0);
+    const hit = Number(def.completion_hit ?? 0);
+    const total = Number(def.completion_total ?? 0);
+    if (streak === 0 && hit === 0) return '';
+    const targetText = def.target_value != null
+        ? (def.is_negative ? `≤ ${def.target_value}` : `≥ ${def.target_value}`)
+        : (def.is_negative ? 'avoid' : 'any');
+    const periodText = def.period === 'day' ? 'days' : (def.period === 'week' ? 'weeks' : 'months');
+    const tooltip = `${streak} ${periodText} in a row · ${hit}/${total} recent · target ${targetText}`;
+    return `
+        <span class="habit-streak-pill" title="${tooltip}">
+            <span class="habit-streak-flame" aria-hidden="true">🔥</span>${streak}
+            <span class="habit-streak-sep" aria-hidden="true">·</span>${hit}/${total}
+        </span>
+    `;
+}
+
+function renderHabitControl(def, value, logged, accent, polarity) {
     if (def.habit_type === 'binary') {
         const onText = logged && value > 0 ? 'Yes' : 'No';
         const onClass = logged && value > 0 ? 'habit-toggle--on' : '';
-        const styleAttr = logged && value > 0 ? ` style="background:${accent};border-color:${accent};color:white;"` : '';
+        // For binary negative habits, "Yes" is the bad state — color red.
+        const isBad = def.is_negative && logged && value > 0;
+        const bg = isBad ? 'var(--color-negative, #dc2626)' : accent;
+        const styleAttr = logged && value > 0
+            ? ` style="background:${bg};border-color:${bg};color:white;"`
+            : '';
         return `
             <button type="button"
                     class="habit-toggle ${onClass}"
@@ -639,7 +682,10 @@ function renderHabitControl(def, value, logged, accent) {
             </button>
         `;
     }
-    const valueColor = logged && value > 0 ? accent : 'var(--text-muted)';
+    let valueColor;
+    if (polarity === 'bad') valueColor = 'var(--color-negative, #dc2626)';
+    else if (polarity === 'good') valueColor = accent;
+    else valueColor = 'var(--text-muted)';
     return `
         <div class="habit-counter">
             <button type="button" class="habit-counter-btn" data-action="counter-dec" aria-label="Decrease" ${value <= 0 ? 'disabled' : ''}>−</button>

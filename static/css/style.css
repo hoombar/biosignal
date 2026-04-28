@@ -737,6 +737,36 @@ main > h1 {
     pointer-events: none;
 }
 
+.habit-sidebar-item--bad {
+    background: color-mix(in srgb, var(--color-negative, #dc2626) 8%, transparent);
+}
+
+.habit-streak-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: 6px;
+    padding: 1px 6px;
+    font-size: 0.625rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    line-height: 1.4;
+    font-variant-numeric: tabular-nums;
+}
+
+.habit-streak-flame {
+    font-size: 0.625rem;
+    line-height: 1;
+}
+
+.habit-streak-sep {
+    opacity: 0.45;
+    margin: 0 2px;
+}
+
 .habit-toggle {
     font-family: var(--font-mono);
     font-size: 0.8125rem;
