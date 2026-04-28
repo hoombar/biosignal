@@ -207,10 +207,16 @@ class HabitListEntry(BaseModel):
     name: str
     habit_type: str
     archived: bool
+    is_negative: bool = False
+    target_value: int | None = None
+    period: str = "day"
     display_name: str | None = None
     emoji: str | None = None
     color: str | None = None
     sort_order: int = 0
+    streak: int = 0
+    completion_hit: int = 0
+    completion_total: int = 0
 
 
 class HabitLogUpdate(BaseModel):
@@ -229,6 +235,9 @@ class HabitCreateRequest(BaseModel):
     """Request body for POST /api/habits."""
     name: str = Field(..., min_length=1, max_length=64)
     habit_type: str = Field(..., pattern=r"^(binary|counter)$")
+    is_negative: bool = False
+    target_value: int | None = Field(default=None, ge=0)
+    period: str = Field(default="day", pattern=r"^(day|week|month)$")
     display_name: str | None = None
     emoji: str | None = None
     color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
@@ -238,11 +247,17 @@ class HabitCreateRequest(BaseModel):
 class HabitUpdateRequest(BaseModel):
     """Request body for PATCH /api/habits/{id}.
 
-    Only display attributes are mutable. Habit type is fixed for the
-    lifetime of a habit (archive + create new if you need a different
-    type). The internal slug is also fixed.
+    Habit type and the internal slug are immutable. Everything else
+    (target/period/polarity, plus display attrs) can change.
     """
+    is_negative: bool | None = None
+    target_value: int | None = Field(default=None, ge=0)
+    period: str | None = Field(default=None, pattern=r"^(day|week|month)$")
     display_name: str | None = None
     emoji: str | None = None
     color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
     sort_order: int | None = None
+    # Sentinel allowing target_value to be cleared explicitly. Pydantic can't
+    # distinguish "field omitted" from "field set to None" in a JSON body
+    # without help; clients send ``clear_target=true`` to erase a stored target.
+    clear_target: bool = False

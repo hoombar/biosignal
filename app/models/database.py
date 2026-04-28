@@ -1,5 +1,6 @@
 from datetime import datetime, date
 from sqlalchemy import (
+    Boolean,
     Column,
     Integer,
     String,
@@ -11,6 +12,7 @@ from sqlalchemy import (
     JSON,
     Index,
     UniqueConstraint,
+    text,
 )
 from app.core.database import Base
 
@@ -144,6 +146,12 @@ class Habit(Base):
     habit_type = Column(String, nullable=False)  # 'binary' | 'counter'
     archived_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    # Generic-tracker fields. ``period`` defines the granularity of hit/miss
+    # evaluation; ``target_value`` is the threshold; ``is_negative`` flips the
+    # comparison ("≤ target" instead of "≥ target").
+    is_negative = Column(Boolean, nullable=False, server_default=text("0"), default=False)
+    target_value = Column(Integer, nullable=True)
+    period = Column(String, nullable=False, server_default=text("'day'"), default="day")
 
 
 class DailyHabit(Base):
