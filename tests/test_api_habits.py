@@ -259,6 +259,49 @@ class TestCreateHabit:
         assert body["habit_type"] == "binary"
         assert body["archived"] is False
         assert body["display_name"] is None
+        # New generic-tracker fields default sensibly
+        assert body["is_negative"] is False
+        assert body["target_value"] is None
+        assert body["period"] == "day"
+
+    @pytest.mark.asyncio
+    async def test_creates_negative_habit_with_target_and_period(self, async_session):
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.post("/api/habits", json={
+                "name": "Alcohol",
+                "habit_type": "counter",
+                "is_negative": True,
+                "target_value": 2,
+                "period": "week",
+            })
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["is_negative"] is True
+        assert body["target_value"] == 2
+        assert body["period"] == "week"
+
+    @pytest.mark.asyncio
+    async def test_rejects_invalid_period(self, async_session):
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.post("/api/habits", json={
+                "name": "x",
+                "habit_type": "binary",
+                "period": "fortnight",
+            })
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_rejects_negative_target(self, async_session):
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.post("/api/habits", json={
+                "name": "x",
+                "habit_type": "counter",
+                "target_value": -3,
+            })
+        assert resp.status_code == 422
 
     @pytest.mark.asyncio
     async def test_creates_with_display_config(self, async_session):
@@ -313,6 +356,25 @@ class TestCreateHabit:
         assert resp.status_code == 422
 
 
+class TestListMetrics:
+
+    @pytest.mark.asyncio
+    async def test_list_includes_metrics_fields(self, async_session):
+        habit = await ensure_habit(async_session, "stretch", habit_type="binary")
+        await async_session.commit()
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get("/api/habits/list")
+        assert resp.status_code == 200
+        row = resp.json()[0]
+        assert row["streak"] == 0
+        assert row["completion_hit"] == 0
+        assert row["completion_total"] == 7
+        assert row["period"] == "day"
+        assert row["is_negative"] is False
+        assert row["target_value"] is None
+
+
 class TestUpdateHabit:
 
     @pytest.mark.asyncio
@@ -365,6 +427,34 @@ class TestUpdateHabit:
         with TestClient(app) as client:
             resp = client.patch("/api/habits/9999", json={"display_name": "X"})
         assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_patch_updates_target_and_period(self, async_session):
+        habit = await ensure_habit(async_session, "alcohol", habit_type="counter")
+        await async_session.commit()
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.patch(f"/api/habits/{habit.id}", json={
+                "is_negative": True,
+                "target_value": 2,
+                "period": "week",
+            })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["is_negative"] is True
+        assert body["target_value"] == 2
+        assert body["period"] == "week"
+
+    @pytest.mark.asyncio
+    async def test_patch_clear_target_erases_existing(self, async_session):
+        habit = await ensure_habit(async_session, "coffee", habit_type="counter")
+        habit.target_value = 2
+        await async_session.commit()
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.patch(f"/api/habits/{habit.id}", json={"clear_target": True})
+        assert resp.status_code == 200
+        assert resp.json()["target_value"] is None
 
 
 class TestArchiveHabit:

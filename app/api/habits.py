@@ -24,6 +24,7 @@ from app.schemas.responses import (
     HabitLogUpdate,
     HabitUpdateRequest,
 )
+from app.services.habit_metrics import compute_metrics
 
 
 def _normalize_slug(name: str) -> str:
@@ -49,23 +50,32 @@ async def list_habits(
     stmt = select(Habit)
     if not include_archived:
         stmt = stmt.where(Habit.archived_at.is_(None))
-    habits = (await db.execute(stmt)).scalars().all()
+    habits = list((await db.execute(stmt)).scalars().all())
 
     configs = (await db.execute(select(HabitDisplayConfig))).scalars().all()
     cfg_by_name = {c.habit_name: c for c in configs}
 
+    metrics = await compute_metrics(db, habits)
+
     entries = []
     for habit in habits:
         cfg = cfg_by_name.get(habit.name)
+        m = metrics.get(habit.id, {})
         entries.append(HabitListEntry(
             id=habit.id,
             name=habit.name,
             habit_type=habit.habit_type,
             archived=habit.archived_at is not None,
+            is_negative=habit.is_negative,
+            target_value=habit.target_value,
+            period=habit.period,
             display_name=cfg.display_name if cfg else None,
             emoji=cfg.emoji if cfg else None,
             color=cfg.color if cfg else None,
             sort_order=cfg.sort_order if cfg else 0,
+            streak=m.get("streak", 0),
+            completion_hit=m.get("completion_hit", 0),
+            completion_total=m.get("completion_total", 0),
         ))
 
     entries.sort(key=lambda e: (e.sort_order, e.name))
@@ -156,15 +166,23 @@ async def _entry_for_habit(db: AsyncSession, habit: Habit) -> HabitListEntry:
     cfg = (await db.execute(
         select(HabitDisplayConfig).where(HabitDisplayConfig.habit_name == habit.name)
     )).scalar_one_or_none()
+    metrics = await compute_metrics(db, [habit])
+    m = metrics.get(habit.id, {})
     return HabitListEntry(
         id=habit.id,
         name=habit.name,
         habit_type=habit.habit_type,
         archived=habit.archived_at is not None,
+        is_negative=habit.is_negative,
+        target_value=habit.target_value,
+        period=habit.period,
         display_name=cfg.display_name if cfg else None,
         emoji=cfg.emoji if cfg else None,
         color=cfg.color if cfg else None,
         sort_order=cfg.sort_order if cfg else 0,
+        streak=m.get("streak", 0),
+        completion_hit=m.get("completion_hit", 0),
+        completion_total=m.get("completion_total", 0),
     )
 
 
@@ -199,7 +217,13 @@ async def create_habit(
     if existing is not None:
         raise HTTPException(status_code=409, detail=f"habit {name!r} already exists")
 
-    habit = Habit(name=name, habit_type=body.habit_type)
+    habit = Habit(
+        name=name,
+        habit_type=body.habit_type,
+        is_negative=body.is_negative,
+        target_value=body.target_value,
+        period=body.period,
+    )
     db.add(habit)
     try:
         await db.flush()
@@ -231,6 +255,15 @@ async def update_habit(
     habit = (await db.execute(select(Habit).where(Habit.id == habit_id))).scalar_one_or_none()
     if habit is None:
         raise HTTPException(status_code=404, detail=f"habit {habit_id} not found")
+
+    if body.is_negative is not None:
+        habit.is_negative = body.is_negative
+    if body.period is not None:
+        habit.period = body.period
+    if body.clear_target:
+        habit.target_value = None
+    elif body.target_value is not None:
+        habit.target_value = body.target_value
 
     cfg = (await db.execute(
         select(HabitDisplayConfig).where(HabitDisplayConfig.habit_name == habit.name)
