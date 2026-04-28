@@ -19,7 +19,17 @@
                 <option value="binary">Binary (yes/no)</option>
                 <option value="counter">Counter (0, 1, 2, …)</option>
             </select>
-            <input type="text" name="emoji" placeholder="Emoji (optional)" maxlength="8" class="settings-input settings-input--emoji">
+            <select name="period" class="settings-input">
+                <option value="day">Daily</option>
+                <option value="week">Weekly</option>
+                <option value="month">Monthly</option>
+            </select>
+            <input type="number" name="target_value" placeholder="Target (optional)" min="0" class="settings-input settings-input--order">
+            <label class="archived-toggle">
+                <input type="checkbox" name="is_negative">
+                Negative (do less)
+            </label>
+            <input type="text" name="emoji" placeholder="Emoji" maxlength="8" class="settings-input settings-input--emoji">
             <input type="text" name="color" placeholder="#4488ff" pattern="^#[0-9a-fA-F]{6}$" class="settings-input settings-input--color">
             <button type="submit" class="btn-primary">Create</button>
             <span id="add-habit-status" class="save-status"></span>
@@ -30,12 +40,19 @@
     <div id="habits-error" class="error" style="display:none;"></div>
 
     <form id="habits-form" style="display:none;">
+        <div class="settings-toolbar">
+            <input type="search" id="habit-search" class="settings-input settings-input--search" placeholder="Search habits…" aria-label="Search habits">
+            <label class="archived-toggle"><input type="checkbox" id="show-archived"> Show archived</label>
+        </div>
         <div class="settings-table-wrap">
             <table class="settings-table">
                 <thead>
                     <tr>
                         <th>Habit name</th>
                         <th>Type</th>
+                        <th>Period</th>
+                        <th>Target</th>
+                        <th>Neg?</th>
                         <th>Display label</th>
                         <th>Emoji</th>
                         <th>Color</th>
@@ -50,7 +67,6 @@
         </div>
         <div class="settings-actions">
             <button type="submit" class="btn-primary" id="save-btn">Save all</button>
-            <label class="archived-toggle"><input type="checkbox" id="show-archived"> Show archived</label>
             <span id="save-status" class="save-status"></span>
         </div>
     </form>
@@ -84,9 +100,16 @@
         const emoji = habit.emoji ?? '';
         const color = habit.color ?? '';
         const order = habit.sort_order ?? 0;
+        const target = habit.target_value ?? '';
+        const period = habit.period ?? 'day';
+        const isNeg = !!habit.is_negative;
         const archivedClass = habit.archived ? ' habit-row--archived' : '';
         const archiveBtnLabel = habit.archived ? 'Unarchive' : 'Archive';
         const archiveAction = habit.archived ? 'unarchive' : 'archive';
+
+        const periodOptions = ['day', 'week', 'month']
+            .map(p => `<option value="${p}"${p === period ? ' selected' : ''}>${p}</option>`)
+            .join('');
 
         const tr = document.createElement('tr');
         tr.className = `habit-row${archivedClass}`;
@@ -98,6 +121,19 @@
                 <span class="habit-default-label">${defaultLabel(habit.name)}</span>
             </td>
             <td><span class="habit-type-tag">${habit.habit_type}</span></td>
+            <td>
+                <select class="settings-input settings-input--period" name="period"
+                    aria-label="Evaluation period for ${habit.name}">${periodOptions}</select>
+            </td>
+            <td>
+                <input type="number" class="settings-input settings-input--order" name="target_value"
+                    value="${target}" min="0" placeholder="—"
+                    aria-label="Target for ${habit.name}">
+            </td>
+            <td class="cell-center">
+                <input type="checkbox" name="is_negative" ${isNeg ? 'checked' : ''}
+                    aria-label="Negative habit flag for ${habit.name}">
+            </td>
             <td>
                 <input type="text" class="settings-input" name="display_name"
                     value="${label}" placeholder="${defaultLabel(habit.name)}"
@@ -121,28 +157,43 @@
             <td class="save-cell">
                 <button type="button" class="btn-secondary btn-archive"
                     data-action="${archiveAction}" data-habit-id="${habit.id}">${archiveBtnLabel}</button>
+                <button type="button" class="btn-danger btn-delete"
+                    data-action="delete" data-habit-id="${habit.id}" data-habit-name="${habit.name}">Delete</button>
                 <span class="row-status" aria-live="polite"></span>
             </td>
         `;
         return tr;
     }
 
+    const searchInput = document.getElementById('habit-search');
+
     function visibleHabits() {
-        return showArchived.checked ? habits : habits.filter(h => !h.archived);
+        const q = (searchInput?.value || '').trim().toLowerCase();
+        let list = showArchived.checked ? habits : habits.filter(h => !h.archived);
+        if (q) {
+            list = list.filter(h =>
+                h.name.toLowerCase().includes(q) ||
+                (h.display_name || '').toLowerCase().includes(q)
+            );
+        }
+        return list;
     }
 
     function rerender() {
         tbody.innerHTML = '';
         const visible = visibleHabits();
         if (visible.length === 0) {
-            form.style.display = 'none';
-            noHabits.style.display = '';
+            form.style.display = '';
+            noHabits.style.display = habits.length === 0 ? '' : 'none';
+            // If no habits at all → show empty-state. If filter just hides them → keep table visible with empty body.
             return;
         }
         noHabits.style.display = 'none';
         visible.forEach(h => tbody.appendChild(renderRow(h)));
         form.style.display = '';
     }
+
+    if (searchInput) searchInput.addEventListener('input', rerender);
 
     async function load() {
         try {
@@ -174,15 +225,30 @@
             const emoji = row.querySelector('[name=emoji]').value.trim() || null;
             const color = row.querySelector('[name=color]').value.trim() || null;
             const sort_order = parseInt(row.querySelector('[name=sort_order]').value, 10) || 0;
+            const period = row.querySelector('[name=period]').value;
+            const targetRaw = row.querySelector('[name=target_value]').value.trim();
+            const is_negative = row.querySelector('[name=is_negative]').checked;
             const rowStatus = row.querySelector('.row-status');
+
+            const payload = {
+                display_name, emoji, color, sort_order, period, is_negative,
+            };
+            if (targetRaw === '') {
+                payload.clear_target = true;
+            } else {
+                payload.target_value = parseInt(targetRaw, 10);
+            }
 
             try {
                 const resp = await fetch(`/api/habits/${id}`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ display_name, emoji, color, sort_order }),
+                    body: JSON.stringify(payload),
                 });
                 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const updated = await resp.json();
+                const i = habits.findIndex(h => h.id === updated.id);
+                if (i >= 0) habits[i] = updated;
                 rowStatus.textContent = '✓';
                 rowStatus.className = 'row-status row-status--ok';
             } catch (err) {
@@ -212,6 +278,27 @@
         if (!btn) return;
         const id = btn.dataset.habitId;
         const action = btn.dataset.action;
+
+        if (action === 'delete') {
+            const habitName = btn.dataset.habitName;
+            const confirmed = window.confirm(
+                `Permanently delete "${habitName}" and all its logged history?\n\n` +
+                `This cannot be undone. (Use Archive instead if you want to keep history.)`
+            );
+            if (!confirmed) return;
+            btn.disabled = true;
+            try {
+                const resp = await fetch(`/api/habits/${id}`, { method: 'DELETE' });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                habits = habits.filter(h => h.id !== Number(id));
+                rerender();
+            } catch (err) {
+                btn.disabled = false;
+                alert(`Delete failed: ${err.message}`);
+            }
+            return;
+        }
+
         btn.disabled = true;
         try {
             const resp = await fetch(`/api/habits/${id}/${action}`, { method: 'POST' });
@@ -234,11 +321,15 @@
         const payload = {
             name: fd.get('name'),
             habit_type: fd.get('habit_type'),
+            period: fd.get('period') || 'day',
+            is_negative: fd.get('is_negative') === 'on',
         };
         const emoji = (fd.get('emoji') || '').trim();
         const color = (fd.get('color') || '').trim();
+        const targetRaw = (fd.get('target_value') || '').trim();
         if (emoji) payload.emoji = emoji;
         if (color) payload.color = color;
+        if (targetRaw !== '') payload.target_value = parseInt(targetRaw, 10);
         try {
             const resp = await fetch('/api/habits', {
                 method: 'POST',

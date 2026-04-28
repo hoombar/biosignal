@@ -506,3 +506,45 @@ class TestArchiveHabit:
             select(DailyHabit).where(DailyHabit.habit_id == habit.id)
         )).scalars().all()
         assert len(rows) == 1
+
+
+class TestDeleteHabit:
+
+    @pytest.mark.asyncio
+    async def test_delete_cascades_daily_rows_and_display_config(self, async_session):
+        from app.models.database import HabitDisplayConfig
+        habit = await ensure_habit(async_session, "coffee", habit_type="counter")
+        await log_habit(async_session, "coffee", date(2026, 1, 5), 3, habit_type="counter")
+        await log_habit(async_session, "coffee", date(2026, 1, 6), 2, habit_type="counter")
+        async_session.add(HabitDisplayConfig(habit_name="coffee", display_name="Coffee"))
+        await async_session.commit()
+        habit_id = habit.id
+
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.delete(f"/api/habits/{habit_id}")
+        assert resp.status_code == 204
+
+        await async_session.commit()
+        # Habit row gone
+        row = (await async_session.execute(
+            select(Habit).where(Habit.id == habit_id)
+        )).scalar_one_or_none()
+        assert row is None
+        # Daily rows gone
+        daily = (await async_session.execute(
+            select(DailyHabit).where(DailyHabit.habit_id == habit_id)
+        )).scalars().all()
+        assert daily == []
+        # Display config gone
+        cfg = (await async_session.execute(
+            select(HabitDisplayConfig).where(HabitDisplayConfig.habit_name == "coffee")
+        )).scalar_one_or_none()
+        assert cfg is None
+
+    @pytest.mark.asyncio
+    async def test_delete_unknown_returns_404(self, async_session):
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.delete("/api/habits/9999")
+        assert resp.status_code == 404

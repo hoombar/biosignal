@@ -10,7 +10,7 @@ import re
 from datetime import date as DateType, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -300,3 +300,22 @@ async def unarchive_habit(habit_id: int, db: AsyncSession = Depends(get_db)):
         habit.archived_at = None
         await db.commit()
     return await _entry_for_habit(db, habit)
+
+
+@router.delete("/{habit_id}", status_code=204)
+async def delete_habit(habit_id: int, db: AsyncSession = Depends(get_db)):
+    """Hard-delete a habit. Cascade-removes its daily_habits rows and the
+    matching habit_display_config row (keyed by name). Irreversible —
+    archive instead if you want to keep history.
+    """
+    habit = (await db.execute(select(Habit).where(Habit.id == habit_id))).scalar_one_or_none()
+    if habit is None:
+        raise HTTPException(status_code=404, detail=f"habit {habit_id} not found")
+
+    await db.execute(delete(DailyHabit).where(DailyHabit.habit_id == habit_id))
+    await db.execute(
+        delete(HabitDisplayConfig).where(HabitDisplayConfig.habit_name == habit.name)
+    )
+    await db.delete(habit)
+    await db.commit()
+    return None
