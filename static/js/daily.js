@@ -583,7 +583,7 @@ window.addEventListener('popstate', () => {
 // ============================================
 
 function renderHabitsPanel(day) {
-    return HabitPanel.renderHabitsPanel(day, { mode: 'edit' });
+    return HabitPanel.renderHabitsPanel(day, { mode: 'view' });
 }
 
 function _patchDayCache(dateStr, habitName, habitType, newValue) {
@@ -853,6 +853,9 @@ function renderDayDetail(day) {
 
     const habitsList = document.getElementById('habits-list');
     if (habitsList) habitsList.innerHTML = renderHabitsPanel(day);
+
+    const editLink = document.getElementById('habits-edit-link');
+    if (editLink) editLink.href = `/log#${day.date}`;
 
     const metricsGrid = document.getElementById('metrics-grid');
     if (!metricsGrid) return;

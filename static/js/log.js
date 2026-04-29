@@ -14,7 +14,16 @@
     const prevBtn = document.getElementById('log-prev');
     const nextBtn = document.getElementById('log-next');
 
-    let currentDate = todayLocal();
+    function readHashDate() {
+        const hash = window.location.hash.slice(1);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(hash)) {
+            // Don't honor hashes pointing into the future.
+            if (hash <= todayLocal()) return hash;
+        }
+        return null;
+    }
+
+    let currentDate = readHashDate() || todayLocal();
     // Cache fetched days so flipping back/forth doesn't refetch.
     const dayCache = {};  // { 'YYYY-MM-DD': {date, habits: [{name, value, type}]} }
 
@@ -97,6 +106,9 @@
 
     async function render(dateStr) {
         currentDate = dateStr;
+        if (window.location.hash.slice(1) !== dateStr) {
+            history.replaceState(null, '', `#${dateStr}`);
+        }
         dateEl.textContent = formatHumanDate(dateStr);
         dateRelEl.textContent = relativeLabel(dateStr);
         nextBtn.disabled = (dateStr >= todayLocal());

@@ -767,6 +767,77 @@ main > h1 {
     margin: 0 2px;
 }
 
+/* ============================================
+   READ-ONLY HABIT VIEW (used on /daily)
+   ============================================ */
+
+.habit-view-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    padding: 4px var(--space-sm);
+    background: transparent;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+}
+
+.habit-view-item--bad {
+    background: color-mix(in srgb, var(--color-negative, #dc2626) 8%, transparent);
+}
+
+.habit-view-item--unlogged {
+    opacity: 0.55;
+}
+
+.habit-view-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    flex: 1;
+}
+
+.habit-view-label {
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+}
+
+.habit-view-value {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.habit-view-value--good { color: var(--text-primary); }
+.habit-view-value--bad { color: var(--color-negative, #dc2626); }
+.habit-view-value--muted { color: var(--text-muted); }
+
+/* Daily-page habits panel header */
+.habits-panel-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-sm);
+}
+
+.habits-panel-edit {
+    font-size: 0.6875rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.habits-panel-edit:hover {
+    color: var(--text-primary);
+}
+
 .habit-toggle {
     font-family: var(--font-mono);
     font-size: 0.8125rem;
