@@ -583,141 +583,7 @@ window.addEventListener('popstate', () => {
 // ============================================
 
 function renderHabitsPanel(day) {
-    const definitions = (window._activeHabits || []);
-    if (definitions.length === 0) {
-        return '<p class="habits-empty">No habits configured. Add one in <a href="/settings">Settings</a>.</p>';
-    }
-
-    const dayHabits = day.habits || [];
-    const valueByName = Object.fromEntries(dayHabits.map(h => [h.name, h.value]));
-
-    const sorted = [...definitions].sort((a, b) => {
-        if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
-        return a.name.localeCompare(b.name);
-    });
-
-    return sorted.map(def => {
-        const accent = def.color || getHabitAccentColor(def.name);
-        const label = def.display_name || _toTitleCase(def.name);
-        const emojiHtml = def.emoji
-            ? `<span class="habit-emoji" aria-hidden="true">${def.emoji}</span>`
-            : '';
-
-        const logged = Object.prototype.hasOwnProperty.call(valueByName, def.name);
-        const value = logged ? Number(valueByName[def.name]) : 0;
-        const polarity = _dayPolarity(def, value, logged);  // 'good' | 'bad' | 'neutral'
-        const itemClass = [
-            'habit-sidebar-item',
-            logged ? '' : 'habit-sidebar-item--unlogged',
-            polarity === 'bad' ? 'habit-sidebar-item--bad' : '',
-        ].filter(Boolean).join(' ');
-
-        return `
-            <div class="${itemClass}"
-                 style="border-left: 2px solid ${accent};"
-                 data-habit-id="${def.id}"
-                 data-habit-name="${def.name}"
-                 data-habit-type="${def.habit_type}"
-                 data-date="${day.date}">
-                <div class="habit-sidebar-header">
-                    ${emojiHtml}
-                    <span class="habit-sidebar-label">${label}</span>
-                    ${renderStreakPill(def)}
-                </div>
-                ${renderHabitControl(def, value, logged, accent, polarity)}
-            </div>
-        `;
-    }).join('');
-}
-
-// "good" → habit accent (positive logged ≥ target, or negative within limit)
-// "bad"  → red (negative habit over its limit)
-// "neutral" → muted grey (unlogged, or positive without enough)
-function _dayPolarity(def, value, logged) {
-    const target = def.target_value;
-    if (def.is_negative) {
-        const over = target == null ? value > 0 : value > target;
-        return over ? 'bad' : 'good';  // 0 (or unlogged-as-zero) is good for negatives
-    }
-    if (!logged) return 'neutral';
-    if (target == null) return value > 0 ? 'good' : 'neutral';
-    return value >= target ? 'good' : 'neutral';
-}
-
-function renderStreakPill(def) {
-    const streak = Number(def.streak ?? 0);
-    const hit = Number(def.completion_hit ?? 0);
-    const total = Number(def.completion_total ?? 0);
-    if (streak === 0 && hit === 0) return '';
-    const targetText = def.target_value != null
-        ? (def.is_negative ? `≤ ${def.target_value}` : `≥ ${def.target_value}`)
-        : (def.is_negative ? 'avoid' : 'any');
-    const periodText = def.period === 'day' ? 'days' : (def.period === 'week' ? 'weeks' : 'months');
-    const tooltip = `${streak} ${periodText} in a row · ${hit}/${total} recent · target ${targetText}`;
-    return `
-        <span class="habit-streak-pill" title="${tooltip}">
-            <span class="habit-streak-flame" aria-hidden="true">🔥</span>${streak}
-            <span class="habit-streak-sep" aria-hidden="true">·</span>${hit}/${total}
-        </span>
-    `;
-}
-
-function renderHabitControl(def, value, logged, accent, polarity) {
-    if (def.habit_type === 'binary') {
-        const onText = logged && value > 0 ? 'Yes' : 'No';
-        const onClass = logged && value > 0 ? 'habit-toggle--on' : '';
-        // For binary negative habits, "Yes" is the bad state — color red.
-        const isBad = def.is_negative && logged && value > 0;
-        const bg = isBad ? 'var(--color-negative, #dc2626)' : accent;
-        const styleAttr = logged && value > 0
-            ? ` style="background:${bg};border-color:${bg};color:white;"`
-            : '';
-        return `
-            <button type="button"
-                    class="habit-toggle ${onClass}"
-                    data-action="toggle-binary"
-                    aria-pressed="${logged && value > 0}"
-                    ${styleAttr}>
-                ${onText}
-            </button>
-        `;
-    }
-    let valueColor;
-    if (polarity === 'bad') valueColor = 'var(--color-negative, #dc2626)';
-    else if (polarity === 'good') valueColor = accent;
-    else valueColor = 'var(--text-muted)';
-    return `
-        <div class="habit-counter">
-            <button type="button" class="habit-counter-btn" data-action="counter-dec" aria-label="Decrease" ${value <= 0 ? 'disabled' : ''}>−</button>
-            <span class="habit-counter-value" style="color:${valueColor};">${logged ? value : '·'}</span>
-            <button type="button" class="habit-counter-btn" data-action="counter-inc" aria-label="Increase">+</button>
-        </div>
-    `;
-}
-
-async function _updateHabitValue(habitItem, newValue) {
-    const date = habitItem.dataset.date;
-    const habitId = habitItem.dataset.habitId;
-    const habitType = habitItem.dataset.habitType;
-    const habitName = habitItem.dataset.habitName;
-
-    habitItem.classList.add('habit-sidebar-item--saving');
-    try {
-        const resp = await fetch(`/api/habits/log/${date}/${habitId}`, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({value: newValue}),
-        });
-        if (!resp.ok) {
-            const detail = await resp.text();
-            console.error('Failed to log habit:', detail);
-            return;
-        }
-        _patchDayCache(date, habitName, habitType, newValue);
-        _rerenderSelectedDay();
-    } finally {
-        habitItem.classList.remove('habit-sidebar-item--saving');
-    }
+    return HabitPanel.renderHabitsPanel(day, { mode: 'edit' });
 }
 
 function _patchDayCache(dateStr, habitName, habitType, newValue) {
@@ -739,35 +605,6 @@ function _patchDayCache(dateStr, habitName, habitType, newValue) {
 function _rerenderSelectedDay() {
     if (selectedIndex < 0 || !currentMonthData[selectedIndex]) return;
     renderDayDetail(currentMonthData[selectedIndex]);
-}
-
-function _handleHabitsPanelClick(event) {
-    const button = event.target.closest('button[data-action]');
-    if (!button) return;
-    const item = button.closest('.habit-sidebar-item');
-    if (!item) return;
-
-    const action = button.dataset.action;
-    const habitType = item.dataset.habitType;
-
-    if (action === 'toggle-binary') {
-        const currentlyOn = button.getAttribute('aria-pressed') === 'true';
-        _updateHabitValue(item, currentlyOn ? 0 : 1);
-        return;
-    }
-
-    if (action === 'counter-inc' || action === 'counter-dec') {
-        const valueSpan = item.querySelector('.habit-counter-value');
-        const current = Number(valueSpan?.textContent);
-        const safeCurrent = Number.isFinite(current) ? current : 0;
-        const next = action === 'counter-inc' ? safeCurrent + 1 : safeCurrent - 1;
-        if (next < 0) return;
-        _updateHabitValue(item, next);
-    }
-}
-
-function _toTitleCase(snakeName) {
-    return snakeName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
 function renderSleepCard(day) {
@@ -1056,7 +893,12 @@ async function init() {
     // Delegate click handling for the habits panel (one listener for the page).
     const habitsList = document.getElementById('habits-list');
     if (habitsList) {
-        habitsList.addEventListener('click', _handleHabitsPanelClick);
+        HabitPanel.bindHabitsPanel(habitsList, {
+            onValueChange: (date, habitName, habitType, newValue) => {
+                _patchDayCache(date, habitName, habitType, newValue);
+                _rerenderSelectedDay();
+            },
+        });
     }
 
     await Promise.all([
