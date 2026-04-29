@@ -1947,6 +1947,101 @@ input:focus {
     padding: 3px 10px;
 }
 
+/* ============================================
+   /LOG PAGE
+   ============================================ */
+
+.log-page {
+    max-width: 640px;
+    margin: 0 auto;
+}
+
+.log-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    margin-bottom: var(--space-lg, 24px);
+}
+
+.log-date-block {
+    text-align: center;
+    flex: 1;
+    min-width: 0;
+}
+
+.log-date {
+    font-size: 1.5rem;
+    margin: 0;
+    line-height: 1.2;
+}
+
+.log-date-rel {
+    display: block;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    font-weight: 500;
+}
+
+.log-nav-btn {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    width: 44px;
+    height: 44px;
+    font-size: 1.25rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.1s, border-color 0.1s;
+    flex-shrink: 0;
+}
+
+.log-nav-btn:hover:not(:disabled) {
+    background: var(--bg-secondary);
+    border-color: var(--text-secondary);
+}
+
+.log-nav-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.log-habits {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.log-habits .habit-sidebar-item {
+    /* Roomier than the daily sidebar — this is the focus of the page. */
+    padding: var(--space-md);
+}
+
+.log-habits .habit-toggle {
+    min-width: 64px;
+    padding: 6px 16px;
+    font-size: 0.9375rem;
+}
+
+.log-habits .habit-counter-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 1.125rem;
+}
+
+.log-habits .habit-counter-value {
+    font-size: 1.25rem;
+    min-width: 2em;
+}
+
+.log-habits .habit-sidebar-label {
+    font-size: 0.875rem;
+}
+
 .btn-danger {
     font-size: 0.75rem;
     padding: 3px 10px;

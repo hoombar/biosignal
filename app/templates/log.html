@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Log - Energy Tracker{% endblock %}
+
+{% block content %}
+<div class="log-page">
+    <div class="log-header">
+        <button class="log-nav-btn" id="log-prev" title="Previous day" aria-label="Previous day">&larr;</button>
+        <div class="log-date-block">
+            <h1 class="log-date" id="log-date">—</h1>
+            <span class="log-date-rel" id="log-date-rel"></span>
+        </div>
+        <button class="log-nav-btn" id="log-next" title="Next day" aria-label="Next day">&rarr;</button>
+    </div>
+
+    <div class="log-body">
+        <div id="log-loading" class="loading">Loading…</div>
+        <div id="log-error" class="error" style="display:none;"></div>
+        <div id="log-habits" class="log-habits" style="display:none;"></div>
+        <div id="log-empty" class="empty-state" style="display:none;">
+            No habits configured yet. <a href="/settings">Add one in Settings</a>.
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/habit-config.js"></script>
+<script src="/static/js/habit-panel.js"></script>
+<script src="/static/js/log.js"></script>
+{% endblock %}

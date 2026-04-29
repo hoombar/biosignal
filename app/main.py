@@ -51,8 +51,14 @@ app.include_router(settings.router)
 # Page routes
 @app.get("/")
 async def root():
-    """Redirect root to overview page."""
-    return RedirectResponse(url="/overview")
+    """Redirect root to the daily log — the most-used page."""
+    return RedirectResponse(url="/log")
+
+
+@app.get("/log")
+async def log_page(request: Request):
+    """Focused single-day habit logging page (default landing)."""
+    return templates.TemplateResponse(request, "log.html", {"active_page": "log"})
 
 
 @app.get("/overview")
