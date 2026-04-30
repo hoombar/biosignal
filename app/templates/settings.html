@@ -43,12 +43,16 @@
         </div>
         <div class="settings-backup-actions">
             <a href="/api/habits/export" class="btn-primary" download>Export habits</a>
-            <input
-                type="file"
-                id="habit-import-file"
-                class="settings-input settings-input--file"
-                accept="application/json,.json"
-                aria-label="Choose a habit backup file to import">
+            <div class="settings-file-picker" id="habit-import-picker">
+                <input
+                    type="file"
+                    id="habit-import-file"
+                    class="settings-file-input"
+                    accept="application/json,.json"
+                    aria-label="Choose a habit backup file to import">
+                <label for="habit-import-file" class="btn-secondary settings-file-trigger">Choose file</label>
+                <span id="habit-import-file-name" class="settings-file-name">No file chosen</span>
+            </div>
             <button type="button" class="btn-primary" id="habit-import-btn" disabled>Import</button>
         </div>
         <p class="settings-backup-note">Import overwrites matching habits and replaces their logged history. Habits not in the file stay unchanged.</p>
@@ -108,7 +112,9 @@
     const addStatus = document.getElementById('add-habit-status');
     const addDetails = document.getElementById('add-habit-details');
     const importFileInput = document.getElementById('habit-import-file');
+    const importPicker = document.getElementById('habit-import-picker');
     const importBtn = document.getElementById('habit-import-btn');
+    const importFileName = document.getElementById('habit-import-file-name');
     const backupStatus = document.getElementById('backup-status');
 
     let habits = [];
@@ -344,7 +350,9 @@
     });
 
     importFileInput.addEventListener('change', () => {
-        importBtn.disabled = !importFileInput.files?.length;
+        const hasFile = !!importFileInput.files?.length;
+        importBtn.disabled = !hasFile;
+        importFileName.textContent = hasFile ? importFileInput.files[0].name : 'No file chosen';
         setBackupStatus('');
     });
 
@@ -360,6 +368,7 @@
 
         importBtn.disabled = true;
         importFileInput.disabled = true;
+        importPicker.classList.add('settings-file-picker--disabled');
         setBackupStatus('Importing…');
 
         try {
@@ -389,10 +398,12 @@
                 refreshed ? 'ok' : 'err'
             );
             importFileInput.value = '';
+            importFileName.textContent = 'No file chosen';
         } catch (err) {
             setBackupStatus(err.message, 'err');
         } finally {
             importFileInput.disabled = false;
+            importPicker.classList.remove('settings-file-picker--disabled');
             importBtn.disabled = !importFileInput.files?.length;
         }
     });

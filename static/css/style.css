@@ -1023,28 +1023,48 @@ main > h1 {
    BUTTONS
    ============================================ */
 
-button {
+button,
+.btn-primary,
+.btn-secondary {
     font-family: var(--font-display);
-    background-color: var(--primary-color);
-    color: white;
-    border: none;
     padding: var(--space-sm) var(--space-md);
     border-radius: var(--radius-md);
-    cursor: pointer;
     font-size: 0.875rem;
     font-weight: 500;
     transition: all var(--transition-fast);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    cursor: pointer;
 }
 
-button:hover {
+button,
+.btn-primary {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+}
+
+button:hover,
+.btn-primary:hover,
+.btn-secondary:hover {
     opacity: 0.9;
     transform: translateY(-1px);
 }
 
-button:disabled {
+button:disabled,
+.btn-primary:disabled,
+.btn-secondary:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     transform: none;
+}
+
+.btn-secondary {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-strong);
 }
 
 /* ============================================
@@ -2002,10 +2022,42 @@ input:focus {
     gap: var(--space-sm);
 }
 
-.settings-input--file {
-    width: auto;
-    flex: 1 1 260px;
+.settings-file-picker {
+    flex: 1 1 320px;
     min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: 6px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+}
+
+.settings-file-picker--disabled {
+    opacity: 0.65;
+}
+
+.settings-file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.settings-file-trigger {
+    flex: 0 0 auto;
+}
+
+.settings-file-name {
+    min-width: 0;
+    flex: 1 1 auto;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .settings-backup-note {
