@@ -5,12 +5,12 @@ Endpoints under /api/habits:
 - PUT /log/{date}/{habit_id} — upsert a logged value
 - DELETE /log/{date}/{habit_id} — clear a logged value
 """
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.api.habits import router
 from app.core.database import get_db
@@ -27,6 +27,50 @@ def _make_app(session):
 
     app.dependency_overrides[get_db] = override_get_db
     return app
+
+
+async def _habit_snapshot(session):
+    habits = (await session.execute(select(Habit).order_by(Habit.name))).scalars().all()
+    configs = (await session.execute(select(HabitDisplayConfig))).scalars().all()
+    cfg_by_name = {cfg.habit_name: cfg for cfg in configs}
+    rows = (await session.execute(select(DailyHabit).order_by(DailyHabit.date, DailyHabit.habit_id))).scalars().all()
+
+    habit_by_id = {habit.id: habit for habit in habits}
+    logs_by_name: dict[str, list[dict]] = {habit.name: [] for habit in habits}
+    for row in rows:
+        habit = habit_by_id[row.habit_id]
+        logs_by_name[habit.name].append({
+            "date": row.date.isoformat(),
+            "value": row.habit_value,
+        })
+
+    snapshot = []
+    for habit in habits:
+        cfg = cfg_by_name.get(habit.name)
+        snapshot.append({
+            "name": habit.name,
+            "habit_type": habit.habit_type,
+            "is_negative": habit.is_negative,
+            "target_value": habit.target_value,
+            "period": habit.period,
+            "archived_at": habit.archived_at.isoformat() if habit.archived_at else None,
+            "created_at": habit.created_at.isoformat(),
+            "display": None if cfg is None else {
+                "display_name": cfg.display_name,
+                "emoji": cfg.emoji,
+                "color": cfg.color,
+                "sort_order": cfg.sort_order,
+            },
+            "logs": logs_by_name[habit.name],
+        })
+    return snapshot
+
+
+async def _wipe_habit_tables(session):
+    await session.execute(delete(DailyHabit))
+    await session.execute(delete(HabitDisplayConfig))
+    await session.execute(delete(Habit))
+    await session.commit()
 
 
 class TestListHabits:
@@ -548,3 +592,342 @@ class TestDeleteHabit:
         with TestClient(app) as client:
             resp = client.delete("/api/habits/9999")
         assert resp.status_code == 404
+
+
+class TestExportHabits:
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_bundle_when_no_habits(self, async_session):
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get("/api/habits/export")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["version"] == 1
+        assert body["habits"] == []
+        assert body["exported_at"]
+        assert resp.headers["content-disposition"].startswith(
+            'attachment; filename="biosignal_habits_'
+        )
+
+    @pytest.mark.asyncio
+    async def test_exports_habits_with_display_logs_and_archived_state(self, async_session):
+        coffee = await ensure_habit(async_session, "coffee", habit_type="counter")
+        coffee.is_negative = True
+        coffee.target_value = 2
+        coffee.period = "week"
+        coffee.created_at = datetime(2026, 1, 2, 8, 30, 0)
+
+        stretch = await ensure_habit(async_session, "stretch", habit_type="binary")
+        stretch.archived_at = datetime(2026, 4, 10, 9, 15, 0)
+        stretch.created_at = datetime(2026, 1, 5, 7, 0, 0)
+
+        async_session.add(HabitDisplayConfig(
+            habit_name="coffee",
+            display_name="Coffee",
+            emoji="☕",
+            color="#c4a77d",
+            sort_order=3,
+        ))
+        await log_habit(async_session, "coffee", date(2026, 4, 28), 1, habit_type="counter")
+        await log_habit(async_session, "coffee", date(2026, 4, 29), 2, habit_type="counter")
+        await log_habit(async_session, "stretch", date(2026, 4, 1), 1, habit_type="binary")
+        await async_session.commit()
+
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get("/api/habits/export")
+
+        assert resp.status_code == 200
+        assert resp.json()["habits"] == [
+            {
+                "name": "coffee",
+                "habit_type": "counter",
+                "is_negative": True,
+                "target_value": 2,
+                "period": "week",
+                "archived_at": None,
+                "created_at": "2026-01-02T08:30:00",
+                "display": {
+                    "display_name": "Coffee",
+                    "emoji": "☕",
+                    "color": "#c4a77d",
+                    "sort_order": 3,
+                },
+                "logs": [
+                    {"date": "2026-04-28", "value": 1},
+                    {"date": "2026-04-29", "value": 2},
+                ],
+            },
+            {
+                "name": "stretch",
+                "habit_type": "binary",
+                "is_negative": False,
+                "target_value": None,
+                "period": "day",
+                "archived_at": "2026-04-10T09:15:00",
+                "created_at": "2026-01-05T07:00:00",
+                "display": None,
+                "logs": [
+                    {"date": "2026-04-01", "value": 1},
+                ],
+            },
+        ]
+
+
+class TestImportHabits:
+
+    @pytest.mark.asyncio
+    async def test_round_trip_export_wipe_import_restores_state(self, async_session):
+        coffee = await ensure_habit(async_session, "coffee", habit_type="counter")
+        coffee.is_negative = True
+        coffee.target_value = 2
+        coffee.period = "week"
+        coffee.created_at = datetime(2026, 1, 1, 8, 30, 0)
+
+        stretch = await ensure_habit(async_session, "stretch", habit_type="binary")
+        stretch.archived_at = datetime(2026, 2, 1, 9, 0, 0)
+        stretch.created_at = datetime(2026, 1, 3, 7, 45, 0)
+
+        async_session.add(HabitDisplayConfig(
+            habit_name="coffee",
+            display_name="Coffee",
+            emoji="☕",
+            color="#c4a77d",
+            sort_order=1,
+        ))
+        await log_habit(async_session, "coffee", date(2026, 4, 28), 1, habit_type="counter")
+        await log_habit(async_session, "coffee", date(2026, 4, 29), 2, habit_type="counter")
+        await log_habit(async_session, "stretch", date(2026, 4, 29), 1, habit_type="binary")
+        await async_session.commit()
+        expected = await _habit_snapshot(async_session)
+
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            export_resp = client.get("/api/habits/export")
+        assert export_resp.status_code == 200
+        bundle = export_resp.json()
+
+        await _wipe_habit_tables(async_session)
+
+        with TestClient(app) as client:
+            import_resp = client.post("/api/habits/import", json=bundle)
+
+        assert import_resp.status_code == 200
+        assert import_resp.json() == {"habits_imported": 2, "logs_imported": 3}
+        assert await _habit_snapshot(async_session) == expected
+
+    @pytest.mark.asyncio
+    async def test_import_overwrites_matching_habit_and_replaces_logs_only_for_that_habit(
+        self, async_session
+    ):
+        coffee = await ensure_habit(async_session, "coffee", habit_type="counter")
+        coffee.target_value = 5
+        coffee.period = "month"
+        coffee.created_at = datetime(2026, 1, 1, 8, 0, 0)
+        async_session.add(HabitDisplayConfig(
+            habit_name="coffee",
+            display_name="Old Coffee",
+            emoji="🍵",
+            color="#AABBCC",
+            sort_order=7,
+        ))
+        await log_habit(async_session, "coffee", date(2026, 4, 27), 5, habit_type="counter")
+        await log_habit(async_session, "coffee", date(2026, 4, 28), 4, habit_type="counter")
+        await log_habit(async_session, "coffee", date(2026, 4, 29), 3, habit_type="counter")
+
+        stretch = await ensure_habit(async_session, "stretch", habit_type="binary")
+        stretch.created_at = datetime(2026, 1, 2, 7, 30, 0)
+        await log_habit(async_session, "stretch", date(2026, 4, 29), 1, habit_type="binary")
+        await async_session.commit()
+
+        bundle = {
+            "version": 1,
+            "exported_at": "2026-04-30T12:00:00+01:00",
+            "habits": [
+                {
+                    "name": "coffee",
+                    "habit_type": "counter",
+                    "is_negative": True,
+                    "target_value": 2,
+                    "period": "week",
+                    "archived_at": None,
+                    "created_at": "2026-01-10T09:45:00",
+                    "display": {
+                        "display_name": "Coffee",
+                        "emoji": "☕",
+                        "color": "#C4A77D",
+                        "sort_order": 1,
+                    },
+                    "logs": [
+                        {"date": "2026-04-28", "value": 1},
+                        {"date": "2026-04-30", "value": 2},
+                    ],
+                }
+            ],
+        }
+
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.post("/api/habits/import", json=bundle)
+
+        assert resp.status_code == 200
+        assert resp.json() == {"habits_imported": 1, "logs_imported": 2}
+        assert await _habit_snapshot(async_session) == [
+            {
+                "name": "coffee",
+                "habit_type": "counter",
+                "is_negative": True,
+                "target_value": 2,
+                "period": "week",
+                "archived_at": None,
+                "created_at": "2026-01-10T09:45:00",
+                "display": {
+                    "display_name": "Coffee",
+                    "emoji": "☕",
+                    "color": "#c4a77d",
+                    "sort_order": 1,
+                },
+                "logs": [
+                    {"date": "2026-04-28", "value": 1},
+                    {"date": "2026-04-30", "value": 2},
+                ],
+            },
+            {
+                "name": "stretch",
+                "habit_type": "binary",
+                "is_negative": False,
+                "target_value": None,
+                "period": "day",
+                "archived_at": None,
+                "created_at": "2026-01-02T07:30:00",
+                "display": None,
+                "logs": [
+                    {"date": "2026-04-29", "value": 1},
+                ],
+            },
+        ]
+
+    @pytest.mark.asyncio
+    async def test_import_normalizes_names_display_fields_and_color(self, async_session):
+        bundle = {
+            "version": 1,
+            "exported_at": "2026-04-30T12:00:00+01:00",
+            "habits": [
+                {
+                    "name": "Coffee Break!!",
+                    "habit_type": "counter",
+                    "is_negative": False,
+                    "target_value": 1,
+                    "period": "day",
+                    "archived_at": None,
+                    "created_at": "2026-02-01T09:00:00",
+                    "display": {
+                        "display_name": "",
+                        "emoji": " ",
+                        "color": "#C4A77D",
+                        "sort_order": 0,
+                    },
+                    "logs": [
+                        {"date": "2026-04-30", "value": 1},
+                    ],
+                }
+            ],
+        }
+
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.post("/api/habits/import", json=bundle)
+
+        assert resp.status_code == 200
+        assert await _habit_snapshot(async_session) == [
+            {
+                "name": "coffee_break",
+                "habit_type": "counter",
+                "is_negative": False,
+                "target_value": 1,
+                "period": "day",
+                "archived_at": None,
+                "created_at": "2026-02-01T09:00:00",
+                "display": {
+                    "display_name": None,
+                    "emoji": None,
+                    "color": "#c4a77d",
+                    "sort_order": 0,
+                },
+                "logs": [
+                    {"date": "2026-04-30", "value": 1},
+                ],
+            }
+        ]
+
+    @pytest.mark.asyncio
+    async def test_import_rejects_duplicate_names_after_normalization(self, async_session):
+        bundle = {
+            "version": 1,
+            "exported_at": "2026-04-30T12:00:00+01:00",
+            "habits": [
+                {
+                    "name": "Coffee Break",
+                    "habit_type": "counter",
+                    "is_negative": False,
+                    "target_value": None,
+                    "period": "day",
+                    "archived_at": None,
+                    "created_at": "2026-02-01T09:00:00",
+                    "display": None,
+                    "logs": [],
+                },
+                {
+                    "name": "coffee_break",
+                    "habit_type": "binary",
+                    "is_negative": False,
+                    "target_value": None,
+                    "period": "day",
+                    "archived_at": None,
+                    "created_at": "2026-02-02T09:00:00",
+                    "display": None,
+                    "logs": [],
+                },
+            ],
+        }
+
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.post("/api/habits/import", json=bundle)
+
+        assert resp.status_code == 422
+        assert "duplicate" in resp.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_import_rejects_unknown_bundle_version(self, async_session):
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.post("/api/habits/import", json={
+                "version": 99,
+                "exported_at": "2026-04-30T12:00:00+01:00",
+                "habits": [],
+            })
+
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_empty_bundle_is_a_no_op(self, async_session):
+        habit = await ensure_habit(async_session, "coffee", habit_type="counter")
+        habit.created_at = datetime(2026, 1, 1, 8, 0, 0)
+        await log_habit(async_session, "coffee", date(2026, 4, 30), 2, habit_type="counter")
+        await async_session.commit()
+        before = await _habit_snapshot(async_session)
+
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.post("/api/habits/import", json={
+                "version": 1,
+                "exported_at": "2026-04-30T12:00:00+01:00",
+                "habits": [],
+            })
+
+        assert resp.status_code == 200
+        assert resp.json() == {"habits_imported": 0, "logs_imported": 0}
+        assert await _habit_snapshot(async_session) == before

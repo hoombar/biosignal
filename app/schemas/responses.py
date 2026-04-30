@@ -2,7 +2,7 @@
 
 from datetime import datetime, date
 from pydantic import BaseModel, Field
-from typing import Any
+from typing import Any, Literal
 
 
 class TimeSeriesPoint(BaseModel):
@@ -217,6 +217,40 @@ class HabitListEntry(BaseModel):
     streak: int = 0
     completion_hit: int = 0
     completion_total: int = 0
+
+
+class HabitExportLog(BaseModel):
+    """One exported habit log entry."""
+    date: date
+    value: int = Field(..., ge=0)
+
+
+class HabitExportDisplay(BaseModel):
+    """Optional exported display config for a habit."""
+    display_name: str | None = None
+    emoji: str | None = None
+    color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+    sort_order: int = 0
+
+
+class HabitExportEntry(BaseModel):
+    """One exported habit with its nested display and log data."""
+    name: str = Field(..., min_length=1, max_length=64)
+    habit_type: str = Field(..., pattern=r"^(binary|counter)$")
+    is_negative: bool = False
+    target_value: int | None = Field(default=None, ge=0)
+    period: str = Field(default="day", pattern=r"^(day|week|month)$")
+    archived_at: datetime | None = None
+    created_at: datetime
+    display: HabitExportDisplay | None = None
+    logs: list[HabitExportLog] = []
+
+
+class HabitExportBundle(BaseModel):
+    """Versioned import/export bundle for canonical habit state."""
+    version: Literal[1]
+    exported_at: datetime
+    habits: list[HabitExportEntry] = []
 
 
 class HabitLogUpdate(BaseModel):

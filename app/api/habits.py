@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from datetime import date as DateType, datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.exc import IntegrityError
@@ -19,6 +19,10 @@ from app.core.database import get_db
 from app.models.database import DailyHabit, Habit, HabitDisplayConfig
 from app.schemas.responses import (
     HabitCreateRequest,
+    HabitExportBundle,
+    HabitExportDisplay,
+    HabitExportEntry,
+    HabitExportLog,
     HabitListEntry,
     HabitLogEntry,
     HabitLogUpdate,
@@ -100,6 +104,164 @@ def _validate_value_for_type(value: int, habit_type: str) -> None:
             status_code=422,
             detail=f"binary habits accept value 0 or 1, got {value}",
         )
+
+
+def _clean_optional_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    return cleaned or None
+
+
+def _normalize_color(value: str | None) -> str | None:
+    return value.lower() if value else None
+
+
+@router.get("/export", response_model=HabitExportBundle)
+async def export_habits(
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
+    """Export the canonical habit state as one versioned JSON bundle."""
+    habits = (await db.execute(select(Habit).order_by(Habit.name))).scalars().all()
+    configs = (await db.execute(select(HabitDisplayConfig))).scalars().all()
+    cfg_by_name = {cfg.habit_name: cfg for cfg in configs}
+    logs = (await db.execute(
+        select(DailyHabit).order_by(DailyHabit.habit_id, DailyHabit.date)
+    )).scalars().all()
+
+    logs_by_habit_id: dict[int, list[DailyHabit]] = {}
+    for log in logs:
+        logs_by_habit_id.setdefault(log.habit_id, []).append(log)
+
+    bundle = HabitExportBundle(
+        version=1,
+        exported_at=datetime.now().astimezone(),
+        habits=[
+            HabitExportEntry(
+                name=habit.name,
+                habit_type=habit.habit_type,
+                is_negative=habit.is_negative,
+                target_value=habit.target_value,
+                period=habit.period,
+                archived_at=habit.archived_at,
+                created_at=habit.created_at,
+                display=None if cfg_by_name.get(habit.name) is None else HabitExportDisplay(
+                    display_name=cfg_by_name[habit.name].display_name,
+                    emoji=cfg_by_name[habit.name].emoji,
+                    color=cfg_by_name[habit.name].color,
+                    sort_order=cfg_by_name[habit.name].sort_order,
+                ),
+                logs=[
+                    HabitExportLog(date=log.date, value=log.habit_value)
+                    for log in logs_by_habit_id.get(habit.id, [])
+                ],
+            )
+            for habit in habits
+        ],
+    )
+    response.headers["Content-Disposition"] = (
+        f'attachment; filename="biosignal_habits_{bundle.exported_at.date().isoformat()}.json"'
+    )
+    return bundle
+
+
+@router.post("/import")
+async def import_habits(
+    bundle: HabitExportBundle,
+    db: AsyncSession = Depends(get_db),
+):
+    """Merge-import habits from a versioned JSON bundle.
+
+    Matching habits are overwritten in-place, including their display config
+    and entire log history. Habits absent from the bundle are left untouched.
+    """
+    normalized_entries: list[tuple[str, HabitExportEntry, HabitExportDisplay | None]] = []
+    seen_names: set[str] = set()
+
+    for entry in bundle.habits:
+        normalized_name = _normalize_slug(entry.name)
+        if not normalized_name:
+            raise HTTPException(status_code=422, detail="habit name must contain alphanumerics")
+        if normalized_name in seen_names:
+            raise HTTPException(
+                status_code=422,
+                detail=f"duplicate habit name after normalization: {normalized_name!r}",
+            )
+
+        seen_dates: set[DateType] = set()
+        for log in entry.logs:
+            _validate_value_for_type(log.value, entry.habit_type)
+            if log.date in seen_dates:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"duplicate log date for habit {normalized_name!r}: {log.date.isoformat()}",
+                )
+            seen_dates.add(log.date)
+
+        display = entry.display
+        normalized_display = None if display is None else HabitExportDisplay(
+            display_name=_clean_optional_text(display.display_name),
+            emoji=_clean_optional_text(display.emoji),
+            color=_normalize_color(display.color),
+            sort_order=display.sort_order,
+        )
+        normalized_entries.append((normalized_name, entry, normalized_display))
+        seen_names.add(normalized_name)
+
+    logs_imported = 0
+
+    for normalized_name, entry, display in normalized_entries:
+        habit = (await db.execute(
+            select(Habit).where(Habit.name == normalized_name)
+        )).scalar_one_or_none()
+        if habit is None:
+            habit = Habit(name=normalized_name, habit_type=entry.habit_type)
+            db.add(habit)
+            await db.flush()
+
+        habit.name = normalized_name
+        habit.habit_type = entry.habit_type
+        habit.is_negative = entry.is_negative
+        habit.target_value = entry.target_value
+        habit.period = entry.period
+        habit.archived_at = entry.archived_at
+        habit.created_at = entry.created_at
+
+        cfg = (await db.execute(
+            select(HabitDisplayConfig).where(HabitDisplayConfig.habit_name == normalized_name)
+        )).scalar_one_or_none()
+        if display is None:
+            if cfg is not None:
+                await db.delete(cfg)
+        else:
+            if cfg is None:
+                cfg = HabitDisplayConfig(habit_name=normalized_name)
+                db.add(cfg)
+            cfg.habit_name = normalized_name
+            cfg.display_name = display.display_name
+            cfg.emoji = display.emoji
+            cfg.color = display.color
+            cfg.sort_order = display.sort_order
+
+        await db.execute(delete(DailyHabit).where(DailyHabit.habit_id == habit.id))
+        if entry.logs:
+            await db.execute(
+                insert(DailyHabit),
+                [
+                    {
+                        "date": log.date,
+                        "habit_id": habit.id,
+                        "habit_value": log.value,
+                    }
+                    for log in sorted(entry.logs, key=lambda log: log.date)
+                ],
+            )
+            logs_imported += len(entry.logs)
+
+    await db.commit()
+
+    return {"habits_imported": len(normalized_entries), "logs_imported": logs_imported}
 
 
 @router.put("/log/{target_date}/{habit_id}", response_model=HabitLogEntry)
@@ -196,9 +358,9 @@ def _has_display_attrs(body: HabitCreateRequest | HabitUpdateRequest) -> bool:
 def _apply_display_config(
     cfg: HabitDisplayConfig, body: HabitCreateRequest | HabitUpdateRequest
 ) -> None:
-    cfg.display_name = body.display_name
-    cfg.emoji = body.emoji
-    cfg.color = body.color.lower() if body.color else None
+    cfg.display_name = _clean_optional_text(body.display_name)
+    cfg.emoji = _clean_optional_text(body.emoji)
+    cfg.color = _normalize_color(body.color)
     if body.sort_order is not None:
         cfg.sort_order = body.sort_order
 
