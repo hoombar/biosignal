@@ -36,6 +36,25 @@
         </form>
     </details>
 
+    <div class="settings-backup">
+        <div class="settings-backup-header">
+            <h3>Backup</h3>
+            <p class="settings-desc">Export habits and their full history to a JSON file, or import a backup into this biosignal instance.</p>
+        </div>
+        <div class="settings-backup-actions">
+            <a href="/api/habits/export" class="btn-primary" download>Export habits</a>
+            <input
+                type="file"
+                id="habit-import-file"
+                class="settings-input settings-input--file"
+                accept="application/json,.json"
+                aria-label="Choose a habit backup file to import">
+            <button type="button" class="btn-primary" id="habit-import-btn" disabled>Import</button>
+        </div>
+        <p class="settings-backup-note">Import overwrites matching habits and replaces their logged history. Habits not in the file stay unchanged.</p>
+        <span id="backup-status" class="save-status"></span>
+    </div>
+
     <div id="habits-loading" class="loading">Loading habits...</div>
     <div id="habits-error" class="error" style="display:none;"></div>
 
@@ -88,8 +107,16 @@
     const addForm = document.getElementById('add-habit-form');
     const addStatus = document.getElementById('add-habit-status');
     const addDetails = document.getElementById('add-habit-details');
+    const importFileInput = document.getElementById('habit-import-file');
+    const importBtn = document.getElementById('habit-import-btn');
+    const backupStatus = document.getElementById('backup-status');
 
     let habits = [];
+
+    function setBackupStatus(message, kind = '') {
+        backupStatus.textContent = message;
+        backupStatus.className = kind ? `save-status save-status--${kind}` : 'save-status';
+    }
 
     function defaultLabel(habitName) {
         return habitName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
@@ -196,16 +223,19 @@
     if (searchInput) searchInput.addEventListener('input', rerender);
 
     async function load() {
+        errorEl.style.display = 'none';
         try {
             const resp = await fetch('/api/habits/list?include_archived=true');
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             habits = await resp.json();
             loading.style.display = 'none';
             rerender();
+            return true;
         } catch (err) {
             loading.style.display = 'none';
             errorEl.textContent = `Failed to load habits: ${err.message}`;
             errorEl.style.display = '';
+            return false;
         }
     }
 
@@ -310,6 +340,60 @@
         } catch (err) {
             btn.disabled = false;
             alert(`${action} failed: ${err.message}`);
+        }
+    });
+
+    importFileInput.addEventListener('change', () => {
+        importBtn.disabled = !importFileInput.files?.length;
+        setBackupStatus('');
+    });
+
+    importBtn.addEventListener('click', async () => {
+        const file = importFileInput.files?.[0];
+        if (!file) return;
+
+        const confirmed = window.confirm(
+            'Import will overwrite matching habits and replace their logged history.\n\n' +
+            'Habits not in the file stay unchanged. Continue?'
+        );
+        if (!confirmed) return;
+
+        importBtn.disabled = true;
+        importFileInput.disabled = true;
+        setBackupStatus('Importing…');
+
+        try {
+            let payload;
+            try {
+                payload = JSON.parse(await file.text());
+            } catch {
+                throw new Error('Selected file is not valid JSON');
+            }
+
+            const resp = await fetch('/api/habits/import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (!resp.ok) {
+                const errBody = await resp.json().catch(() => ({}));
+                throw new Error(errBody.detail || `HTTP ${resp.status}`);
+            }
+
+            const result = await resp.json();
+            const refreshed = await load();
+            setBackupStatus(
+                refreshed
+                    ? `Imported ${result.habits_imported} habits and ${result.logs_imported} logs`
+                    : `Imported ${result.habits_imported} habits and ${result.logs_imported} logs, but failed to refresh the list`,
+                refreshed ? 'ok' : 'err'
+            );
+            importFileInput.value = '';
+        } catch (err) {
+            setBackupStatus(err.message, 'err');
+        } finally {
+            importFileInput.disabled = false;
+            importBtn.disabled = !importFileInput.files?.length;
         }
     });
 
