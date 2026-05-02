@@ -7,5 +7,5 @@ cleanup() {
 }
 trap cleanup EXIT
 
-DB_PATH="$tmp_db" alembic upgrade head
-DB_PATH="$tmp_db" alembic check
+DB_PATH="$tmp_db" GARMIN_EMAIL="ci@example.com" GARMIN_PASSWORD="ci-password" alembic upgrade head
+DB_PATH="$tmp_db" GARMIN_EMAIL="ci@example.com" GARMIN_PASSWORD="ci-password" alembic check
