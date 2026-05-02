@@ -1,12 +1,16 @@
 """Shared test fixtures for the biosignal test suite."""
 
 from datetime import date as _date
+import os
 
 import pytest
 import pytest_asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import declarative_base
+
+os.environ.setdefault("GARMIN_EMAIL", "ci@example.com")
+os.environ.setdefault("GARMIN_PASSWORD", "ci-password")
 
 from app.core.database import Base
 # Import all models so their metadata is registered on Base
