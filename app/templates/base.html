@@ -11,9 +11,10 @@
     <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
     <link rel="stylesheet" href="/static/css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/js/site-nav.js" defer></script>
 </head>
 <body>
-    <header>
+    <header class="site-header" data-nav-open="false">
         <a href="/log" class="site-brand" aria-label="Biosignal home">
             <img
                 src="/static/images/logo.jpeg"
@@ -23,7 +24,18 @@
                 height="239"
             >
         </a>
-        <nav>
+        <button
+            type="button"
+            class="nav-toggle"
+            aria-expanded="false"
+            aria-controls="site-nav"
+            aria-label="Toggle navigation"
+        >
+            <span class="nav-toggle-bar"></span>
+            <span class="nav-toggle-bar"></span>
+            <span class="nav-toggle-bar"></span>
+        </button>
+        <nav id="site-nav" class="site-nav" aria-label="Primary">
             <a href="/log" class="{{ 'active' if active_page == 'log' }}">Log</a>
             <a href="/overview" class="{{ 'active' if active_page == 'overview' }}">Overview</a>
             <a href="/daily" class="{{ 'active' if active_page == 'daily' }}">Daily</a>
