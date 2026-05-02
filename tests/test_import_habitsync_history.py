@@ -1,7 +1,12 @@
 """Unit tests for the one-shot HabitSync history import helpers."""
 import pytest
 
-from scripts.import_habitsync_history import _coerce_value, _parse_csv
+from scripts.import_habitsync_history import (
+    _canonicalize_habit_name,
+    _coerce_value,
+    _parse_aliases,
+    _parse_csv,
+)
 
 
 class TestParseCsv:
@@ -13,6 +18,39 @@ class TestParseCsv:
 
     def test_strips_whitespace_and_drops_blanks(self):
         assert _parse_csv(" coffee , , alcohol ") == {"coffee", "alcohol"}
+
+
+class TestParseAliases:
+    def test_empty_string_returns_empty_dict(self):
+        assert _parse_aliases("") == {}
+
+    def test_normalizes_source_and_target_names(self):
+        assert _parse_aliases("Healthy Meals:Healthy Lunch") == {
+            "healthy_meals": "healthy_lunch"
+        }
+
+    def test_supports_multiple_aliases(self):
+        assert _parse_aliases("PM Slump:Afternoon Slump,Beer:Alcohol") == {
+            "pm_slump": "afternoon_slump",
+            "beer": "alcohol",
+        }
+
+    def test_rejects_invalid_alias_format(self):
+        with pytest.raises(ValueError):
+            _parse_aliases("healthy_meals")
+
+
+class TestCanonicalizeHabitName:
+    def test_applies_alias_after_normalization(self):
+        assert (
+            _canonicalize_habit_name(
+                "Healthy Meals", {"healthy_meals": "healthy_lunch"}
+            )
+            == "healthy_lunch"
+        )
+
+    def test_returns_normalized_name_without_alias(self):
+        assert _canonicalize_habit_name("Healthy Lunch", {}) == "healthy_lunch"
 
 
 class TestCoerceValueBinary:

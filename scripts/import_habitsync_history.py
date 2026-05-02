@@ -13,7 +13,8 @@ Usage:
     docker compose exec biosignal python -m scripts.import_habitsync_history \\
         --from 2025-01-01 --to 2026-04-26 \\
         --binary pm_slump,healthy_lunch,carb_heavy_lunch \\
-        --counter coffee,alcohol
+        --counter coffee,alcohol \\
+        --alias healthy_meals:healthy_lunch
 
 Habit type defaults to ``counter`` if a name isn't listed in either
 ``--binary`` or ``--counter``.
@@ -41,12 +42,18 @@ logger = logging.getLogger("import_habitsync_history")
 
 
 EPOCH = date(1970, 1, 1)
+DEFAULT_ALIASES = {"healthy_meals": "healthy_lunch"}
 
 
 def _normalize_habit_name(name: str) -> str:
     """Normalize a habit name to snake_case (matches HabitSync's rule)."""
     normalized = re.sub(r"[^a-z0-9]+", "_", name.lower())
     return normalized.strip("_")
+
+
+def _canonicalize_habit_name(name: str, aliases: dict[str, str]) -> str:
+    normalized = _normalize_habit_name(name)
+    return aliases.get(normalized, normalized)
 
 
 async def _fetch_habits(base_url: str, api_key: str) -> list[dict]:
@@ -81,6 +88,23 @@ def _parse_csv(value: str | None) -> set[str]:
     if not value:
         return set()
     return {_normalize_habit_name(item) for item in value.split(",") if item.strip()}
+
+
+def _parse_aliases(value: str | None) -> dict[str, str]:
+    if not value:
+        return {}
+    aliases = {}
+    for item in value.split(","):
+        if not item.strip():
+            continue
+        source, separator, target = item.partition(":")
+        if not separator or not source.strip() or not target.strip():
+            raise ValueError(
+                "aliases must use source:target format, e.g. "
+                "healthy_meals:healthy_lunch"
+            )
+        aliases[_normalize_habit_name(source)] = _normalize_habit_name(target)
+    return aliases
 
 
 def _coerce_value(raw, habit_type: str, completion: str | None) -> int:
@@ -122,6 +146,7 @@ async def _import(
     end: date,
     binary_names: set[str],
     counter_names: set[str],
+    aliases: dict[str, str],
 ) -> None:
     base_url = os.environ.get("HABITSYNC_URL")
     api_key = os.environ.get("HABITSYNC_API_KEY")
@@ -146,7 +171,7 @@ async def _import(
             raw_name = habit_payload.get("name")
             if not raw_name:
                 continue
-            name = _normalize_habit_name(raw_name)
+            name = _canonicalize_habit_name(raw_name, aliases)
 
             if name in binary_names:
                 habit_type = "binary"
@@ -243,6 +268,14 @@ def _parse_args() -> argparse.Namespace:
         default="",
         help="Comma-separated habit names (post-normalization) to treat as counter",
     )
+    parser.add_argument(
+        "--alias",
+        default="",
+        help=(
+            "Comma-separated source:target habit name aliases for renamed habits "
+            "(post-normalization). Defaults include healthy_meals:healthy_lunch."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -256,10 +289,14 @@ def main() -> None:
         sys.exit("--from must be before or equal to --to")
     binary_names = _parse_csv(args.binary)
     counter_names = _parse_csv(args.counter)
+    try:
+        aliases = {**DEFAULT_ALIASES, **_parse_aliases(args.alias)}
+    except ValueError as exc:
+        sys.exit(str(exc))
     overlap = binary_names & counter_names
     if overlap:
         sys.exit(f"habits listed in both --binary and --counter: {sorted(overlap)}")
-    asyncio.run(_import(args.start, args.end, binary_names, counter_names))
+    asyncio.run(_import(args.start, args.end, binary_names, counter_names, aliases))
 
 
 if __name__ == "__main__":
