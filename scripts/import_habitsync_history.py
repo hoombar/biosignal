@@ -87,12 +87,17 @@ def _coerce_value(raw, habit_type: str, completion: str | None) -> int:
     """Encode a HabitSync record value into the integer schema."""
     try:
         n = int(float(raw)) if raw is not None else 0
+        has_numeric_value = raw is not None
     except (TypeError, ValueError):
         n = 0
+        has_numeric_value = False
     if habit_type == "binary":
         if n > 0:
             return 1
-        if completion in ("COMPLETED", "COMPLETED_BY_OTHER_RECORDS"):
+        if not has_numeric_value and completion in (
+            "COMPLETED",
+            "COMPLETED_BY_OTHER_RECORDS",
+        ):
             return 1
         return 0
     return max(n, 0)

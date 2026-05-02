@@ -19,11 +19,14 @@ class TestCoerceValueBinary:
     def test_record_value_one_means_one(self):
         assert _coerce_value(1, "binary", None) == 1
 
-    def test_record_value_zero_with_completed_means_one(self):
-        assert _coerce_value(0, "binary", "COMPLETED") == 1
+    def test_record_value_zero_with_completed_stays_zero(self):
+        assert _coerce_value(0, "binary", "COMPLETED") == 0
 
-    def test_record_value_zero_with_completed_by_other_records_means_one(self):
-        assert _coerce_value(0, "binary", "COMPLETED_BY_OTHER_RECORDS") == 1
+    def test_record_value_zero_with_completed_by_other_records_stays_zero(self):
+        assert _coerce_value(0, "binary", "COMPLETED_BY_OTHER_RECORDS") == 0
+
+    def test_missing_record_value_can_fall_back_to_completion(self):
+        assert _coerce_value(None, "binary", "COMPLETED") == 1
 
     def test_record_value_zero_with_missed_means_zero(self):
         assert _coerce_value(0, "binary", "MISSED") == 0
@@ -31,7 +34,7 @@ class TestCoerceValueBinary:
     def test_record_value_above_one_clipped_to_one(self):
         assert _coerce_value(5, "binary", None) == 1
 
-    def test_none_record_value_treated_as_zero(self):
+    def test_none_record_value_with_missed_treated_as_zero(self):
         assert _coerce_value(None, "binary", "MISSED") == 0
 
 
