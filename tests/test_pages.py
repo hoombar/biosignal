@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from PIL import Image
@@ -49,3 +50,18 @@ def test_brand_assets_use_dark_background_logo():
                 rgb.getpixel((rgb.width - 1, rgb.height - 1)),
             )
             assert all(max(corner) <= 20 for corner in corners)
+
+
+def test_brand_wrapper_has_no_visible_frame():
+    with TestClient(app) as client:
+        resp = client.get("/static/css/style.css")
+
+    assert resp.status_code == 200
+    match = re.search(r"\.site-brand\s*\{(?P<body>[^}]+)\}", resp.text)
+    assert match is not None
+
+    block = match.group("body")
+    assert "padding: 0;" in block
+    assert "background: transparent;" in block
+    assert "border: 0;" in block
+    assert "box-shadow: none;" in block
