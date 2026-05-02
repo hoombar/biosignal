@@ -31,10 +31,18 @@ from app.schemas.responses import (
 from app.services.habit_metrics import compute_metrics
 
 
+HABIT_NAME_ALIASES = {"healthy_meals": "healthy_lunch"}
+
+
 def _normalize_slug(name: str) -> str:
     """Normalize a habit name to snake_case (matches HabitSync's rule)."""
     normalized = re.sub(r"[^a-z0-9]+", "_", name.lower())
     return normalized.strip("_")
+
+
+def _canonical_habit_name(name: str) -> str:
+    normalized = _normalize_slug(name)
+    return HABIT_NAME_ALIASES.get(normalized, normalized)
 
 
 router = APIRouter(prefix="/api/habits", tags=["habits"])
@@ -180,7 +188,7 @@ async def import_habits(
     seen_names: set[str] = set()
 
     for entry in bundle.habits:
-        normalized_name = _normalize_slug(entry.name)
+        normalized_name = _canonical_habit_name(entry.name)
         if not normalized_name:
             raise HTTPException(status_code=422, detail="habit name must contain alphanumerics")
         if normalized_name in seen_names:

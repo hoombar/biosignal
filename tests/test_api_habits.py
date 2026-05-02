@@ -863,6 +863,71 @@ class TestImportHabits:
         ]
 
     @pytest.mark.asyncio
+    async def test_import_aliases_healthy_meals_into_healthy_lunch(self, async_session):
+        healthy_lunch = await ensure_habit(
+            async_session, "healthy_lunch", habit_type="binary"
+        )
+        healthy_lunch.created_at = datetime(2026, 1, 1, 8, 0, 0)
+        await log_habit(
+            async_session, "healthy_lunch", date(2026, 4, 27), 1, habit_type="binary"
+        )
+        await async_session.commit()
+
+        bundle = {
+            "version": 1,
+            "exported_at": "2026-04-30T12:00:00+01:00",
+            "habits": [
+                {
+                    "name": "healthy_meals",
+                    "habit_type": "binary",
+                    "is_negative": False,
+                    "target_value": 1,
+                    "period": "day",
+                    "archived_at": None,
+                    "created_at": "2026-01-10T09:45:00",
+                    "display": {
+                        "display_name": "Healthy lunch",
+                        "emoji": "🥗",
+                        "color": "#66AA55",
+                        "sort_order": 4,
+                    },
+                    "logs": [
+                        {"date": "2026-04-28", "value": 0},
+                        {"date": "2026-04-29", "value": 1},
+                    ],
+                }
+            ],
+        }
+
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.post("/api/habits/import", json=bundle)
+
+        assert resp.status_code == 200
+        assert resp.json() == {"habits_imported": 1, "logs_imported": 2}
+        assert await _habit_snapshot(async_session) == [
+            {
+                "name": "healthy_lunch",
+                "habit_type": "binary",
+                "is_negative": False,
+                "target_value": 1,
+                "period": "day",
+                "archived_at": None,
+                "created_at": "2026-01-10T09:45:00",
+                "display": {
+                    "display_name": "Healthy lunch",
+                    "emoji": "🥗",
+                    "color": "#66aa55",
+                    "sort_order": 4,
+                },
+                "logs": [
+                    {"date": "2026-04-28", "value": 0},
+                    {"date": "2026-04-29", "value": 1},
+                ],
+            }
+        ]
+
+    @pytest.mark.asyncio
     async def test_import_rejects_duplicate_names_after_normalization(self, async_session):
         bundle = {
             "version": 1,
