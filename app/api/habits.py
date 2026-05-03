@@ -45,6 +45,14 @@ def _canonical_habit_name(name: str) -> str:
     return HABIT_NAME_ALIASES.get(normalized, normalized)
 
 
+def _legacy_aliases_for(name: str) -> list[str]:
+    return [
+        source
+        for source, target in HABIT_NAME_ALIASES.items()
+        if target == name and source != name
+    ]
+
+
 router = APIRouter(prefix="/api/habits", tags=["habits"])
 
 
@@ -147,6 +155,7 @@ async def export_habits(
         exported_at=datetime.now().astimezone(),
         habits=[
             HabitExportEntry(
+                uuid=habit.uuid,
                 name=habit.name,
                 habit_type=habit.habit_type,
                 is_negative=habit.is_negative,
@@ -186,6 +195,7 @@ async def import_habits(
     """
     normalized_entries: list[tuple[str, HabitExportEntry, HabitExportDisplay | None]] = []
     seen_names: set[str] = set()
+    seen_uuids: set[str] = set()
 
     for entry in bundle.habits:
         normalized_name = _canonical_habit_name(entry.name)
@@ -196,6 +206,13 @@ async def import_habits(
                 status_code=422,
                 detail=f"duplicate habit name after normalization: {normalized_name!r}",
             )
+        if entry.uuid is not None:
+            if entry.uuid in seen_uuids:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"duplicate habit uuid in import bundle: {entry.uuid!r}",
+                )
+            seen_uuids.add(entry.uuid)
 
         seen_dates: set[DateType] = set()
         for log in entry.logs:
@@ -220,14 +237,40 @@ async def import_habits(
     logs_imported = 0
 
     for normalized_name, entry, display in normalized_entries:
-        habit = (await db.execute(
+        habit = None
+        if entry.uuid is not None:
+            entry_uuid = str(entry.uuid)
+            habit = (await db.execute(
+                select(Habit).where(Habit.uuid == entry_uuid)
+            )).scalar_one_or_none()
+        else:
+            entry_uuid = None
+
+        existing_by_name = (await db.execute(
             select(Habit).where(Habit.name == normalized_name)
         )).scalar_one_or_none()
         if habit is None:
-            habit = Habit(name=normalized_name, habit_type=entry.habit_type)
+            habit = existing_by_name
+        elif existing_by_name is not None and existing_by_name.id != habit.id:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"habit name {normalized_name!r} already belongs to a "
+                    "different habit uuid"
+                ),
+            )
+
+        if habit is None:
+            habit_kwargs = {"name": normalized_name, "habit_type": entry.habit_type}
+            if entry_uuid is not None:
+                habit_kwargs["uuid"] = entry_uuid
+            habit = Habit(**habit_kwargs)
             db.add(habit)
             await db.flush()
 
+        old_name = habit.name
+        if entry_uuid is not None:
+            habit.uuid = entry_uuid
         habit.name = normalized_name
         habit.habit_type = entry.habit_type
         habit.is_negative = entry.is_negative
@@ -239,6 +282,15 @@ async def import_habits(
         cfg = (await db.execute(
             select(HabitDisplayConfig).where(HabitDisplayConfig.habit_name == normalized_name)
         )).scalar_one_or_none()
+        old_cfg = None
+        if old_name != normalized_name:
+            old_cfg = (await db.execute(
+                select(HabitDisplayConfig).where(HabitDisplayConfig.habit_name == old_name)
+            )).scalar_one_or_none()
+            if cfg is None:
+                cfg = old_cfg
+            elif old_cfg is not None:
+                await db.delete(old_cfg)
         if display is None:
             if cfg is not None:
                 await db.delete(cfg)
@@ -251,6 +303,21 @@ async def import_habits(
             cfg.emoji = display.emoji
             cfg.color = display.color
             cfg.sort_order = display.sort_order
+
+        for legacy_name in _legacy_aliases_for(normalized_name):
+            legacy_habit = (await db.execute(
+                select(Habit).where(Habit.name == legacy_name)
+            )).scalar_one_or_none()
+            if legacy_habit is not None and legacy_habit.id != habit.id:
+                await db.execute(
+                    delete(DailyHabit).where(DailyHabit.habit_id == legacy_habit.id)
+                )
+                await db.execute(
+                    delete(HabitDisplayConfig).where(
+                        HabitDisplayConfig.habit_name == legacy_name
+                    )
+                )
+                await db.delete(legacy_habit)
 
         await db.execute(delete(DailyHabit).where(DailyHabit.habit_id == habit.id))
         if entry.logs:

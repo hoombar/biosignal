@@ -6,6 +6,7 @@ Endpoints under /api/habits:
 - DELETE /log/{date}/{habit_id} — clear a logged value
 """
 from datetime import date, datetime
+from uuid import uuid4
 
 import pytest
 from fastapi import FastAPI
@@ -640,8 +641,12 @@ class TestExportHabits:
             resp = client.get("/api/habits/export")
 
         assert resp.status_code == 200
-        assert resp.json()["habits"] == [
+        exported = resp.json()["habits"]
+        assert exported[0]["uuid"] == coffee.uuid
+        assert exported[1]["uuid"] == stretch.uuid
+        assert exported == [
             {
+                "uuid": coffee.uuid,
                 "name": "coffee",
                 "habit_type": "counter",
                 "is_negative": True,
@@ -661,6 +666,7 @@ class TestExportHabits:
                 ],
             },
             {
+                "uuid": stretch.uuid,
                 "name": "stretch",
                 "habit_type": "binary",
                 "is_negative": False,
@@ -810,6 +816,61 @@ class TestImportHabits:
         ]
 
     @pytest.mark.asyncio
+    async def test_import_matches_existing_habit_by_uuid_across_rename(self, async_session):
+        habit_uuid = str(uuid4())
+        focus = await ensure_habit(async_session, "healthy_meals", habit_type="binary")
+        focus.uuid = habit_uuid
+        focus.created_at = datetime(2026, 1, 1, 8, 0, 0)
+        await log_habit(
+            async_session, "healthy_meals", date(2026, 4, 27), 1, habit_type="binary"
+        )
+        await async_session.commit()
+
+        bundle = {
+            "version": 1,
+            "exported_at": "2026-04-30T12:00:00+01:00",
+            "habits": [
+                {
+                    "uuid": habit_uuid,
+                    "name": "healthy_lunch",
+                    "habit_type": "binary",
+                    "is_negative": False,
+                    "target_value": 1,
+                    "period": "day",
+                    "archived_at": None,
+                    "created_at": "2026-01-10T09:45:00",
+                    "display": None,
+                    "logs": [
+                        {"date": "2026-04-28", "value": 0},
+                        {"date": "2026-04-29", "value": 1},
+                    ],
+                }
+            ],
+        }
+
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.post("/api/habits/import", json=bundle)
+
+        assert resp.status_code == 200
+        assert await _habit_snapshot(async_session) == [
+            {
+                "name": "healthy_lunch",
+                "habit_type": "binary",
+                "is_negative": False,
+                "target_value": 1,
+                "period": "day",
+                "archived_at": None,
+                "created_at": "2026-01-10T09:45:00",
+                "display": None,
+                "logs": [
+                    {"date": "2026-04-28", "value": 0},
+                    {"date": "2026-04-29", "value": 1},
+                ],
+            }
+        ]
+
+    @pytest.mark.asyncio
     async def test_import_normalizes_names_display_fields_and_color(self, async_session):
         bundle = {
             "version": 1,
@@ -905,6 +966,76 @@ class TestImportHabits:
 
         assert resp.status_code == 200
         assert resp.json() == {"habits_imported": 1, "logs_imported": 2}
+        assert await _habit_snapshot(async_session) == [
+            {
+                "name": "healthy_lunch",
+                "habit_type": "binary",
+                "is_negative": False,
+                "target_value": 1,
+                "period": "day",
+                "archived_at": None,
+                "created_at": "2026-01-10T09:45:00",
+                "display": {
+                    "display_name": "Healthy lunch",
+                    "emoji": "🥗",
+                    "color": "#66aa55",
+                    "sort_order": 4,
+                },
+                "logs": [
+                    {"date": "2026-04-28", "value": 0},
+                    {"date": "2026-04-29", "value": 1},
+                ],
+            }
+        ]
+
+    @pytest.mark.asyncio
+    async def test_import_removes_existing_legacy_alias_when_canonical_habit_imported(
+        self, async_session
+    ):
+        legacy = await ensure_habit(async_session, "healthy_meals", habit_type="binary")
+        legacy.created_at = datetime(2026, 1, 1, 8, 0, 0)
+        canonical = await ensure_habit(async_session, "healthy_lunch", habit_type="binary")
+        canonical.created_at = datetime(2026, 1, 2, 8, 0, 0)
+        await log_habit(
+            async_session, "healthy_meals", date(2026, 4, 27), 1, habit_type="binary"
+        )
+        await log_habit(
+            async_session, "healthy_lunch", date(2026, 4, 27), 0, habit_type="binary"
+        )
+        await async_session.commit()
+
+        bundle = {
+            "version": 1,
+            "exported_at": "2026-04-30T12:00:00+01:00",
+            "habits": [
+                {
+                    "uuid": canonical.uuid,
+                    "name": "healthy_lunch",
+                    "habit_type": "binary",
+                    "is_negative": False,
+                    "target_value": 1,
+                    "period": "day",
+                    "archived_at": None,
+                    "created_at": "2026-01-10T09:45:00",
+                    "display": {
+                        "display_name": "Healthy lunch",
+                        "emoji": "🥗",
+                        "color": "#66AA55",
+                        "sort_order": 4,
+                    },
+                    "logs": [
+                        {"date": "2026-04-28", "value": 0},
+                        {"date": "2026-04-29", "value": 1},
+                    ],
+                }
+            ],
+        }
+
+        app = _make_app(async_session)
+        with TestClient(app) as client:
+            resp = client.post("/api/habits/import", json=bundle)
+
+        assert resp.status_code == 200
         assert await _habit_snapshot(async_session) == [
             {
                 "name": "healthy_lunch",

@@ -1,4 +1,5 @@
 from datetime import datetime, date
+from uuid import uuid4
 from sqlalchemy import (
     Boolean,
     Column,
@@ -142,6 +143,13 @@ class Habit(Base):
     __tablename__ = "habits"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    uuid = Column(
+        String(36),
+        nullable=False,
+        unique=True,
+        index=True,
+        default=lambda: str(uuid4()),
+    )
     name = Column(String, nullable=False, unique=True, index=True)
     habit_type = Column(String, nullable=False)  # 'binary' | 'counter'
     archived_at = Column(DateTime, nullable=True)

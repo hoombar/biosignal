@@ -1,6 +1,7 @@
 """Pydantic response models for API endpoints."""
 
 from datetime import datetime, date
+from uuid import UUID
 from pydantic import BaseModel, Field
 from typing import Any, Literal
 
@@ -235,6 +236,7 @@ class HabitExportDisplay(BaseModel):
 
 class HabitExportEntry(BaseModel):
     """One exported habit with its nested display and log data."""
+    uuid: UUID | None = None
     name: str = Field(..., min_length=1, max_length=64)
     habit_type: str = Field(..., pattern=r"^(binary|counter)$")
     is_negative: bool = False
