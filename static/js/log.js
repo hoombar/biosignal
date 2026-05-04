@@ -104,9 +104,10 @@
         }
     }
 
-    async function render(dateStr) {
+    async function render(dateStr, options = {}) {
+        const updateUrl = options.updateUrl === true;
         currentDate = dateStr;
-        if (window.location.hash.slice(1) !== dateStr) {
+        if (updateUrl && window.location.hash.slice(1) !== dateStr) {
             history.replaceState(null, '', `#${dateStr}`);
         }
         dateEl.textContent = formatHumanDate(dateStr);
@@ -135,11 +136,11 @@
         }
     }
 
-    prevBtn.addEventListener('click', () => render(shiftDate(currentDate, -1)));
+    prevBtn.addEventListener('click', () => render(shiftDate(currentDate, -1), { updateUrl: true }));
     nextBtn.addEventListener('click', () => {
         const next = shiftDate(currentDate, 1);
         if (next > todayLocal()) return;  // safety; button is also disabled
-        render(next);
+        render(next, { updateUrl: true });
     });
 
     document.addEventListener('keydown', (e) => {
