@@ -205,17 +205,28 @@
     function bindHabitsPanel(container, opts) {
         opts = opts || {};
         if (!container) return;
+
+        function toggleBinary(item, button) {
+            const currentlyOn = button.getAttribute('aria-pressed') === 'true';
+            _putValue(item, currentlyOn ? 0 : 1, opts.onValueChange);
+        }
+
         container.addEventListener('click', (event) => {
             const button = event.target.closest('button[data-action]');
-            if (!button) return;
-            const item = button.closest('.habit-sidebar-item');
+            const item = (button || event.target).closest('.habit-sidebar-item');
             if (!item) return;
 
-            const action = button.dataset.action;
+            if (!button) {
+                if (item.dataset.habitType !== 'binary') return;
+                const toggleButton = item.querySelector('.habit-toggle');
+                if (!toggleButton) return;
+                toggleBinary(item, toggleButton);
+                return;
+            }
 
+            const action = button.dataset.action;
             if (action === 'toggle-binary') {
-                const currentlyOn = button.getAttribute('aria-pressed') === 'true';
-                _putValue(item, currentlyOn ? 0 : 1, opts.onValueChange);
+                toggleBinary(item, button);
                 return;
             }
 

@@ -2289,6 +2289,10 @@ input:focus {
     padding: var(--space-md);
 }
 
+.log-habits .habit-sidebar-item[data-habit-type="binary"] {
+    cursor: pointer;
+}
+
 .log-habits .habit-toggle {
     min-width: 64px;
     padding: 6px 16px;
