@@ -1,7 +1,6 @@
 import re
 from pathlib import Path
 
-from PIL import Image
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -47,6 +46,8 @@ def test_log_page_renders_responsive_navigation_shell():
 
 
 def test_brand_assets_use_dark_background_logo():
+    from PIL import Image
+
     assets = {
         Path("static/images/logo.jpeg"): (320, 239),
         Path("static/images/favicon.png"): (256, 256),
@@ -80,6 +81,26 @@ def test_brand_wrapper_has_no_visible_frame():
     assert "background: transparent;" in block
     assert "border: 0;" in block
     assert "box-shadow: none;" in block
+
+
+def test_log_habit_text_uses_high_contrast_colors():
+    with TestClient(app) as client:
+        resp = client.get("/static/css/style.css")
+
+    assert resp.status_code == 200
+    css = resp.text
+
+    label_block = re.search(r"\.log-habits\s+\.habit-sidebar-label\s*\{(?P<body>[^}]+)\}", css)
+    assert label_block is not None
+    assert "color: var(--text-primary);" in label_block.group("body")
+
+    toggle_block = re.search(r"\.log-habits\s+\.habit-toggle\s*\{(?P<body>[^}]+)\}", css)
+    assert toggle_block is not None
+    assert "color: var(--text-primary);" in toggle_block.group("body")
+
+    counter_block = re.search(r"\.log-habits\s+\.habit-counter-btn\s*\{(?P<body>[^}]+)\}", css)
+    assert counter_block is not None
+    assert "color: var(--text-primary);" in counter_block.group("body")
 
 
 def test_responsive_header_css_supports_inline_and_mobile_nav():
