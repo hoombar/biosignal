@@ -1,6 +1,7 @@
 # Database models
 from app.models.database import (
     RawGarminResponse,
+    EnvironmentalMetric,
     HeartRateSample,
     BodyBatterySample,
     StressSample,
@@ -18,6 +19,7 @@ from app.models.sync_log import SyncLog
 
 __all__ = [
     "RawGarminResponse",
+    "EnvironmentalMetric",
     "HeartRateSample",
     "BodyBatterySample",
     "StressSample",

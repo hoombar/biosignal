@@ -174,6 +174,8 @@ class TestExportMetadata:
         assert "sleep_hours" in features
         assert "stress_morning_avg" in features
         assert "bb_daily_min" in features  # bb_2pm was removed (phantom field not in DailySummary)
+        assert "daylight_minutes" in features
+        assert features["daylight_minutes"]["category"] == "Light"
 
     @pytest.mark.asyncio
     async def test_metadata_feature_has_required_fields(self, async_session):

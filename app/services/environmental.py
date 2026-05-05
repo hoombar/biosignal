@@ -1,0 +1,145 @@
+"""Environmental data providers and normalization."""
+
+from dataclasses import dataclass
+from datetime import date, datetime, time, timedelta
+import math
+from zoneinfo import ZoneInfo
+
+
+@dataclass(frozen=True)
+class EnvironmentalMetricValue:
+    """Normalized daily environmental metric emitted by a provider."""
+
+    source: str
+    metric_key: str
+    value: float
+    unit: str
+    category: str
+    raw_metadata: dict | None = None
+
+
+def location_key(latitude: float, longitude: float) -> str:
+    """Stable key for a configured point location."""
+    return f"{latitude:.4f},{longitude:.4f}"
+
+
+class AstronomyProvider:
+    """Deterministic daylight metrics for a point location."""
+
+    source = "astronomy"
+
+    def daily_metrics(
+        self,
+        target_date: date,
+        tz: ZoneInfo,
+        latitude: float,
+        longitude: float,
+    ) -> list[EnvironmentalMetricValue]:
+        sunrise_utc = _sun_event_utc(target_date, latitude, longitude, is_sunrise=True)
+        sunset_utc = _sun_event_utc(target_date, latitude, longitude, is_sunrise=False)
+
+        if sunrise_utc is None or sunset_utc is None:
+            return []
+
+        sunrise_local = sunrise_utc.astimezone(tz)
+        sunset_local = sunset_utc.astimezone(tz)
+        daylight_minutes = (sunset_utc - sunrise_utc).total_seconds() / 60
+        solar_noon_local = sunrise_local + (sunset_local - sunrise_local) / 2
+
+        metadata = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "algorithm": "NOAA sunrise equation",
+        }
+
+        return [
+            EnvironmentalMetricValue(
+                source=self.source,
+                metric_key="daylight_minutes",
+                value=round(daylight_minutes, 2),
+                unit="minutes",
+                category="Light",
+                raw_metadata=metadata,
+            ),
+            EnvironmentalMetricValue(
+                source=self.source,
+                metric_key="sunrise_minutes_after_midnight",
+                value=round(_minutes_after_midnight(sunrise_local), 2),
+                unit="minutes",
+                category="Light",
+                raw_metadata=metadata,
+            ),
+            EnvironmentalMetricValue(
+                source=self.source,
+                metric_key="sunset_minutes_after_midnight",
+                value=round(_minutes_after_midnight(sunset_local), 2),
+                unit="minutes",
+                category="Light",
+                raw_metadata=metadata,
+            ),
+            EnvironmentalMetricValue(
+                source=self.source,
+                metric_key="solar_noon_minutes_after_midnight",
+                value=round(_minutes_after_midnight(solar_noon_local), 2),
+                unit="minutes",
+                category="Light",
+                raw_metadata=metadata,
+            ),
+        ]
+
+
+def _minutes_after_midnight(dt: datetime) -> float:
+    midnight = datetime.combine(dt.date(), time.min, tzinfo=dt.tzinfo)
+    return (dt - midnight).total_seconds() / 60
+
+
+def _normalize_degrees(value: float) -> float:
+    return value % 360
+
+
+def _sun_event_utc(
+    target_date: date,
+    latitude: float,
+    longitude: float,
+    is_sunrise: bool,
+) -> datetime | None:
+    """Approximate sunrise/sunset UTC using the NOAA sunrise equation."""
+    day_of_year = target_date.timetuple().tm_yday
+    longitude_hour = longitude / 15
+    event_hour = 6 if is_sunrise else 18
+    t = day_of_year + ((event_hour - longitude_hour) / 24)
+
+    mean_anomaly = (0.9856 * t) - 3.289
+    true_longitude = _normalize_degrees(
+        mean_anomaly
+        + (1.916 * math.sin(math.radians(mean_anomaly)))
+        + (0.020 * math.sin(math.radians(2 * mean_anomaly)))
+        + 282.634
+    )
+
+    right_ascension = math.degrees(math.atan(0.91764 * math.tan(math.radians(true_longitude))))
+    right_ascension = _normalize_degrees(right_ascension)
+    longitude_quadrant = math.floor(true_longitude / 90) * 90
+    ascension_quadrant = math.floor(right_ascension / 90) * 90
+    right_ascension = (right_ascension + longitude_quadrant - ascension_quadrant) / 15
+
+    sin_declination = 0.39782 * math.sin(math.radians(true_longitude))
+    cos_declination = math.cos(math.asin(sin_declination))
+    cos_hour_angle = (
+        math.cos(math.radians(90.833))
+        - (sin_declination * math.sin(math.radians(latitude)))
+    ) / (cos_declination * math.cos(math.radians(latitude)))
+
+    if cos_hour_angle > 1 or cos_hour_angle < -1:
+        return None
+
+    hour_angle = math.degrees(math.acos(cos_hour_angle))
+    if is_sunrise:
+        hour_angle = 360 - hour_angle
+    hour_angle /= 15
+
+    local_mean_time = hour_angle + right_ascension - (0.06571 * t) - 6.622
+    utc_hour = (local_mean_time - longitude_hour) % 24
+
+    utc_midnight = datetime.combine(target_date, time.min, tzinfo=ZoneInfo("UTC"))
+    return utc_midnight + timedelta(hours=utc_hour)

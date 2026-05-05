@@ -18,6 +18,7 @@ from app.models.database import (
     SleepSession,
     Activity,
     DailyHabit,
+    EnvironmentalMetric,
     Habit,
 )
 
@@ -60,6 +61,59 @@ class TestRawGarminResponseConstraints:
             response={"data": 2},
         ))
         await async_session.commit()  # should not raise
+
+
+class TestEnvironmentalMetricConstraints:
+
+    @pytest.mark.asyncio
+    async def test_duplicate_date_source_metric_location_raises(self, async_session):
+        """Environmental metrics are unique per date/source/metric/location."""
+        async_session.add(EnvironmentalMetric(
+            date=date(2025, 6, 21),
+            source="astronomy",
+            metric_key="daylight_minutes",
+            location_key="51.5074,-0.1278",
+            value=985.0,
+            unit="minutes",
+            category="Light",
+        ))
+        await async_session.commit()
+
+        async_session.add(EnvironmentalMetric(
+            date=date(2025, 6, 21),
+            source="astronomy",
+            metric_key="daylight_minutes",
+            location_key="51.5074,-0.1278",
+            value=986.0,
+            unit="minutes",
+            category="Light",
+        ))
+        with pytest.raises(IntegrityError):
+            await async_session.commit()
+
+    @pytest.mark.asyncio
+    async def test_same_metric_different_location_allowed(self, async_session):
+        """The same metric/date/source can be stored for different locations."""
+        async_session.add(EnvironmentalMetric(
+            date=date(2025, 6, 21),
+            source="astronomy",
+            metric_key="daylight_minutes",
+            location_key="51.5074,-0.1278",
+            value=985.0,
+            unit="minutes",
+            category="Light",
+        ))
+        async_session.add(EnvironmentalMetric(
+            date=date(2025, 6, 21),
+            source="astronomy",
+            metric_key="daylight_minutes",
+            location_key="55.9533,-3.1883",
+            value=1050.0,
+            unit="minutes",
+            category="Light",
+        ))
+
+        await async_session.commit()
 
 
 class TestTimestampUniqueness:

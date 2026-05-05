@@ -7,7 +7,9 @@ from zoneinfo import ZoneInfo
 import numpy as np
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.dialects.sqlite import insert
 
+from app.core.config import get_settings
 from app.models.database import (
     HeartRateSample,
     BodyBatterySample,
@@ -18,8 +20,10 @@ from app.models.database import (
     SleepSession,
     Activity,
     DailyHabit,
+    EnvironmentalMetric,
     Habit,
 )
+from app.services.environmental import AstronomyProvider, location_key
 
 logger = logging.getLogger(__name__)
 
@@ -441,6 +445,57 @@ async def compute_activity_features(
     return features
 
 
+async def compute_environmental_features(
+    session: AsyncSession,
+    target_date: date,
+    tz: ZoneInfo,
+    latitude: float | None,
+    longitude: float | None,
+) -> dict:
+    """Compute configured environmental features for a day."""
+    if latitude is None or longitude is None:
+        return {}
+
+    loc_key = location_key(latitude, longitude)
+    provider = AstronomyProvider()
+
+    existing = await session.execute(
+        select(EnvironmentalMetric)
+        .where(EnvironmentalMetric.date == target_date)
+        .where(EnvironmentalMetric.source == provider.source)
+        .where(EnvironmentalMetric.location_key == loc_key)
+    )
+    rows = existing.scalars().all()
+    if rows:
+        return {row.metric_key: row.value for row in rows}
+
+    metrics = provider.daily_metrics(target_date, tz, latitude, longitude)
+    if not metrics:
+        return {}
+
+    fetched_at = datetime.utcnow()
+    for metric in metrics:
+        data = {
+            "date": target_date,
+            "source": metric.source,
+            "metric_key": metric.metric_key,
+            "location_key": loc_key,
+            "value": metric.value,
+            "unit": metric.unit,
+            "category": metric.category,
+            "raw_metadata": metric.raw_metadata,
+            "fetched_at": fetched_at,
+        }
+        stmt = insert(EnvironmentalMetric.__table__).values(**data).on_conflict_do_update(
+            index_elements=["date", "source", "metric_key", "location_key"],
+            set_={k: v for k, v in data.items() if k not in {"date", "source", "metric_key", "location_key"}},
+        )
+        await session.execute(stmt)
+
+    await session.flush()
+    return {metric.metric_key: metric.value for metric in metrics}
+
+
 async def compute_habit_features(
     session: AsyncSession,
     target_date: date
@@ -476,7 +531,17 @@ async def compute_daily_features(
         Dict with all computed features.
     """
     tz = ZoneInfo(timezone)
+    settings = get_settings()
     features = {"date": target_date.isoformat()}
+
+    environmental_features = await compute_environmental_features(
+        session,
+        target_date,
+        tz,
+        settings.environment_latitude,
+        settings.environment_longitude,
+    )
+    features.update(environmental_features)
 
     # Compute each category
     sleep_features = await compute_sleep_features(session, target_date, tz)

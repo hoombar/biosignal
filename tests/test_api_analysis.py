@@ -102,6 +102,7 @@ class TestCorrelationTargetsApi:
 
         assert "sleep_hours" in targets
         assert "steps_total" in targets
+        assert "daylight_minutes" in targets
         assert "habit:pm_slump" in targets
 
 

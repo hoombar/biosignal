@@ -32,6 +32,34 @@ class RawGarminResponse(Base):
     __table_args__ = (UniqueConstraint("date", "endpoint", name="uix_garmin_date_endpoint"),)
 
 
+class EnvironmentalMetric(Base):
+    """Normalized daily metrics from environmental sources."""
+
+    __tablename__ = "environmental_metrics"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    date = Column(Date, nullable=False, index=True)
+    source = Column(String, nullable=False, index=True)
+    metric_key = Column(String, nullable=False, index=True)
+    location_key = Column(String, nullable=False, index=True)
+    value = Column(Float, nullable=False)
+    unit = Column(String, nullable=False)
+    category = Column(String, nullable=False)
+    raw_metadata = Column(JSON, nullable=True)
+    fetched_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "date",
+            "source",
+            "metric_key",
+            "location_key",
+            name="uix_environmental_date_source_metric_location",
+        ),
+        Index("ix_environmental_metrics_date_metric", "date", "metric_key"),
+    )
+
+
 class HeartRateSample(Base):
     """Heart rate samples at ~15 minute intervals."""
 

@@ -21,6 +21,7 @@ from app.models.database import (
     DailyHabit,
 )
 from app.services.features import (
+    compute_environmental_features,
     compute_sleep_features,
     compute_hrv_features,
     compute_heart_rate_features,
@@ -34,6 +35,55 @@ from app.services.features import (
 # Test date and timezone used throughout
 TEST_DATE = date(2025, 1, 28)
 TZ = ZoneInfo("Europe/London")  # UTC+0 in January, so UTC == local
+
+
+class TestEnvironmentalFeatures:
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_without_location(self, async_session):
+        result = await compute_environmental_features(
+            async_session,
+            date(2025, 6, 21),
+            TZ,
+            latitude=None,
+            longitude=None,
+        )
+
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_computes_daylight_metrics_for_location(self, async_session):
+        result = await compute_environmental_features(
+            async_session,
+            date(2025, 6, 21),
+            TZ,
+            latitude=51.5074,
+            longitude=-0.1278,
+        )
+
+        assert 950 <= result["daylight_minutes"] <= 1010
+        assert 200 <= result["sunrise_minutes_after_midnight"] <= 330
+        assert 1200 <= result["sunset_minutes_after_midnight"] <= 1320
+        assert 700 <= result["solar_noon_minutes_after_midnight"] <= 800
+
+    @pytest.mark.asyncio
+    async def test_reuses_stored_environmental_metrics(self, async_session):
+        first = await compute_environmental_features(
+            async_session,
+            date(2025, 12, 21),
+            TZ,
+            latitude=51.5074,
+            longitude=-0.1278,
+        )
+        second = await compute_environmental_features(
+            async_session,
+            date(2025, 12, 21),
+            TZ,
+            latitude=51.5074,
+            longitude=-0.1278,
+        )
+
+        assert first == second
 
 
 def naive_utc(dt: datetime) -> datetime:

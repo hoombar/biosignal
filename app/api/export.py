@@ -67,6 +67,12 @@ FEATURE_METADATA = {
     "training_intensity": {"description": "Training intensity classification", "unit": "low/medium/high", "category": "Activity"},
     "hours_since_training": {"description": "Hours from training end to 2pm", "unit": "hours", "category": "Activity"},
 
+    # Environmental features
+    "daylight_minutes": {"description": "Minutes between local sunrise and sunset", "unit": "minutes", "category": "Light"},
+    "sunrise_minutes_after_midnight": {"description": "Local sunrise time as minutes after midnight", "unit": "minutes", "category": "Light"},
+    "sunset_minutes_after_midnight": {"description": "Local sunset time as minutes after midnight", "unit": "minutes", "category": "Light"},
+    "solar_noon_minutes_after_midnight": {"description": "Approximate local solar noon as minutes after midnight", "unit": "minutes", "category": "Light"},
+
 }
 
 
@@ -157,7 +163,7 @@ async def export_features(
     ordered_columns = ["date"]
 
     # Add known columns by category
-    for category in ["Sleep", "HRV", "SpO2", "Heart Rate", "Body Battery", "Stress", "Activity", "Habits"]:
+    for category in ["Sleep", "HRV", "SpO2", "Heart Rate", "Body Battery", "Stress", "Activity", "Light", "Habits"]:
         for col, meta in metadata.items():
             if meta["category"] == category and col in all_columns:
                 ordered_columns.append(col)

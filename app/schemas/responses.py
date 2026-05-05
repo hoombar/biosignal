@@ -123,6 +123,11 @@ class DailySummary(BaseModel):
     training_avg_hr: int | None = None
     training_intensity: str | None = None
     hours_since_training: float | None = None
+    # Environmental features
+    daylight_minutes: float | None = None
+    sunrise_minutes_after_midnight: float | None = None
+    sunset_minutes_after_midnight: float | None = None
+    solar_noon_minutes_after_midnight: float | None = None
     # Habit features (dynamic list)
     habits: list[Habit] = []
 

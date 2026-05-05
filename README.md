@@ -62,6 +62,8 @@ GARMIN_PASSWORD=your_password
 # Optional settings
 TZ=Europe/London          # Your timezone
 SYNC_HOUR=6               # Daily sync time (24h format)
+ENVIRONMENT_LATITUDE=51.5074   # Optional: enables daylight/environment metrics
+ENVIRONMENT_LONGITUDE=-0.1278  # Optional: enables daylight/environment metrics
 DEBUG=false               # Enable debug logging
 ```
 

@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     sync_minute_garmin: int = 0
     debug: bool = False
 
+    # Optional location for environmental metrics
+    environment_latitude: float | None = None
+    environment_longitude: float | None = None
+
 
 @lru_cache()
 def get_settings() -> Settings:
