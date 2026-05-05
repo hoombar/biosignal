@@ -64,6 +64,19 @@ function formatHours(hours) {
     return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
+function formatClockMinutes(minutes) {
+    if (minutes === null || minutes === undefined) return '-';
+    const total = Math.round(minutes);
+    const h = Math.floor(total / 60) % 24;
+    const m = total % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function formatDaylightMinutes(minutes) {
+    if (minutes === null || minutes === undefined) return '-';
+    return formatHours(minutes / 60);
+}
+
 function formatPct(value) {
     if (value === null || value === undefined) return '-';
     return `${Math.round(value)}%`;
@@ -845,6 +858,35 @@ function renderActivityCard(day) {
     `;
 }
 
+function renderLightCard(day) {
+    return `
+        <div class="metric-card">
+            <div class="card-header light">
+                <span class="card-icon">&#9728;</span>
+                <span class="card-title">Light</span>
+            </div>
+            <div class="primary-metric">
+                <span class="metric-value">${formatDaylightMinutes(day.daylight_minutes)}</span>
+                <span class="metric-unit">daylight</span>
+            </div>
+            <div class="secondary-metrics">
+                <div class="metric-row">
+                    <span class="metric-label">Sunrise</span>
+                    <span class="metric-value">${formatClockMinutes(day.sunrise_minutes_after_midnight)}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Sunset</span>
+                    <span class="metric-value">${formatClockMinutes(day.sunset_minutes_after_midnight)}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Solar Noon</span>
+                    <span class="metric-value">${formatClockMinutes(day.solar_noon_minutes_after_midnight)}</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 function renderDayDetail(day) {
     if (!day) return;
 
@@ -870,6 +912,7 @@ function renderDayDetail(day) {
             ${renderBodyBatteryCard(day)}
             ${renderStressCard(day)}
             ${renderActivityCard(day)}
+            ${renderLightCard(day)}
         `;
     });
 }

@@ -45,6 +45,7 @@
     --color-battery: #fbbf24;
     --color-stress: #fb923c;
     --color-activity: #60a5fa;
+    --color-light: #facc15;
     --color-habits: #e879f9;
 
     /* Correlation lollipop palette */
@@ -1015,6 +1016,7 @@ main > h1 {
 .card-header.battery .card-icon { color: var(--color-battery); }
 .card-header.stress .card-icon { color: var(--color-stress); }
 .card-header.activity .card-icon { color: var(--color-activity); }
+.card-header.light .card-icon { color: var(--color-light); }
 
 /* Primary metric (hero number) */
 .primary-metric {
@@ -1453,6 +1455,7 @@ input:focus {
 .metrics-grid .metric-card:nth-child(4) { animation-delay: 0.2s; }
 .metrics-grid .metric-card:nth-child(5) { animation-delay: 0.25s; }
 .metrics-grid .metric-card:nth-child(6) { animation-delay: 0.3s; }
+.metrics-grid .metric-card:nth-child(7) { animation-delay: 0.35s; }
 
 /* Loading skeleton */
 .skeleton {
