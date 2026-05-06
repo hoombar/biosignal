@@ -109,6 +109,54 @@ class TestGarminAuthLogin:
         assert resp.status_code == 500
         assert resp.json()["detail"] == "Login failed: boom"
 
+    def test_login_saves_tokens_with_current_garmin_client_api(self, tmp_path):
+        app = _make_test_app()
+        settings = _mock_settings(tmp_path)
+
+        garmin_session = MagicMock()
+        garmin_session.login.return_value = (None, None)
+        garmin_session.client = MagicMock()
+
+        with patch("app.api.garmin_auth.get_settings", return_value=settings):
+            with patch("app.api.garmin_auth.Garmin", return_value=garmin_session):
+                with TestClient(app) as client:
+                    resp = client.post("/api/garmin/auth/login")
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "success"
+        garmin_session.client.dump.assert_called_once_with(settings.garmin_token_dir)
+
+
+class TestGarminAuthMfa:
+
+    def test_mfa_saves_tokens_with_current_garmin_client_api(self, tmp_path):
+        app = _make_test_app()
+        settings = _mock_settings(tmp_path)
+
+        garmin_session = MagicMock()
+        garmin_session.login.return_value = ("needs_mfa", {"state": "abc"})
+        garmin_session.client = MagicMock()
+
+        with patch("app.api.garmin_auth.get_settings", return_value=settings):
+            with patch("app.api.garmin_auth.Garmin", return_value=garmin_session):
+                with TestClient(app) as client:
+                    login_resp = client.post("/api/garmin/auth/login")
+                    mfa_resp = client.post(
+                        "/api/garmin/auth/mfa",
+                        json={
+                            "session_id": login_resp.json()["session_id"],
+                            "mfa_code": "123456",
+                        },
+                    )
+
+        assert mfa_resp.status_code == 200
+        assert mfa_resp.json()["status"] == "success"
+        garmin_session.resume_login.assert_called_once_with(
+            {"state": "abc"},
+            "123456",
+        )
+        garmin_session.client.dump.assert_called_once_with(settings.garmin_token_dir)
+
 
 class TestGarminAuthStatus:
 

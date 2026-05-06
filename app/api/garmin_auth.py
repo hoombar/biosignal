@@ -45,6 +45,20 @@ def _cleanup_expired_sessions():
         logger.info(f"Cleaned up expired MFA session {sid}")
 
 
+def _dump_tokens(client: Garmin, token_dir: str) -> None:
+    os.makedirs(token_dir, exist_ok=True)
+
+    if hasattr(client, "client") and hasattr(client.client, "dump"):
+        client.client.dump(token_dir)
+        return
+
+    if hasattr(client, "garth") and hasattr(client.garth, "dump"):
+        client.garth.dump(token_dir)
+        return
+
+    raise RuntimeError("Garmin client does not support token persistence")
+
+
 class AuthStatusResponse(BaseModel):
     status: str  # "valid", "not_configured", "expired"
     message: str
@@ -151,8 +165,7 @@ async def initiate_login():
         )
 
     # No MFA needed - save tokens directly
-    os.makedirs(settings.garmin_token_dir, exist_ok=True)
-    client.garth.dump(settings.garmin_token_dir)
+    _dump_tokens(client, settings.garmin_token_dir)
     os.environ["GARMINTOKENS"] = settings.garmin_token_dir
     return LoginResponse(
         status="success",
@@ -175,8 +188,7 @@ async def submit_mfa(request: MfaRequest):
 
     def _resume():
         session.client.resume_login(session.mfa_result, request.mfa_code)
-        os.makedirs(settings.garmin_token_dir, exist_ok=True)
-        session.client.garth.dump(settings.garmin_token_dir)
+        _dump_tokens(session.client, settings.garmin_token_dir)
 
     try:
         await asyncio.to_thread(_resume)
