@@ -5,11 +5,11 @@
 {% block content %}
 <h1>Trends</h1>
 
-<!-- Top control bar: correlate with habit selector -->
+<!-- Top control bar: correlate with target selector -->
 <div class="habit-selector">
     <span class="habit-selector-label">Correlate with</span>
-    <select id="correlate-habit" onchange="onCorrelateHabitChange()">
-        <option value="">-- Select habit --</option>
+    <select id="correlate-target" onchange="onCorrelateTargetChange()">
+        <option value="">-- Select target --</option>
     </select>
     <div class="habit-selector-indicator"></div>
 </div>
@@ -78,11 +78,11 @@
         <div class="chart-container" style="position: sticky; top: 1.5rem;">
             <h2 style="margin-bottom: 0.25rem;">Suggested Metrics</h2>
             <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">
-                Top correlates with selected habit
+                Top correlates with selected target
             </p>
             <div id="suggestions-content">
                 <p style="color: var(--text-muted); font-size: 0.875rem;">
-                    Select a habit above to see suggestions.
+                    Select a target above to see suggestions.
                 </p>
             </div>
         </div>

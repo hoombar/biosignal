@@ -13,6 +13,7 @@ import types
 import typing
 import pytest
 from datetime import date, timedelta
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -96,6 +97,13 @@ class TestFeatureMetadataFieldsExistInDailySummary:
             f"numeric fields in DailySummary: {phantom_fields}. "
             f"Either add them to DailySummary or remove them from FEATURE_METADATA."
         )
+
+    def test_trends_metric_picker_includes_light_category(self):
+        """Light metrics should be grouped explicitly in the Trends metric picker."""
+        source = Path("static/js/trends.js").read_text()
+
+        assert "'Light':        '#facc15'" in source
+        assert "'Activity', 'Light', 'Habits'" in source
 
 
 class TestCorrelationsReturnsValidMetricKeys:

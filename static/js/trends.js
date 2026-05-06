@@ -5,6 +5,7 @@ let trendsData = [];
 let metricMetadata = {};   // { key: { description, unit, category } }
 let habitSettings = [];
 let habitNames = [];
+let correlationTargets = [];
 let activeMetrics = new Set();
 let metricColors = {};     // key → hex color (persistent per key)
 let chart = null;
@@ -30,10 +31,13 @@ const CATEGORY_DOT_COLORS = {
     'Body Battery': '#fbbf24',
     'Stress':       '#fb923c',
     'Activity':     '#60a5fa',
+    'Light':        '#facc15',
     'Habits':       '#e879f9',
 };
 
-const CATEGORY_ORDER = ['Sleep', 'HRV', 'SpO2', 'Heart Rate', 'Body Battery', 'Stress', 'Activity', 'Habits'];
+const CATEGORY_ORDER = ['Sleep', 'HRV', 'SpO2', 'Heart Rate', 'Body Battery', 'Stress', 'Activity', 'Light', 'Habits'];
+const TARGET_STORAGE_KEY = 'biosignal_correlation_target';
+const LEGACY_HABIT_STORAGE_KEY = 'biosignal_target_habit';
 
 // ─── Initialization ───────────────────────────────────────────────────────────
 async function init() {
@@ -48,7 +52,8 @@ async function init() {
         habitSettings = await habitSettingsResp.json();
         habitNames = habitSettings.map(h => h.habit_name);
 
-        buildHabitSelector();
+        await loadCorrelationTargets();
+        buildTargetSelector();
         initializeRangeControls();
         await applyPresetRange(DEFAULT_RANGE_DAYS);
     } catch (err) {
@@ -114,8 +119,8 @@ async function reloadRangeWindow(startIso, endIso) {
 }
 
 async function refreshSuggestionsIfNeeded() {
-    if (document.getElementById('correlate-habit').value) {
-        await onCorrelateHabitChange();
+    if (document.getElementById('correlate-target').value) {
+        await onCorrelateTargetChange();
     }
 }
 
@@ -257,28 +262,91 @@ function isHabitBinary(habitName) {
     return values.length > 0 && values.every(v => v === 0 || v === 1);
 }
 
-// ─── Habit selector (top bar) ─────────────────────────────────────────────────
-function buildHabitSelector() {
-    const select = document.getElementById('correlate-habit');
-    select.innerHTML = '<option value="">-- Select habit --</option>' +
-        habitNames.map(name =>
-            `<option value="${name}">${getHabitLabel(name)}</option>`
-        ).join('');
+// ─── Correlation target selector (top bar) ───────────────────────────────────
+async function loadCorrelationTargets() {
+    try {
+        const resp = await fetch('/api/correlation-targets');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        correlationTargets = await resp.json();
+    } catch (err) {
+        console.warn('Failed to load correlation targets, falling back to metadata and habits:', err);
+        const metricTargets = Object.entries(metricMetadata)
+            .filter(([, meta]) => meta.category !== 'Habits' && isChartableUnit(meta.unit || ''))
+            .map(([key, meta]) => ({
+                target: key,
+                label: key.replace(/_/g, ' '),
+                kind: 'metric',
+                category: meta.category || 'Other',
+            }));
+        const habitTargets = habitNames.map(name => ({
+            target: `habit:${name}`,
+            label: getHabitLabel(name),
+            kind: 'habit',
+            category: 'Habits',
+        }));
+        correlationTargets = [...metricTargets, ...habitTargets];
+    }
 }
 
-async function onCorrelateHabitChange() {
-    const target = document.getElementById('correlate-habit').value;
+function targetLabel(target) {
+    if (target.startsWith('habit:')) {
+        return getHabitLabel(target.slice(6));
+    }
+    const found = correlationTargets.find(t => t.target === target);
+    if (found && found.label) return found.label;
+    return target.replace(/_/g, ' ');
+}
+
+function buildTargetSelector() {
+    const select = document.getElementById('correlate-target');
+    const metricTargets = correlationTargets.filter(t => t.kind === 'metric');
+    const habitTargets = correlationTargets.filter(t => t.kind === 'habit');
+
+    let html = '<option value="">-- Select target --</option>';
+    if (metricTargets.length > 0) {
+        html += '<option value="" disabled>Metrics</option>';
+        html += metricTargets.map(t =>
+            `<option value="${t.target}">Metric: ${t.label || targetLabel(t.target)}</option>`
+        ).join('');
+    }
+    if (habitTargets.length > 0) {
+        html += '<option value="" disabled>Habits</option>';
+        html += habitTargets.map(t =>
+            `<option value="${t.target}">Habit: ${t.label || targetLabel(t.target)}</option>`
+        ).join('');
+    }
+
+    select.innerHTML = html;
+
+    let savedTarget = localStorage.getItem(TARGET_STORAGE_KEY);
+    if (!savedTarget) {
+        const legacyHabit = localStorage.getItem(LEGACY_HABIT_STORAGE_KEY);
+        if (legacyHabit) savedTarget = `habit:${legacyHabit}`;
+    }
+
+    const validTargets = new Set(correlationTargets.map(t => t.target));
+    if (savedTarget && validTargets.has(savedTarget)) {
+        select.value = savedTarget;
+    }
+}
+
+async function onCorrelateTargetChange() {
+    const target = document.getElementById('correlate-target').value;
     const content = document.getElementById('suggestions-content');
 
     if (!target) {
-        content.innerHTML = '<p style="color: var(--text-muted); font-size: 0.875rem;">Select a habit above to see suggestions.</p>';
+        localStorage.setItem(TARGET_STORAGE_KEY, '');
+        content.innerHTML = '<p style="color: var(--text-muted); font-size: 0.875rem;">Select a target above to see suggestions.</p>';
+        updateChart();
         return;
     }
 
+    localStorage.setItem(TARGET_STORAGE_KEY, target);
     content.innerHTML = '<p class="loading" style="padding: 1rem 0; font-size: 0.875rem;">Loading…</p>';
+    updateChart();
 
     try {
-        const resp = await fetch(`/api/correlations?target_habit=${encodeURIComponent(target)}&min_days=5`);
+        const resp = await fetch(`/api/correlations?target=${encodeURIComponent(target)}&min_days=5`);
         const correlations = await resp.json();
 
         if (!correlations.length) {
@@ -286,7 +354,7 @@ async function onCorrelateHabitChange() {
             return;
         }
 
-        const targetKey = `habit_${target}`;
+        const targetKey = target.startsWith('habit:') ? `habit_${target.slice(6)}` : target;
         const filtered = correlations
             .filter(c => Math.abs(c.coefficient) > 0.1 && c.metric !== targetKey && c.metric !== target)
             .slice(0, 8);
@@ -370,6 +438,10 @@ function addSuggestion(key) {
 }
 
 // ─── Metric picker accordion ──────────────────────────────────────────────────
+function isChartableUnit(unit) {
+    return unit !== 'text' && unit !== 'low/medium/high';
+}
+
 function buildMetricPicker() {
     const container = document.getElementById('metric-accordion');
     container.innerHTML = '';
@@ -377,7 +449,7 @@ function buildMetricPicker() {
     const categories = {};
     for (const [key, meta] of Object.entries(metricMetadata)) {
         const unit = meta.unit || '';
-        if (unit === 'text' || unit === 'low/medium/high') continue;
+        if (!isChartableUnit(unit)) continue;
         const cat = meta.category || 'Other';
         if (!categories[cat]) categories[cat] = [];
         categories[cat].push({ key, ...meta });
@@ -526,9 +598,6 @@ function calculateRollingAverage(data, windowSize = 7) {
     }
     return result;
 }
-
-// ─── Correlations target (shared with /correlations via localStorage) ────────
-const TARGET_STORAGE_KEY = 'biosignal_correlation_target';
 
 function getTargetMetricKey() {
     try {
