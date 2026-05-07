@@ -38,3 +38,16 @@ def test_settings_environment_location_defaults_to_unset(monkeypatch):
 
     assert settings.environment_latitude is None
     assert settings.environment_longitude is None
+
+
+def test_settings_environment_location_blank_strings_are_unset(monkeypatch):
+    """Copied .env.example blank location values should behave as unset."""
+    monkeypatch.setenv("GARMIN_EMAIL", "user@example.com")
+    monkeypatch.setenv("GARMIN_PASSWORD", "secret")
+    monkeypatch.setenv("ENVIRONMENT_LATITUDE", "")
+    monkeypatch.setenv("ENVIRONMENT_LONGITUDE", "")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.environment_latitude is None
+    assert settings.environment_longitude is None

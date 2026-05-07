@@ -16,6 +16,7 @@ from unittest.mock import AsyncMock, patch, MagicMock
 import httpx
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.api.sync import router
 from app.core.database import get_db
@@ -83,6 +84,18 @@ class TestSyncPostEndpoints:
         assert resp.status_code == 200
         data = resp.json()
         assert "message" in data
+        assert data["date"] == "2025-01-28"
+
+    @pytest.mark.asyncio
+    async def test_post_environment_returns_200_with_message(self, async_session):
+        """POST /api/sync/environment should return 200 immediately."""
+        app = _make_test_app(async_session)
+        with patch("app.api.sync._run_environment_sync_in_background", new_callable=AsyncMock):
+            with TestClient(app) as client:
+                resp = client.post("/api/sync/environment?date_param=2025-01-28")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["message"] == "Environment sync started"
         assert data["date"] == "2025-01-28"
 
     @pytest.mark.asyncio
@@ -170,3 +183,48 @@ class TestSyncBackfill:
             resp = client.post("/api/sync/backfill/cancel")
         assert resp.status_code == 400
         assert "No backfill is currently running" in resp.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_backfill_logs_environment_status_per_day(self, async_session, monkeypatch):
+        class FakeSessionMaker:
+            def __call__(self):
+                return self
+
+            async def __aenter__(self):
+                return async_session
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        class FakeSyncService:
+            async def sync_day(self, target_date, session):
+                return {
+                    "date": target_date.isoformat(),
+                    "garmin": {
+                        "date": target_date.isoformat(),
+                        "success": True,
+                        "errors": [],
+                        "counts": {},
+                    },
+                    "environment": {
+                        "date": target_date.isoformat(),
+                        "success": True,
+                        "errors": [],
+                        "counts": {"environmental_metrics": 4},
+                    },
+                    "overall_success": True,
+                }
+
+        monkeypatch.setattr("app.api.sync._get_sync_service", AsyncMock(return_value=FakeSyncService()))
+        monkeypatch.setattr("app.api.sync.async_session_maker", FakeSessionMaker())
+        monkeypatch.setattr("app.api.sync.asyncio.sleep", AsyncMock())
+
+        from app.api.sync import _run_backfill_in_background
+
+        await _run_backfill_in_background(date(2025, 1, 28), date(2025, 1, 28))
+
+        result = await async_session.execute(select(SyncLog))
+        log = result.scalar_one()
+        assert log.sync_type == "backfill"
+        assert log.details["environment"]["counts"]["environmental_metrics"] == 4
+        assert log.details["overall_success"] is True

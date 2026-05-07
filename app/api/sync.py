@@ -97,12 +97,25 @@ async def _get_sync_service() -> SyncService:
     return SyncService(garmin, settings.tz)
 
 
+def _get_environment_sync_service() -> SyncService:
+    """Create a sync service instance for local environmental metrics."""
+    settings = get_settings()
+    garmin = GarminClient(
+        settings.garmin_email,
+        settings.garmin_password,
+        settings.garmin_token_dir,
+    )
+    return SyncService(garmin, settings.tz)
+
+
 async def _run_sync_in_background(
     sync_type: str,
     target_date: date,
     session: AsyncSession
 ):
     """Background task to run sync."""
+    started_at = datetime.utcnow()
+
     try:
         sync_service = await _get_sync_service()
     except GarminMfaRequiredError:
@@ -117,8 +130,6 @@ async def _run_sync_in_background(
         session.add(sync_log)
         await session.commit()
         return
-
-    started_at = datetime.utcnow()
 
     try:
         # "garmin" and "all" both run the Garmin sync; "all" is kept as a
@@ -146,6 +157,42 @@ async def _run_sync_in_background(
             completed_at=datetime.utcnow(),
             status="failed",
             error_message=str(e)
+        )
+        session.add(sync_log)
+        await session.commit()
+
+
+async def _run_environment_sync_in_background(
+    target_date: date,
+    session: AsyncSession,
+):
+    """Background task to run deterministic environmental sync."""
+    started_at = datetime.utcnow()
+    sync_service = _get_environment_sync_service()
+
+    try:
+        result = await sync_service.sync_environment_day(target_date, session)
+
+        sync_log = SyncLog(
+            sync_type="environment",
+            date_synced=target_date,
+            started_at=started_at,
+            completed_at=datetime.utcnow(),
+            status="success" if result["success"] else "failed",
+            details=result,
+            error_message="; ".join(result["errors"]) if result.get("errors") else None,
+        )
+        session.add(sync_log)
+        await session.commit()
+
+    except Exception as e:
+        sync_log = SyncLog(
+            sync_type="environment",
+            date_synced=target_date,
+            started_at=started_at,
+            completed_at=datetime.utcnow(),
+            status="failed",
+            error_message=str(e),
         )
         session.add(sync_log)
         await session.commit()
@@ -196,6 +243,27 @@ async def sync_all(
 
     return SyncResponse(
         message="Garmin sync started",
+        date=target_date.isoformat(),
+    )
+
+
+@router.post("/environment", response_model=SyncResponse)
+async def sync_environment(
+    background_tasks: BackgroundTasks,
+    date_param: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Trigger manual deterministic environmental sync."""
+    target_date = date.fromisoformat(date_param) if date_param else _today_in_app_timezone()
+
+    background_tasks.add_task(
+        _run_environment_sync_in_background,
+        target_date,
+        db,
+    )
+
+    return SyncResponse(
+        message="Environment sync started",
         date=target_date.isoformat(),
     )
 

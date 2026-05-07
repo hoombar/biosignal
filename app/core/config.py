@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,11 +24,19 @@ class Settings(BaseSettings):
     tz: str = "Europe/London"
     sync_hour: int = 6
     sync_minute_garmin: int = 0
+    sync_minute_environment: int = 5
     debug: bool = False
 
     # Optional location for environmental metrics
     environment_latitude: float | None = None
     environment_longitude: float | None = None
+
+    @field_validator("environment_latitude", "environment_longitude", mode="before")
+    @classmethod
+    def blank_environment_location_is_unset(cls, value):
+        if value == "":
+            return None
+        return value
 
 
 @lru_cache()

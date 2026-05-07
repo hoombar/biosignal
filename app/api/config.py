@@ -22,6 +22,7 @@ class ConfigResponse(BaseModel):
     tz: str
     sync_hour: int
     sync_minute_garmin: int
+    sync_minute_environment: int
     debug: bool
 
 
@@ -48,5 +49,6 @@ async def get_config() -> ConfigResponse:
         tz=settings.tz,
         sync_hour=settings.sync_hour,
         sync_minute_garmin=settings.sync_minute_garmin,
+        sync_minute_environment=settings.sync_minute_environment,
         debug=settings.debug,
     )

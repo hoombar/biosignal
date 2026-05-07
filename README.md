@@ -62,10 +62,16 @@ GARMIN_PASSWORD=your_password
 # Optional settings
 TZ=Europe/London          # Your timezone
 SYNC_HOUR=6               # Daily sync time (24h format)
+SYNC_MINUTE_GARMIN=0      # Garmin sync minute
+SYNC_MINUTE_ENVIRONMENT=5 # Environment sync minute
 ENVIRONMENT_LATITUDE=51.5074   # Optional: enables daylight/environment metrics
 ENVIRONMENT_LONGITUDE=-0.1278  # Optional: enables daylight/environment metrics
 DEBUG=false               # Enable debug logging
 ```
+
+Environmental sync is local and deterministic: daylight metrics are computed
+from the configured latitude/longitude and timezone, without calling an
+external environment or weather API.
 
 ## Habit Tracking
 
@@ -95,6 +101,7 @@ Set `HABITSYNC_URL` and `HABITSYNC_API_KEY` in the environment for the duration 
 
 ### Sync
 - `POST /api/sync/garmin` - Manual Garmin sync
+- `POST /api/sync/environment` - Manual deterministic environment sync
 - `POST /api/sync/all` - Back-compat alias for `/api/sync/garmin`
 - `GET /api/sync/status` - Last sync status
 

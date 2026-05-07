@@ -6,11 +6,15 @@ from typing import Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert
+from zoneinfo import ZoneInfo
 
+from app.core.config import get_settings
 from app.services.garmin import GarminClient
 from app.services import parsers
+from app.services.environmental import AstronomyProvider, location_key
 from app.models.database import (
     RawGarminResponse,
+    EnvironmentalMetric,
     HeartRateSample,
     BodyBatterySample,
     StressSample,
@@ -176,13 +180,89 @@ class SyncService:
 
         return status
 
+    async def sync_environment_day(self, target_date: date, session: AsyncSession) -> dict[str, Any]:
+        """
+        Compute and upsert deterministic environmental metrics for a specific day.
+
+        The current provider is local astronomy math, so this does not call an
+        external weather or location API.
+        """
+        date_str = target_date.strftime("%Y-%m-%d")
+        logger.info(f"Syncing environmental metrics for {date_str}")
+
+        status = {
+            "date": date_str,
+            "success": True,
+            "skipped": False,
+            "errors": [],
+            "counts": {"environmental_metrics": 0},
+        }
+
+        settings = get_settings()
+        latitude = settings.environment_latitude
+        longitude = settings.environment_longitude
+
+        if latitude is None or longitude is None:
+            status["success"] = False
+            status["skipped"] = True
+            status["errors"].append("ENVIRONMENT_LATITUDE and ENVIRONMENT_LONGITUDE must be set")
+            logger.info(f"Environmental sync skipped for {date_str}: location is not configured")
+            return status
+
+        try:
+            provider = AstronomyProvider()
+            tz = ZoneInfo(self.timezone)
+            metrics = provider.daily_metrics(target_date, tz, latitude, longitude)
+            loc_key = location_key(latitude, longitude)
+            fetched_at = datetime.utcnow()
+
+            for metric in metrics:
+                data = {
+                    "date": target_date,
+                    "source": metric.source,
+                    "metric_key": metric.metric_key,
+                    "location_key": loc_key,
+                    "value": metric.value,
+                    "unit": metric.unit,
+                    "category": metric.category,
+                    "raw_metadata": metric.raw_metadata,
+                    "fetched_at": fetched_at,
+                }
+                stmt = insert(EnvironmentalMetric.__table__).values(**data).on_conflict_do_update(
+                    index_elements=["date", "source", "metric_key", "location_key"],
+                    set_={
+                        k: v
+                        for k, v in data.items()
+                        if k not in {"date", "source", "metric_key", "location_key"}
+                    },
+                )
+                await session.execute(stmt)
+
+            status["counts"]["environmental_metrics"] = len(metrics)
+            if not metrics:
+                status["success"] = False
+                status["errors"].append("No environmental metrics produced for configured location/date")
+
+            await session.commit()
+            logger.info(f"Environmental sync completed for {date_str}: {status['counts']}")
+
+        except Exception as e:
+            logger.error(f"Environmental sync failed for {date_str}: {e}")
+            status["success"] = False
+            status["errors"].append(str(e))
+            await session.rollback()
+
+        return status
+
     async def sync_day(self, target_date: date, session: AsyncSession) -> dict[str, Any]:
-        """Sync Garmin data for a specific day. Alias kept for the backfill flow."""
+        """Sync Garmin and environmental data for a specific day."""
         garmin_status = await self.sync_garmin_day(target_date, session)
+        environment_status = await self.sync_environment_day(target_date, session)
         return {
             "date": target_date.strftime("%Y-%m-%d"),
             "garmin": garmin_status,
-            "overall_success": garmin_status["success"],
+            "environment": environment_status,
+            "overall_success": garmin_status["success"] and environment_status["success"],
         }
 
     async def sync_date_range(
@@ -232,3 +312,21 @@ class SyncService:
 
         logger.info(f"Running daily sync for {yesterday}")
         return await self.sync_day(yesterday, session)
+
+    async def run_daily_garmin_sync(self, session: AsyncSession) -> dict[str, Any]:
+        """Run scheduled Garmin sync for yesterday's data."""
+        tz = ZoneInfo(self.timezone)
+        now = datetime.now(tz)
+        yesterday = (now - timedelta(days=1)).date()
+
+        logger.info(f"Running daily Garmin sync for {yesterday}")
+        return await self.sync_garmin_day(yesterday, session)
+
+    async def run_daily_environment_sync(self, session: AsyncSession) -> dict[str, Any]:
+        """Run scheduled environmental sync for yesterday's data."""
+        tz = ZoneInfo(self.timezone)
+        now = datetime.now(tz)
+        yesterday = (now - timedelta(days=1)).date()
+
+        logger.info(f"Running daily environmental sync for {yesterday}")
+        return await self.sync_environment_day(yesterday, session)
