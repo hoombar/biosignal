@@ -19,6 +19,7 @@ from app.models.database import (
     StepsSample,
     Activity,
     DailyHabit,
+    EnvironmentalMetric,
 )
 from app.services.features import (
     compute_environmental_features,
@@ -84,6 +85,30 @@ class TestEnvironmentalFeatures:
         )
 
         assert first == second
+
+    @pytest.mark.asyncio
+    async def test_returns_stored_pollen_metrics(self, async_session):
+        async_session.add(EnvironmentalMetric(
+            date=date(2025, 6, 21),
+            source="open_meteo_air_quality",
+            metric_key="grass_pollen_avg",
+            location_key="51.5074,-0.1278",
+            value=12.5,
+            unit="grains/m3",
+            category="Pollen",
+        ))
+        await async_session.commit()
+
+        result = await compute_environmental_features(
+            async_session,
+            date(2025, 6, 21),
+            TZ,
+            latitude=51.5074,
+            longitude=-0.1278,
+        )
+
+        assert result["grass_pollen_avg"] == 12.5
+        assert "daylight_minutes" in result
 
 
 def naive_utc(dt: datetime) -> datetime:

@@ -99,11 +99,12 @@ class TestFeatureMetadataFieldsExistInDailySummary:
         )
 
     def test_trends_metric_picker_includes_light_category(self):
-        """Light metrics should be grouped explicitly in the Trends metric picker."""
+        """Light and pollen metrics should be grouped explicitly in the Trends metric picker."""
         source = Path("static/js/trends.js").read_text()
 
         assert "'Light':        '#facc15'" in source
-        assert "'Activity', 'Light', 'Habits'" in source
+        assert "'Pollen':       '#84cc16'" in source
+        assert "'Activity', 'Light', 'Pollen', 'Habits'" in source
 
 
 class TestCorrelationsReturnsValidMetricKeys:

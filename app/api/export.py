@@ -73,6 +73,20 @@ FEATURE_METADATA = {
     "sunset_minutes_after_midnight": {"description": "Local sunset time as minutes after midnight", "unit": "minutes", "category": "Light"},
     "solar_noon_minutes_after_midnight": {"description": "Approximate local solar noon as minutes after midnight", "unit": "minutes", "category": "Light"},
 
+    # Pollen features
+    "alder_pollen_avg": {"description": "Daily average alder pollen", "unit": "grains/m3", "category": "Pollen"},
+    "alder_pollen_max": {"description": "Daily maximum alder pollen", "unit": "grains/m3", "category": "Pollen"},
+    "birch_pollen_avg": {"description": "Daily average birch pollen", "unit": "grains/m3", "category": "Pollen"},
+    "birch_pollen_max": {"description": "Daily maximum birch pollen", "unit": "grains/m3", "category": "Pollen"},
+    "grass_pollen_avg": {"description": "Daily average grass pollen", "unit": "grains/m3", "category": "Pollen"},
+    "grass_pollen_max": {"description": "Daily maximum grass pollen", "unit": "grains/m3", "category": "Pollen"},
+    "mugwort_pollen_avg": {"description": "Daily average mugwort pollen", "unit": "grains/m3", "category": "Pollen"},
+    "mugwort_pollen_max": {"description": "Daily maximum mugwort pollen", "unit": "grains/m3", "category": "Pollen"},
+    "olive_pollen_avg": {"description": "Daily average olive pollen", "unit": "grains/m3", "category": "Pollen"},
+    "olive_pollen_max": {"description": "Daily maximum olive pollen", "unit": "grains/m3", "category": "Pollen"},
+    "ragweed_pollen_avg": {"description": "Daily average ragweed pollen", "unit": "grains/m3", "category": "Pollen"},
+    "ragweed_pollen_max": {"description": "Daily maximum ragweed pollen", "unit": "grains/m3", "category": "Pollen"},
+
 }
 
 
@@ -163,7 +177,7 @@ async def export_features(
     ordered_columns = ["date"]
 
     # Add known columns by category
-    for category in ["Sleep", "HRV", "SpO2", "Heart Rate", "Body Battery", "Stress", "Activity", "Light", "Habits"]:
+    for category in ["Sleep", "HRV", "SpO2", "Heart Rate", "Body Battery", "Stress", "Activity", "Light", "Pollen", "Habits"]:
         for col, meta in metadata.items():
             if meta["category"] == category and col in all_columns:
                 ordered_columns.append(col)

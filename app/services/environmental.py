@@ -5,6 +5,8 @@ from datetime import date, datetime, time, timedelta
 import math
 from zoneinfo import ZoneInfo
 
+import httpx
+
 
 @dataclass(frozen=True)
 class EnvironmentalMetricValue:
@@ -86,6 +88,88 @@ class AstronomyProvider:
                 raw_metadata=metadata,
             ),
         ]
+
+
+class OpenMeteoPollenProvider:
+    """Hourly pollen metrics from Open-Meteo Air Quality API."""
+
+    source = "open_meteo_air_quality"
+    base_url = "https://air-quality-api.open-meteo.com/v1/air-quality"
+    pollen_variables = (
+        "alder_pollen",
+        "birch_pollen",
+        "grass_pollen",
+        "mugwort_pollen",
+        "olive_pollen",
+        "ragweed_pollen",
+    )
+
+    def __init__(self, client_factory=None):
+        self.client_factory = client_factory or (lambda: httpx.AsyncClient(timeout=20.0))
+
+    async def daily_metrics(
+        self,
+        target_date: date,
+        tz: ZoneInfo,
+        latitude: float,
+        longitude: float,
+    ) -> list[EnvironmentalMetricValue]:
+        params = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "hourly": ",".join(self.pollen_variables),
+            "timezone": tz.key,
+            "start_date": target_date.isoformat(),
+            "end_date": target_date.isoformat(),
+        }
+
+        async with self.client_factory() as client:
+            response = await client.get(self.base_url, params=params)
+            response.raise_for_status()
+            payload = response.json()
+
+        hourly = payload.get("hourly") or {}
+        hourly_units = payload.get("hourly_units") or {}
+        metrics: list[EnvironmentalMetricValue] = []
+
+        for variable in self.pollen_variables:
+            values = [
+                float(value)
+                for value in hourly.get(variable, [])
+                if value is not None
+            ]
+            if not values:
+                continue
+
+            hourly_unit = hourly_units.get(variable, "grains/m3")
+            metadata = {
+                "provider_url": self.base_url,
+                "provider_params": params,
+                "grid_latitude": payload.get("latitude"),
+                "grid_longitude": payload.get("longitude"),
+                "timezone": payload.get("timezone"),
+                "hourly_unit": hourly_unit,
+            }
+            metrics.extend([
+                EnvironmentalMetricValue(
+                    source=self.source,
+                    metric_key=f"{variable}_avg",
+                    value=round(sum(values) / len(values), 4),
+                    unit="grains/m3",
+                    category="Pollen",
+                    raw_metadata=metadata,
+                ),
+                EnvironmentalMetricValue(
+                    source=self.source,
+                    metric_key=f"{variable}_max",
+                    value=round(max(values), 4),
+                    unit="grains/m3",
+                    category="Pollen",
+                    raw_metadata=metadata,
+                ),
+            ])
+
+        return metrics
 
 
 def _minutes_after_midnight(dt: datetime) -> float:

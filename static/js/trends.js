@@ -32,10 +32,11 @@ const CATEGORY_DOT_COLORS = {
     'Stress':       '#fb923c',
     'Activity':     '#60a5fa',
     'Light':        '#facc15',
+    'Pollen':       '#84cc16',
     'Habits':       '#e879f9',
 };
 
-const CATEGORY_ORDER = ['Sleep', 'HRV', 'SpO2', 'Heart Rate', 'Body Battery', 'Stress', 'Activity', 'Light', 'Habits'];
+const CATEGORY_ORDER = ['Sleep', 'HRV', 'SpO2', 'Heart Rate', 'Body Battery', 'Stress', 'Activity', 'Light', 'Pollen', 'Habits'];
 const TARGET_STORAGE_KEY = 'biosignal_correlation_target';
 const LEGACY_HABIT_STORAGE_KEY = 'biosignal_target_habit';
 

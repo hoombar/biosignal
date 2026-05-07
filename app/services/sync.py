@@ -11,7 +11,12 @@ from zoneinfo import ZoneInfo
 from app.core.config import get_settings
 from app.services.garmin import GarminClient
 from app.services import parsers
-from app.services.environmental import AstronomyProvider, location_key
+from app.services.environmental import (
+    AstronomyProvider,
+    EnvironmentalMetricValue,
+    OpenMeteoPollenProvider,
+    location_key,
+)
 from app.models.database import (
     RawGarminResponse,
     EnvironmentalMetric,
@@ -182,10 +187,10 @@ class SyncService:
 
     async def sync_environment_day(self, target_date: date, session: AsyncSession) -> dict[str, Any]:
         """
-        Compute and upsert deterministic environmental metrics for a specific day.
+        Compute and upsert environmental metrics for a specific day.
 
-        The current provider is local astronomy math, so this does not call an
-        external weather or location API.
+        Local astronomy metrics are deterministic. Pollen metrics are fetched
+        from Open-Meteo and failures are reported without dropping light rows.
         """
         date_str = target_date.strftime("%Y-%m-%d")
         logger.info(f"Syncing environmental metrics for {date_str}")
@@ -210,9 +215,17 @@ class SyncService:
             return status
 
         try:
-            provider = AstronomyProvider()
             tz = ZoneInfo(self.timezone)
-            metrics = provider.daily_metrics(target_date, tz, latitude, longitude)
+            metrics: list[EnvironmentalMetricValue] = []
+            metrics.extend(AstronomyProvider().daily_metrics(target_date, tz, latitude, longitude))
+
+            try:
+                metrics.extend(await OpenMeteoPollenProvider().daily_metrics(target_date, tz, latitude, longitude))
+            except Exception as e:
+                logger.error(f"Open-Meteo pollen sync failed for {date_str}: {e}")
+                status["success"] = False
+                status["errors"].append(f"pollen: {e}")
+
             loc_key = location_key(latitude, longitude)
             fetched_at = datetime.utcnow()
 

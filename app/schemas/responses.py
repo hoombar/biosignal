@@ -128,6 +128,18 @@ class DailySummary(BaseModel):
     sunrise_minutes_after_midnight: float | None = None
     sunset_minutes_after_midnight: float | None = None
     solar_noon_minutes_after_midnight: float | None = None
+    alder_pollen_avg: float | None = None
+    alder_pollen_max: float | None = None
+    birch_pollen_avg: float | None = None
+    birch_pollen_max: float | None = None
+    grass_pollen_avg: float | None = None
+    grass_pollen_max: float | None = None
+    mugwort_pollen_avg: float | None = None
+    mugwort_pollen_max: float | None = None
+    olive_pollen_avg: float | None = None
+    olive_pollen_max: float | None = None
+    ragweed_pollen_avg: float | None = None
+    ragweed_pollen_max: float | None = None
     # Habit features (dynamic list)
     habits: list[Habit] = []
 

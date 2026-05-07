@@ -457,21 +457,20 @@ async def compute_environmental_features(
         return {}
 
     loc_key = location_key(latitude, longitude)
-    provider = AstronomyProvider()
-
     existing = await session.execute(
         select(EnvironmentalMetric)
         .where(EnvironmentalMetric.date == target_date)
-        .where(EnvironmentalMetric.source == provider.source)
         .where(EnvironmentalMetric.location_key == loc_key)
     )
     rows = existing.scalars().all()
-    if rows:
-        return {row.metric_key: row.value for row in rows}
+    features = {row.metric_key: row.value for row in rows}
+    has_astronomy = any(row.source == AstronomyProvider.source for row in rows)
+    if has_astronomy:
+        return features
 
-    metrics = provider.daily_metrics(target_date, tz, latitude, longitude)
+    metrics = AstronomyProvider().daily_metrics(target_date, tz, latitude, longitude)
     if not metrics:
-        return {}
+        return features
 
     fetched_at = datetime.utcnow()
     for metric in metrics:
@@ -493,7 +492,8 @@ async def compute_environmental_features(
         await session.execute(stmt)
 
     await session.flush()
-    return {metric.metric_key: metric.value for metric in metrics}
+    features.update({metric.metric_key: metric.value for metric in metrics})
+    return features
 
 
 async def compute_habit_features(
