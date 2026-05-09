@@ -2066,6 +2066,88 @@ input:focus {
 
 .save-status--ok { color: var(--color-positive); }
 .save-status--err { color: var(--color-negative); }
+.save-status--success { color: var(--color-positive); }
+.save-status--error { color: var(--color-negative); }
+
+.service-sync-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+}
+
+.service-sync-card {
+    padding: var(--space-md);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-tertiary);
+}
+
+.service-sync-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-sm);
+}
+
+.service-sync-card-header h3 {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.service-sync-state {
+    flex: 0 0 auto;
+    padding: 2px 8px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.service-sync-state--success { color: var(--color-positive); }
+.service-sync-state--partial,
+.service-sync-state--failed { color: var(--color-warning); }
+
+.service-sync-actions,
+.service-backfill-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.service-sync-date {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+}
+
+.service-sync-date .settings-input {
+    width: auto;
+}
+
+.service-backfill {
+    margin-top: var(--space-lg);
+}
+
+.service-backfill-progress {
+    margin-top: var(--space-md);
+}
+
+.service-backfill-row {
+    margin-top: var(--space-sm);
+}
+
+.service-backfill-row .settings-desc {
+    margin: 0;
+}
 
 .add-habit-details {
     margin-bottom: var(--space-md);

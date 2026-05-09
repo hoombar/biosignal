@@ -18,6 +18,30 @@ def test_settings_page_renders_backup_controls():
     assert 'id="habit-import-file-name"' in html
 
 
+def test_settings_page_renders_sync_controls():
+    with TestClient(app) as client:
+        resp = client.get("/settings")
+
+    assert resp.status_code == 200
+    html = resp.text
+    assert "Service Sync" in html
+    assert 'data-sync-service="garmin"' in html
+    assert 'data-sync-service="environment"' in html
+    assert 'id="backfill-date"' in html
+    assert 'id="sync-status"' in html
+
+
+def test_overview_page_no_longer_renders_manual_sync_controls():
+    with TestClient(app) as client:
+        resp = client.get("/")
+
+    assert resp.status_code == 200
+    html = resp.text
+    assert "Sync Status" not in html
+    assert "Backfill Historical Data" not in html
+    assert 'id="sync-btn"' not in html
+
+
 def test_log_page_renders_brand_logo_and_favicon():
     with TestClient(app) as client:
         resp = client.get("/log")

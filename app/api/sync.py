@@ -26,10 +26,24 @@ class SyncResponse(BaseModel):
     date: str
 
 
+class ServiceSyncStatus(BaseModel):
+    service: str
+    label: str
+    last_sync: datetime | None
+    status: str
+    last_sync_date: str | None
+    error: str | None = None
+
+
 class SyncStatusResponse(BaseModel):
     garmin_last_sync: datetime | None
     garmin_status: str
     last_sync_date: str | None
+    environment_last_sync: datetime | None
+    environment_status: str
+    environment_last_sync_date: str | None
+    environment_error: str | None = None
+    services: list[ServiceSyncStatus]
 
 
 class BackfillRequest(BaseModel):
@@ -172,13 +186,15 @@ async def _run_environment_sync_in_background(
 
     try:
         result = await sync_service.sync_environment_day(target_date, session)
+        metric_count = result.get("counts", {}).get("environmental_metrics", 0)
+        log_status = "success" if result["success"] else "partial" if metric_count > 0 else "failed"
 
         sync_log = SyncLog(
             sync_type="environment",
             date_synced=target_date,
             started_at=started_at,
             completed_at=datetime.utcnow(),
-            status="success" if result["success"] else "failed",
+            status=log_status,
             details=result,
             error_message="; ".join(result["errors"]) if result.get("errors") else None,
         )
@@ -270,7 +286,7 @@ async def sync_environment(
 
 @router.get("/status", response_model=SyncStatusResponse)
 async def sync_status(db: AsyncSession = Depends(get_db)):
-    """Get sync status — last Garmin sync time and status."""
+    """Get sync status by external service."""
     garmin_result = await db.execute(
         select(SyncLog)
         .where(SyncLog.sync_type.in_(["garmin", "all", "backfill"]))
@@ -279,10 +295,42 @@ async def sync_status(db: AsyncSession = Depends(get_db)):
     )
     garmin_log = garmin_result.scalar_one_or_none()
 
+    environment_result = await db.execute(
+        select(SyncLog)
+        .where(SyncLog.sync_type == "environment")
+        .order_by(desc(SyncLog.completed_at))
+        .limit(1)
+    )
+    environment_log = environment_result.scalar_one_or_none()
+
+    services = [
+        ServiceSyncStatus(
+            service="garmin",
+            label="Garmin",
+            last_sync=garmin_log.completed_at if garmin_log else None,
+            status=garmin_log.status if garmin_log else "never_synced",
+            last_sync_date=garmin_log.date_synced.isoformat() if garmin_log else None,
+            error=garmin_log.error_message if garmin_log else None,
+        ),
+        ServiceSyncStatus(
+            service="environment",
+            label="Environment / Pollen",
+            last_sync=environment_log.completed_at if environment_log else None,
+            status=environment_log.status if environment_log else "never_synced",
+            last_sync_date=environment_log.date_synced.isoformat() if environment_log else None,
+            error=environment_log.error_message if environment_log else None,
+        ),
+    ]
+
     return SyncStatusResponse(
         garmin_last_sync=garmin_log.completed_at if garmin_log else None,
         garmin_status=garmin_log.status if garmin_log else "never_synced",
         last_sync_date=garmin_log.date_synced.isoformat() if garmin_log else None,
+        environment_last_sync=environment_log.completed_at if environment_log else None,
+        environment_status=environment_log.status if environment_log else "never_synced",
+        environment_last_sync_date=environment_log.date_synced.isoformat() if environment_log else None,
+        environment_error=environment_log.error_message if environment_log else None,
+        services=services,
     )
 
 

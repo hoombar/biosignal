@@ -47,11 +47,17 @@ class TestSyncStatus:
         assert data["garmin_status"] == "never_synced"
         assert data["garmin_last_sync"] is None
         assert data["last_sync_date"] is None
+        assert data["environment_status"] == "never_synced"
+        assert data["environment_last_sync"] is None
+        assert data["environment_last_sync_date"] is None
+        services = {service["service"]: service for service in data["services"]}
+        assert services["garmin"]["status"] == "never_synced"
+        assert services["environment"]["status"] == "never_synced"
         assert "habitsync_status" not in data
         assert "habitsync_last_sync" not in data
 
     @pytest.mark.asyncio
-    async def test_returns_last_sync_when_logs_exist(self, async_session):
+    async def test_returns_last_sync_per_service_when_logs_exist(self, async_session):
         now = datetime(2025, 1, 28, 6, 30)
         async_session.add(SyncLog(
             sync_type="garmin",
@@ -59,6 +65,14 @@ class TestSyncStatus:
             started_at=now,
             completed_at=now,
             status="success",
+        ))
+        async_session.add(SyncLog(
+            sync_type="environment",
+            date_synced=date(2025, 1, 28),
+            started_at=now,
+            completed_at=now,
+            status="partial",
+            error_message="pollen: timeout",
         ))
         await async_session.commit()
 
@@ -71,6 +85,12 @@ class TestSyncStatus:
         assert data["garmin_status"] == "success"
         assert data["last_sync_date"] == "2025-01-27"
         assert data["garmin_last_sync"] is not None
+        assert data["environment_status"] == "partial"
+        assert data["environment_last_sync_date"] == "2025-01-28"
+        assert data["environment_error"] == "pollen: timeout"
+        services = {service["service"]: service for service in data["services"]}
+        assert services["garmin"]["label"] == "Garmin"
+        assert services["environment"]["label"] == "Environment / Pollen"
 
 
 class TestSyncPostEndpoints:
@@ -97,6 +117,30 @@ class TestSyncPostEndpoints:
         data = resp.json()
         assert data["message"] == "Environment sync started"
         assert data["date"] == "2025-01-28"
+
+    @pytest.mark.asyncio
+    async def test_environment_background_logs_partial_when_pollen_fails_after_light_rows(self, async_session, monkeypatch):
+        class FakeSyncService:
+            async def sync_environment_day(self, target_date, session):
+                return {
+                    "date": target_date.isoformat(),
+                    "success": False,
+                    "skipped": False,
+                    "errors": ["pollen: timeout"],
+                    "counts": {"environmental_metrics": 4},
+                }
+
+        monkeypatch.setattr("app.api.sync._get_environment_sync_service", lambda: FakeSyncService())
+
+        from app.api.sync import _run_environment_sync_in_background
+
+        await _run_environment_sync_in_background(date(2025, 1, 28), async_session)
+
+        result = await async_session.execute(select(SyncLog))
+        log = result.scalar_one()
+        assert log.sync_type == "environment"
+        assert log.status == "partial"
+        assert log.error_message == "pollen: timeout"
 
     @pytest.mark.asyncio
     async def test_post_habitsync_returns_404(self, async_session):

@@ -38,36 +38,5 @@
     </div>
 </div>
 
-<div class="chart-container">
-    <h2>Sync Status</h2>
-    <div id="sync-status">
-        <p class="loading">Loading status...</p>
-    </div>
-    <button id="sync-btn" onclick="triggerSync()">Run Manual Sync</button>
-</div>
-
-<div class="chart-container">
-    <h2>Backfill Historical Data</h2>
-    <p style="color: var(--text-secondary); margin-bottom: 1rem;">Import historical Garmin data. Each day takes a few seconds due to API rate limits.</p>
-    <div id="backfill-controls">
-        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
-            <label for="backfill-date" style="white-space: nowrap;">Backfill from:</label>
-            <input type="date" id="backfill-date"
-                style="padding: 0.5rem; border: 2px solid var(--border-color); border-radius: 6px; font-size: 1rem;">
-            <button id="backfill-btn">Start Backfill</button>
-        </div>
-    </div>
-    <div id="backfill-progress" style="display: none;">
-        <div class="progress-bar-container">
-            <div class="progress-bar" id="backfill-bar"></div>
-        </div>
-        <div style="display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem;">
-            <p id="backfill-status-text" style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;"></p>
-            <button id="backfill-cancel-btn" style="background-color: var(--warning-color);">Cancel</button>
-        </div>
-    </div>
-    <div id="backfill-result" style="display: none;"></div>
-</div>
-
 <script src="/static/js/overview.js"></script>
 {% endblock %}

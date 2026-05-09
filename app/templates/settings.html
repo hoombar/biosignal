@@ -7,6 +7,51 @@
 
 <div class="settings-section">
     <div class="settings-header">
+        <h2>Service Sync</h2>
+        <p class="settings-desc">Run and monitor external service ingestion. Environment sync includes daylight and Open-Meteo pollen for the selected date.</p>
+    </div>
+
+    <div id="sync-status" class="service-sync-grid">
+        <p class="loading">Loading sync status...</p>
+    </div>
+
+    <div class="service-sync-actions">
+        <label class="service-sync-date">
+            <span>Date</span>
+            <input type="date" id="manual-sync-date" class="settings-input">
+        </label>
+        <button type="button" class="btn-primary service-sync-btn" data-sync-service="garmin">Sync Garmin</button>
+        <button type="button" class="btn-primary service-sync-btn" data-sync-service="environment">Sync Environment / Pollen</button>
+        <span id="manual-sync-status" class="save-status"></span>
+    </div>
+
+    <div class="settings-backup service-backfill">
+        <div class="settings-backup-header">
+            <h3>Historical Backfill</h3>
+            <p class="settings-desc">Backfill Garmin and environmental services from a past date through yesterday.</p>
+        </div>
+        <div class="settings-backup-actions">
+            <label class="service-sync-date">
+                <span>From</span>
+                <input type="date" id="backfill-date" class="settings-input">
+            </label>
+            <button type="button" class="btn-primary" id="backfill-btn">Start backfill</button>
+        </div>
+        <div id="backfill-progress" class="service-backfill-progress" style="display: none;">
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="backfill-bar"></div>
+            </div>
+            <div class="service-backfill-row">
+                <p id="backfill-status-text" class="settings-desc"></p>
+                <button type="button" class="btn-secondary" id="backfill-cancel-btn">Cancel</button>
+            </div>
+        </div>
+        <div id="backfill-result" class="save-status" style="display: none;"></div>
+    </div>
+</div>
+
+<div class="settings-section">
+    <div class="settings-header">
         <h2>Habits</h2>
         <p class="settings-desc">Add new habits, customise how they display, or archive habits you no longer track. Archived habits keep their history but disappear from the daily logger.</p>
     </div>
@@ -98,6 +143,270 @@
         No habits configured yet. Use "+ Add habit" above to create one.
     </div>
 </div>
+
+<script>
+(() => {
+    const syncStatus = document.getElementById('sync-status');
+    const syncDate = document.getElementById('manual-sync-date');
+    const syncMessage = document.getElementById('manual-sync-status');
+    const syncButtons = Array.from(document.querySelectorAll('.service-sync-btn'));
+    const backfillDate = document.getElementById('backfill-date');
+    const backfillBtn = document.getElementById('backfill-btn');
+    const backfillProgress = document.getElementById('backfill-progress');
+    const backfillBar = document.getElementById('backfill-bar');
+    const backfillStatusText = document.getElementById('backfill-status-text');
+    const backfillCancelBtn = document.getElementById('backfill-cancel-btn');
+    const backfillResult = document.getElementById('backfill-result');
+    let backfillPollInterval = null;
+
+    function formatLocalDate(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    function formatDateTime(value) {
+        return value ? new Date(value).toLocaleString() : 'Never';
+    }
+
+    function setSyncMessage(message, kind = '') {
+        syncMessage.textContent = message;
+        syncMessage.className = kind ? `save-status save-status--${kind}` : 'save-status';
+    }
+
+    function setBackfillResult(message, kind = '') {
+        backfillResult.textContent = message;
+        backfillResult.className = kind ? `save-status save-status--${kind}` : 'save-status';
+        backfillResult.style.display = message ? 'block' : 'none';
+    }
+
+    function initialiseSyncDates() {
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const maxPast = new Date(today);
+        maxPast.setDate(maxPast.getDate() - 365);
+
+        syncDate.value = formatLocalDate(today);
+        syncDate.max = formatLocalDate(today);
+        syncDate.min = formatLocalDate(maxPast);
+
+        const default90DaysAgo = new Date(today);
+        default90DaysAgo.setDate(default90DaysAgo.getDate() - 90);
+        backfillDate.value = formatLocalDate(default90DaysAgo);
+        backfillDate.max = formatLocalDate(yesterday);
+        backfillDate.min = formatLocalDate(maxPast);
+    }
+
+    async function loadSyncStatus() {
+        try {
+            const resp = await fetch('/api/sync/status');
+            const status = await resp.json();
+            const services = status.services || [];
+            syncStatus.innerHTML = services.map(service => `
+                <div class="service-sync-card">
+                    <div class="service-sync-card-header">
+                        <h3>${service.label}</h3>
+                        <span class="service-sync-state service-sync-state--${service.status}">${service.status.replace(/_/g, ' ')}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Last run</span>
+                        <span class="metric-value">${formatDateTime(service.last_sync)}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Data date</span>
+                        <span class="metric-value">${service.last_sync_date || '-'}</span>
+                    </div>
+                    ${service.error ? `
+                    <div class="metric-row">
+                        <span class="metric-label">Error</span>
+                        <span class="metric-value warning">${service.error}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        } catch (error) {
+            syncStatus.innerHTML = '<p class="error">Failed to load sync status</p>';
+        }
+    }
+
+    async function triggerServiceSync(service, button) {
+        const date = syncDate.value;
+        if (!date) {
+            setSyncMessage('Choose a date first.', 'error');
+            return;
+        }
+
+        button.disabled = true;
+        const originalText = button.textContent;
+        button.textContent = 'Starting...';
+        setSyncMessage('', '');
+
+        try {
+            const resp = await fetch(`/api/sync/${service}?date_param=${encodeURIComponent(date)}`, { method: 'POST' });
+            if (!resp.ok) {
+                const err = await resp.json();
+                throw new Error(err.detail || 'Failed to start sync');
+            }
+            const result = await resp.json();
+            setSyncMessage(`${result.message} for ${result.date}.`, 'success');
+            await loadSyncStatus();
+        } catch (error) {
+            if (service === 'garmin') {
+                setSyncMessage(`Garmin sync failed to start. Check Garmin setup. ${error.message}`, 'error');
+            } else {
+                setSyncMessage(`Environment sync failed to start. ${error.message}`, 'error');
+            }
+        } finally {
+            button.disabled = false;
+            button.textContent = originalText;
+        }
+    }
+
+    function showBackfillProgress() {
+        backfillProgress.style.display = 'block';
+        setBackfillResult('', '');
+        backfillBtn.disabled = true;
+        backfillBtn.textContent = 'Backfill running...';
+        backfillDate.disabled = true;
+        backfillCancelBtn.disabled = false;
+        backfillCancelBtn.textContent = 'Cancel';
+    }
+
+    function finishBackfill(status, wasCancelled = false) {
+        backfillBtn.disabled = false;
+        backfillBtn.textContent = 'Start backfill';
+        backfillDate.disabled = false;
+        backfillProgress.style.display = 'none';
+
+        const failed = status.days_failed || 0;
+        const completed = status.days_completed || 0;
+
+        if (wasCancelled) {
+            setBackfillResult(`Backfill cancelled. ${completed} days synced before cancellation.`, 'error');
+        } else if (failed === 0) {
+            setBackfillResult(`Backfill complete. ${completed} days synced successfully.`, 'success');
+        } else {
+            setBackfillResult(`Backfill complete. ${completed} succeeded, ${failed} failed.`, 'error');
+        }
+        loadSyncStatus();
+    }
+
+    function pollBackfillStatus() {
+        if (backfillPollInterval) clearInterval(backfillPollInterval);
+        let lastTotal = null;
+
+        backfillPollInterval = setInterval(async () => {
+            try {
+                const resp = await fetch('/api/sync/backfill/status');
+                const status = await resp.json();
+                const done = (status.days_completed || 0) + (status.days_failed || 0);
+                const total = status.total_days || 1;
+                const pct = Math.round((done / total) * 100);
+                if (lastTotal === null) lastTotal = total;
+
+                backfillBar.style.width = `${pct}%`;
+                const dateRange = status.start_date && status.end_date
+                    ? `${status.start_date} to ${status.end_date}`
+                    : '';
+                backfillStatusText.textContent = `${dateRange}: ${done} / ${total} days (${status.days_completed || 0} succeeded, ${status.days_failed || 0} failed)`;
+
+                if (!status.is_running && done > 0) {
+                    clearInterval(backfillPollInterval);
+                    backfillPollInterval = null;
+                    finishBackfill(status, done < lastTotal);
+                }
+            } catch (error) {
+                console.error('Error polling backfill status:', error);
+            }
+        }, 3000);
+    }
+
+    async function startBackfill() {
+        const startDate = backfillDate.value;
+        if (!startDate) {
+            setBackfillResult('Choose a backfill start date.', 'error');
+            return;
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const endDate = formatLocalDate(yesterday);
+
+        backfillBtn.disabled = true;
+        backfillBtn.textContent = 'Starting...';
+
+        try {
+            const resp = await fetch('/api/sync/backfill', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ start_date: startDate, end_date: endDate })
+            });
+
+            if (resp.status === 409) {
+                showBackfillProgress();
+                pollBackfillStatus();
+                return;
+            }
+
+            if (!resp.ok) {
+                const err = await resp.json();
+                throw new Error(err.detail || 'Failed to start backfill');
+            }
+
+            showBackfillProgress();
+            pollBackfillStatus();
+        } catch (error) {
+            setBackfillResult(`Failed to start backfill: ${error.message}`, 'error');
+            backfillBtn.disabled = false;
+            backfillBtn.textContent = 'Start backfill';
+        }
+    }
+
+    async function cancelBackfill() {
+        backfillCancelBtn.disabled = true;
+        backfillCancelBtn.textContent = 'Cancelling...';
+        try {
+            const resp = await fetch('/api/sync/backfill/cancel', { method: 'POST' });
+            if (!resp.ok) {
+                const err = await resp.json();
+                throw new Error(err.detail || 'Failed to cancel backfill');
+            }
+        } catch (error) {
+            setBackfillResult(`Failed to cancel backfill: ${error.message}`, 'error');
+            backfillCancelBtn.disabled = false;
+            backfillCancelBtn.textContent = 'Cancel';
+        }
+    }
+
+    async function checkBackfillOnLoad() {
+        try {
+            const resp = await fetch('/api/sync/backfill/status');
+            const status = await resp.json();
+            if (status.is_running) {
+                showBackfillProgress();
+                pollBackfillStatus();
+            }
+        } catch (error) {
+            console.error('Error checking backfill status:', error);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initialiseSyncDates();
+        loadSyncStatus();
+        checkBackfillOnLoad();
+        syncButtons.forEach(button => {
+            button.addEventListener('click', () => triggerServiceSync(button.dataset.syncService, button));
+        });
+        backfillBtn.addEventListener('click', startBackfill);
+        backfillCancelBtn.addEventListener('click', cancelBackfill);
+    });
+})();
+</script>
 
 <script>
 (async function () {
