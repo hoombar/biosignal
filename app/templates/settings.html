@@ -440,12 +440,31 @@
         return slot.charAt(0).toUpperCase() + slot.slice(1);
     }
 
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, ch => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+        }[ch]));
+    }
+
     function itemRow(slot, item = {}) {
         return `
             <div class="supplement-settings-row" data-slot="${slot}">
-                <input type="text" class="settings-input" name="name" value="${item.name || ''}" placeholder="Supplement name">
-                <input type="text" class="settings-input" name="dose" value="${item.dose || ''}" placeholder="Dose">
-                <input type="text" class="settings-input" name="notes" value="${item.notes || ''}" placeholder="Notes">
+                <label class="supplement-field supplement-field--name">
+                    <span>Name</span>
+                    <input type="text" class="settings-input" name="name" value="${escapeHtml(item.name)}" placeholder="Vitamin D">
+                </label>
+                <label class="supplement-field supplement-field--dose">
+                    <span>Dose</span>
+                    <input type="text" class="settings-input" name="dose" value="${escapeHtml(item.dose)}" placeholder="1000 IU">
+                </label>
+                <label class="supplement-field supplement-field--notes">
+                    <span>Notes</span>
+                    <input type="text" class="settings-input" name="notes" value="${escapeHtml(item.notes)}" placeholder="With food">
+                </label>
                 <button type="button" class="btn-secondary supplement-remove-btn" data-action="remove-supplement">Remove</button>
             </div>
         `;

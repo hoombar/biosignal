@@ -1984,7 +1984,7 @@ input:focus {
 
 .supplements-settings-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: var(--space-md);
 }
 
@@ -2017,24 +2017,47 @@ input:focus {
 
 .supplement-settings-row {
     display: grid;
-    grid-template-columns: 1.2fr 0.8fr 1fr auto;
-    gap: var(--space-sm);
-    align-items: center;
+    grid-template-columns: minmax(180px, 1.2fr) minmax(120px, 0.7fr) minmax(180px, 1fr) auto;
+    gap: var(--space-md);
+    align-items: end;
+    padding: var(--space-md);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-tertiary);
+}
+
+.supplement-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.supplement-field span {
+    color: var(--text-muted);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.supplement-field .settings-input {
+    width: 100%;
 }
 
 .supplement-remove-btn {
     white-space: nowrap;
 }
 
-@media (max-width: 1100px) {
-    .supplements-settings-grid {
-        grid-template-columns: 1fr;
+@media (max-width: 760px) {
+    .supplement-settings-slot-header {
+        align-items: stretch;
+        flex-direction: column;
     }
-}
 
-@media (max-width: 720px) {
     .supplement-settings-row {
         grid-template-columns: 1fr;
+        align-items: stretch;
     }
 }
 
