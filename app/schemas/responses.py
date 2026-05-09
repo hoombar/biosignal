@@ -70,6 +70,13 @@ class Habit(BaseModel):
     type: str
 
 
+class SupplementDailyEntry(BaseModel):
+    """Single supplement group entry for a day."""
+    slot: str
+    completed: bool
+    snapshot: list[dict[str, Any]] = []
+
+
 class HabitResponse(BaseModel):
     """Daily habits response."""
     date: str
@@ -142,6 +149,7 @@ class DailySummary(BaseModel):
     ragweed_pollen_max: float | None = None
     # Habit features (dynamic list)
     habits: list[Habit] = []
+    supplements: list[SupplementDailyEntry] = []
 
 
 class CalendarDaySummary(BaseModel):

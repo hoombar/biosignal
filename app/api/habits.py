@@ -70,6 +70,7 @@ async def list_habits(
     stmt = select(Habit)
     if not include_archived:
         stmt = stmt.where(Habit.archived_at.is_(None))
+    stmt = stmt.where(Habit.source == "manual")
     habits = list((await db.execute(stmt)).scalars().all())
 
     configs = (await db.execute(select(HabitDisplayConfig))).scalars().all()

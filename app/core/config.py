@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     sync_minute_garmin: int = 0
     sync_minute_environment: int = 5
     debug: bool = False
+    automation_api_key: str | None = None
 
     # Optional location for environmental metrics
     environment_latitude: float | None = None

@@ -22,6 +22,7 @@ from app.models.database import (
     DailyHabit,
     EnvironmentalMetric,
     Habit,
+    SupplementLog,
 )
 from app.services.environmental import AstronomyProvider, location_key
 
@@ -519,6 +520,29 @@ async def compute_habit_features(
     return {"habits": habit_list}
 
 
+async def compute_supplement_features(
+    session: AsyncSession,
+    target_date: date
+) -> dict:
+    """Return logged supplement groups with their historical snapshots."""
+    rows = (await session.execute(
+        select(SupplementLog)
+        .where(SupplementLog.date == target_date)
+        .order_by(SupplementLog.slot)
+    )).scalars().all()
+
+    return {
+        "supplements": [
+            {
+                "slot": row.slot,
+                "completed": row.completed,
+                "snapshot": row.snapshot,
+            }
+            for row in rows
+        ]
+    }
+
+
 async def compute_daily_features(
     session: AsyncSession,
     target_date: date,
@@ -567,6 +591,8 @@ async def compute_daily_features(
 
     habit_features = await compute_habit_features(session, target_date)
     features.update(habit_features)
+    supplement_features = await compute_supplement_features(session, target_date)
+    features.update(supplement_features)
 
     logger.debug(f"Computed {len(features)} features for {target_date}")
     return features

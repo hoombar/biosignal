@@ -6,6 +6,7 @@
     'use strict';
 
     const habitsEl = document.getElementById('log-habits');
+    const supplementsEl = document.getElementById('log-supplements');
     const loadingEl = document.getElementById('log-loading');
     const errorEl = document.getElementById('log-error');
     const emptyEl = document.getElementById('log-empty');
@@ -26,6 +27,7 @@
     let currentDate = readHashDate() || todayLocal();
     // Cache fetched days so flipping back/forth doesn't refetch.
     const dayCache = {};  // { 'YYYY-MM-DD': {date, habits: [{name, value, type}]} }
+    let supplementSlots = [];
 
     function todayLocal() {
         const d = new Date();
@@ -80,6 +82,18 @@
         return entry;
     }
 
+    async function loadSupplementConfig() {
+        try {
+            const resp = await fetch('/api/supplements/config');
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            supplementSlots = data.slots || [];
+        } catch (err) {
+            console.warn('Could not load supplements:', err);
+            supplementSlots = [];
+        }
+    }
+
     function patchCache(dateStr, habitName, habitType, newValue) {
         const day = dayCache[dateStr];
         if (!day) return;
@@ -104,6 +118,43 @@
         }
     }
 
+    function titleSlot(slot) {
+        return slot.charAt(0).toUpperCase() + slot.slice(1);
+    }
+
+    function renderSupplementsPanel(day) {
+        if (!supplementSlots.length) return '';
+        const logsBySlot = Object.fromEntries((day.supplements || []).map(log => [log.slot, log]));
+
+        return `
+            <section class="supplement-panel" aria-label="Supplements">
+                <div class="supplement-panel-header">
+                    <h2>Supplements</h2>
+                    <a href="/settings" title="Edit supplements">Edit</a>
+                </div>
+                <div class="supplement-slot-grid">
+                    ${supplementSlots.map(slotDef => {
+                        const log = logsBySlot[slotDef.slot];
+                        const completed = !!log?.completed;
+                        const snapshot = log?.snapshot || slotDef.items || [];
+                        const itemNames = snapshot.map(item => item.name).filter(Boolean);
+                        const detail = itemNames.length ? itemNames.join(', ') : 'No supplements configured';
+                        return `
+                            <button type="button"
+                                    class="supplement-slot ${completed ? 'supplement-slot--done' : ''}"
+                                    data-slot="${slotDef.slot}"
+                                    aria-pressed="${completed}">
+                                <span class="supplement-slot-title">${titleSlot(slotDef.slot)}</span>
+                                <span class="supplement-slot-count">${itemNames.length} item${itemNames.length === 1 ? '' : 's'}</span>
+                                <span class="supplement-slot-items">${detail}</span>
+                            </button>
+                        `;
+                    }).join('')}
+                </div>
+            </section>
+        `;
+    }
+
     async function render(dateStr, options = {}) {
         const updateUrl = options.updateUrl === true;
         currentDate = dateStr;
@@ -117,16 +168,19 @@
         loadingEl.style.display = '';
         errorEl.style.display = 'none';
         habitsEl.style.display = 'none';
+        supplementsEl.style.display = 'none';
         emptyEl.style.display = 'none';
 
         try {
             const day = await loadDay(dateStr);
-            const html = HabitPanel.renderHabitsPanel(day, { mode: 'edit' });
-            habitsEl.innerHTML = html;
+            supplementsEl.innerHTML = renderSupplementsPanel(day);
+            habitsEl.innerHTML = HabitPanel.renderHabitsPanel(day, { mode: 'edit' });
             loadingEl.style.display = 'none';
-            if ((window._activeHabits || []).length === 0) {
+            const hasSupplements = supplementSlots.some(slot => (slot.items || []).length > 0);
+            if ((window._activeHabits || []).length === 0 && !hasSupplements) {
                 emptyEl.style.display = '';
             } else {
+                supplementsEl.style.display = supplementSlots.length ? '' : 'none';
                 habitsEl.style.display = '';
             }
         } catch (err) {
@@ -158,8 +212,37 @@
         },
     });
 
+    supplementsEl.addEventListener('click', async (event) => {
+        const button = event.target.closest('button[data-slot]');
+        if (!button) return;
+        const slot = button.dataset.slot;
+        const completed = button.getAttribute('aria-pressed') === 'true';
+        button.disabled = true;
+        try {
+            const method = completed ? 'DELETE' : 'PUT';
+            const options = method === 'PUT'
+                ? {
+                    method,
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({completed: true}),
+                }
+                : {method};
+            const resp = await fetch(`/api/supplements/log/${currentDate}/${slot}`, options);
+            if (!resp.ok) {
+                const detail = await resp.text();
+                console.error('Failed to log supplement slot:', detail);
+                return;
+            }
+            delete dayCache[currentDate];
+            await refreshActiveHabits();
+            render(currentDate);
+        } finally {
+            button.disabled = false;
+        }
+    });
+
     (async function init() {
-        await Promise.all([loadHabitConfig(), loadHabitsList()]);
+        await Promise.all([loadHabitConfig(), loadHabitsList(), loadSupplementConfig()]);
         window._activeHabits = await loadHabitsList();
         await render(currentDate);
     })();

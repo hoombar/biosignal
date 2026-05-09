@@ -613,6 +613,32 @@ function renderHabitsPanel(day) {
     return HabitPanel.renderHabitsPanel(day, { mode: 'view' });
 }
 
+function titleSlot(slot) {
+    return slot.charAt(0).toUpperCase() + slot.slice(1);
+}
+
+function renderSupplementSnapshot(day) {
+    const supplements = day.supplements || [];
+    if (!supplements.length) return '';
+    return `
+        <div class="daily-supplements">
+            <h3 class="habits-panel-title">Supplements</h3>
+            ${supplements.map(log => {
+                const items = (log.snapshot || []).map(item => item.name).filter(Boolean);
+                return `
+                    <div class="daily-supplement-item ${log.completed ? 'daily-supplement-item--done' : ''}">
+                        <div class="daily-supplement-title">
+                            <span>${titleSlot(log.slot)}</span>
+                            <span>${log.completed ? 'Done' : 'Skipped'}</span>
+                        </div>
+                        <div class="daily-supplement-items">${items.length ? items.join(', ') : 'No items'}</div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
 function _patchDayCache(dateStr, habitName, habitType, newValue) {
     const [year, month] = dateStr.split('-').map(Number);
     const key = monthKey(year, month);
@@ -956,7 +982,7 @@ function renderDayDetail(day) {
     if (detailDate) detailDate.textContent = formatDate(day.date);
 
     const habitsList = document.getElementById('habits-list');
-    if (habitsList) habitsList.innerHTML = renderHabitsPanel(day);
+    if (habitsList) habitsList.innerHTML = `${renderSupplementSnapshot(day)}${renderHabitsPanel(day)}`;
 
     const editLink = document.getElementById('habits-edit-link');
     if (editLink) editLink.href = `/log#${day.date}`;

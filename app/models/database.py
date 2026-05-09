@@ -180,6 +180,7 @@ class Habit(Base):
     )
     name = Column(String, nullable=False, unique=True, index=True)
     habit_type = Column(String, nullable=False)  # 'binary' | 'counter'
+    source = Column(String, nullable=False, server_default=text("'manual'"), default="manual")
     archived_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     # Generic-tracker fields. ``period`` defines the granularity of hit/miss
@@ -214,6 +215,45 @@ class HabitDisplayConfig(Base):
     emoji = Column(String, nullable=True)
     color = Column(String, nullable=True)
     sort_order = Column(Integer, default=0, nullable=False)
+
+
+class SupplementPlanVersion(Base):
+    """Versioned supplement list for a dose slot."""
+
+    __tablename__ = "supplement_plan_versions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    slot = Column(String, nullable=False, index=True)
+    version = Column(Integer, nullable=False)
+    items = Column(JSON, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("slot", "version", name="uix_supplement_slot_version"),
+    )
+
+
+class SupplementLog(Base):
+    """Per-date supplement group completion with frozen item snapshot."""
+
+    __tablename__ = "supplement_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    date = Column(Date, nullable=False, index=True)
+    slot = Column(String, nullable=False, index=True)
+    plan_version_id = Column(
+        Integer,
+        ForeignKey("supplement_plan_versions.id"),
+        nullable=False,
+        index=True,
+    )
+    completed = Column(Boolean, nullable=False, server_default=text("1"), default=True)
+    snapshot = Column(JSON, nullable=False)
+    completed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("date", "slot", name="uix_supplement_log_date_slot"),
+    )
 
 
 class DailySummaryCache(Base):

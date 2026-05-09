@@ -52,6 +52,23 @@
 
 <div class="settings-section">
     <div class="settings-header">
+        <h2>Supplements</h2>
+        <p class="settings-desc">Group supplements by dose window. Logs keep the exact list from the day they were recorded.</p>
+    </div>
+
+    <div id="supplements-loading" class="loading">Loading supplements...</div>
+    <div id="supplements-error" class="error" style="display:none;"></div>
+    <div id="supplements-form" class="supplements-settings" style="display:none;">
+        <div id="supplements-slots" class="supplements-settings-grid"></div>
+        <div class="settings-actions">
+            <button type="button" class="btn-primary" id="supplements-save-btn">Save supplements</button>
+            <span id="supplements-save-status" class="save-status"></span>
+        </div>
+    </div>
+</div>
+
+<div class="settings-section">
+    <div class="settings-header">
         <h2>Habits</h2>
         <p class="settings-desc">Add new habits, customise how they display, or archive habits you no longer track. Archived habits keep their history but disappear from the daily logger.</p>
     </div>
@@ -405,6 +422,135 @@
         backfillBtn.addEventListener('click', startBackfill);
         backfillCancelBtn.addEventListener('click', cancelBackfill);
     });
+})();
+</script>
+
+<script>
+(async function () {
+    const loading = document.getElementById('supplements-loading');
+    const errorEl = document.getElementById('supplements-error');
+    const form = document.getElementById('supplements-form');
+    const slotsEl = document.getElementById('supplements-slots');
+    const saveBtn = document.getElementById('supplements-save-btn');
+    const saveStatus = document.getElementById('supplements-save-status');
+    const slotOrder = ['morning', 'midday', 'evening'];
+    let slots = [];
+
+    function titleSlot(slot) {
+        return slot.charAt(0).toUpperCase() + slot.slice(1);
+    }
+
+    function itemRow(slot, item = {}) {
+        return `
+            <div class="supplement-settings-row" data-slot="${slot}">
+                <input type="text" class="settings-input" name="name" value="${item.name || ''}" placeholder="Supplement name">
+                <input type="text" class="settings-input" name="dose" value="${item.dose || ''}" placeholder="Dose">
+                <input type="text" class="settings-input" name="notes" value="${item.notes || ''}" placeholder="Notes">
+                <button type="button" class="btn-secondary supplement-remove-btn" data-action="remove-supplement">Remove</button>
+            </div>
+        `;
+    }
+
+    function render() {
+        slotsEl.innerHTML = slotOrder.map(slot => {
+            const data = slots.find(s => s.slot === slot) || {slot, items: []};
+            const rows = (data.items || []).map(item => itemRow(slot, item)).join('');
+            return `
+                <section class="supplement-settings-slot" data-slot="${slot}">
+                    <div class="supplement-settings-slot-header">
+                        <h3>${titleSlot(slot)}</h3>
+                        <button type="button" class="btn-secondary" data-action="add-supplement" data-slot="${slot}">Add item</button>
+                    </div>
+                    <div class="supplement-settings-rows">
+                        ${rows || itemRow(slot)}
+                    </div>
+                </section>
+            `;
+        }).join('');
+    }
+
+    async function load() {
+        try {
+            const resp = await fetch('/api/supplements/config');
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            slots = data.slots || [];
+            loading.style.display = 'none';
+            form.style.display = '';
+            render();
+        } catch (err) {
+            loading.style.display = 'none';
+            errorEl.textContent = `Failed to load supplements: ${err.message}`;
+            errorEl.style.display = '';
+        }
+    }
+
+    function readSlot(slotEl) {
+        const items = Array.from(slotEl.querySelectorAll('.supplement-settings-row')).map(row => {
+            const name = row.querySelector('[name=name]').value.trim();
+            const dose = row.querySelector('[name=dose]').value.trim();
+            const notes = row.querySelector('[name=notes]').value.trim();
+            return name ? {
+                name,
+                dose: dose || null,
+                notes: notes || null,
+            } : null;
+        }).filter(Boolean);
+        return {slot: slotEl.dataset.slot, items};
+    }
+
+    slotsEl.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-action]');
+        if (!button) return;
+        if (button.dataset.action === 'add-supplement') {
+            const slotEl = button.closest('.supplement-settings-slot');
+            slotEl.querySelector('.supplement-settings-rows').insertAdjacentHTML(
+                'beforeend',
+                itemRow(slotEl.dataset.slot)
+            );
+        }
+        if (button.dataset.action === 'remove-supplement') {
+            const rowsEl = button.closest('.supplement-settings-rows');
+            button.closest('.supplement-settings-row').remove();
+            if (!rowsEl.querySelector('.supplement-settings-row')) {
+                rowsEl.insertAdjacentHTML('beforeend', itemRow(rowsEl.closest('.supplement-settings-slot').dataset.slot));
+            }
+        }
+    });
+
+    saveBtn.addEventListener('click', async () => {
+        saveBtn.disabled = true;
+        saveStatus.textContent = 'Saving...';
+        saveStatus.className = 'save-status';
+        try {
+            const payloads = Array.from(slotsEl.querySelectorAll('.supplement-settings-slot')).map(readSlot);
+            const updated = [];
+            for (const payload of payloads) {
+                const resp = await fetch(`/api/supplements/slots/${payload.slot}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({items: payload.items}),
+                });
+                if (!resp.ok) throw new Error(`Failed to save ${payload.slot}`);
+                updated.push(await resp.json());
+            }
+            slots = updated;
+            render();
+            saveStatus.textContent = 'Saved';
+            saveStatus.className = 'save-status save-status--ok';
+        } catch (err) {
+            saveStatus.textContent = err.message;
+            saveStatus.className = 'save-status save-status--err';
+        } finally {
+            saveBtn.disabled = false;
+            setTimeout(() => {
+                saveStatus.textContent = '';
+                saveStatus.className = 'save-status';
+            }, 3000);
+        }
+    });
+
+    await load();
 })();
 </script>
 

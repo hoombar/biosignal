@@ -9,7 +9,10 @@ from app.models.database import Habit, HabitDisplayConfig
 async def list_habit_display_entries(db: AsyncSession) -> list[dict]:
     """Return one display-config entry per active habit, sorted for UI use."""
     habits_result = await db.execute(
-        select(Habit).where(Habit.archived_at.is_(None))
+        select(Habit).where(
+            Habit.archived_at.is_(None),
+            Habit.source == "manual",
+        )
     )
     habits = list(habits_result.scalars().all())
 
