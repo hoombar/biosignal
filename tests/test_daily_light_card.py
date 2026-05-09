@@ -7,14 +7,15 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def render_light_card(day: dict) -> str:
+def render_daily_card(function_name: str, day: dict) -> str:
     script = textwrap.dedent(
         """
         const fs = require('fs');
         const vm = require('vm');
 
         const source = fs.readFileSync('static/js/daily.js', 'utf8');
-        const day = JSON.parse(process.argv[1]);
+        const functionName = process.argv[1];
+        const day = JSON.parse(process.argv[2]);
 
         const context = {
             console,
@@ -43,21 +44,29 @@ def render_light_card(day: dict) -> str:
         vm.createContext(context);
         vm.runInContext(source, context);
 
-        if (typeof context.renderLightCard !== 'function') {
-            throw new Error('renderLightCard is not defined');
+        if (typeof context[functionName] !== 'function') {
+            throw new Error(`${functionName} is not defined`);
         }
 
-        console.log(JSON.stringify({ html: context.renderLightCard(day) }));
+        console.log(JSON.stringify({ html: context[functionName](day) }));
         """
     )
     result = subprocess.run(
-        ["node", "-e", script, json.dumps(day)],
+        ["node", "-e", script, function_name, json.dumps(day)],
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,
         text=True,
     )
     return json.loads(result.stdout)["html"]
+
+
+def render_light_card(day: dict) -> str:
+    return render_daily_card("renderLightCard", day)
+
+
+def render_pollen_card(day: dict) -> str:
+    return render_daily_card("renderPollenCard", day)
 
 
 def test_daily_light_card_renders_daylight_and_sun_times():
@@ -89,4 +98,39 @@ def test_daily_light_card_renders_empty_values_when_location_unset():
     assert "Light" in html
     assert "NaN" not in html
     assert ">0h<" not in html
+    assert '<span class="metric-value">-</span>' in html
+
+
+def test_daily_pollen_card_renders_peak_and_available_types():
+    html = render_pollen_card({
+        "grass_pollen_avg": 12.5,
+        "grass_pollen_max": 22,
+        "birch_pollen_avg": 4,
+        "birch_pollen_max": 8,
+        "alder_pollen_avg": None,
+        "alder_pollen_max": None,
+    })
+
+    assert "Pollen" in html
+    assert "22" in html
+    assert "Grass peak" in html
+    assert "Avg / Max" in html
+    assert "Grass" in html
+    assert "12.5 / 22" in html
+    assert "Birch" in html
+    assert "4 / 8" in html
+    assert "Alder" not in html
+
+
+def test_daily_pollen_card_renders_empty_state_without_synced_data():
+    html = render_pollen_card({
+        "grass_pollen_avg": None,
+        "grass_pollen_max": None,
+        "birch_pollen_avg": None,
+        "birch_pollen_max": None,
+    })
+
+    assert "Pollen" in html
+    assert "No data" in html
+    assert "NaN" not in html
     assert '<span class="metric-value">-</span>' in html

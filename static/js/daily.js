@@ -14,6 +14,14 @@ let currentMonthData = [];  // data for the displayed month
 let calendarHabitNames = [];
 
 const CALENDAR_DOT_LIMIT = 3;
+const POLLEN_TYPES = [
+    { key: 'alder', label: 'Alder' },
+    { key: 'birch', label: 'Birch' },
+    { key: 'grass', label: 'Grass' },
+    { key: 'mugwort', label: 'Mugwort' },
+    { key: 'olive', label: 'Olive' },
+    { key: 'ragweed', label: 'Ragweed' },
+];
 
 const MONTH_NAMES = [
     '', 'January', 'February', 'March', 'April', 'May', 'June',
@@ -85,6 +93,12 @@ function formatPct(value) {
 function formatNum(value, decimals = 0) {
     if (value === null || value === undefined) return '-';
     return decimals > 0 ? value.toFixed(decimals) : Math.round(value).toLocaleString();
+}
+
+function formatPollenValue(value) {
+    if (value === null || value === undefined) return '-';
+    const rounded = Math.round(value * 10) / 10;
+    return Number.isInteger(rounded) ? rounded.toLocaleString() : rounded.toFixed(1);
 }
 
 function formatBool(value) {
@@ -887,6 +901,54 @@ function renderLightCard(day) {
     `;
 }
 
+function getPollenReadings(day) {
+    return POLLEN_TYPES.map(type => ({
+        ...type,
+        avg: day[`${type.key}_pollen_avg`],
+        max: day[`${type.key}_pollen_max`],
+    })).filter(reading => reading.avg !== null && reading.avg !== undefined
+        || reading.max !== null && reading.max !== undefined);
+}
+
+function renderPollenCard(day) {
+    const readings = getPollenReadings(day);
+    const peak = readings
+        .filter(reading => reading.max !== null && reading.max !== undefined)
+        .sort((a, b) => b.max - a.max)[0];
+
+    const rows = readings.length > 0 ? readings.map(reading => `
+                <div class="metric-row">
+                    <span class="metric-label">${reading.label}</span>
+                    <span class="metric-value">${formatPollenValue(reading.avg)} / ${formatPollenValue(reading.max)}</span>
+                </div>
+    `).join('') : `
+                <div class="metric-row">
+                    <span class="metric-label">Status</span>
+                    <span class="metric-value">No data</span>
+                </div>
+    `;
+
+    return `
+        <div class="metric-card">
+            <div class="card-header pollen">
+                <span class="card-icon">&#127793;</span>
+                <span class="card-title">Pollen</span>
+            </div>
+            <div class="primary-metric">
+                <span class="metric-value">${peak ? formatPollenValue(peak.max) : '-'}</span>
+                <span class="metric-unit">${peak ? `${peak.label} peak` : 'peak grains/m3'}</span>
+            </div>
+            <div class="secondary-metrics">
+                <div class="metric-row">
+                    <span class="metric-label">Avg / Max</span>
+                    <span class="metric-value">grains/m3</span>
+                </div>
+                ${rows}
+            </div>
+        </div>
+    `;
+}
+
 function renderDayDetail(day) {
     if (!day) return;
 
@@ -913,6 +975,7 @@ function renderDayDetail(day) {
             ${renderStressCard(day)}
             ${renderActivityCard(day)}
             ${renderLightCard(day)}
+            ${renderPollenCard(day)}
         `;
     });
 }
