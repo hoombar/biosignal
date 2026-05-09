@@ -125,6 +125,12 @@
     function renderSupplementsPanel(day) {
         if (!supplementSlots.length) return '';
         const logsBySlot = Object.fromEntries((day.supplements || []).map(log => [log.slot, log]));
+        const visibleSlots = supplementSlots.filter(slotDef => {
+            const configured = (slotDef.items || []).length > 0;
+            const logged = Object.prototype.hasOwnProperty.call(logsBySlot, slotDef.slot);
+            return configured || logged;
+        });
+        if (!visibleSlots.length) return '';
 
         return `
             <section class="supplement-panel" aria-label="Supplements">
@@ -133,7 +139,7 @@
                     <a href="/settings" title="Edit supplements">Edit</a>
                 </div>
                 <div class="supplement-slot-grid">
-                    ${supplementSlots.map(slotDef => {
+                    ${visibleSlots.map(slotDef => {
                         const log = logsBySlot[slotDef.slot];
                         const completed = !!log?.completed;
                         const snapshot = log?.snapshot || slotDef.items || [];

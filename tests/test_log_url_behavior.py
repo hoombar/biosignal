@@ -7,7 +7,11 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def run_log_js_scenario(initial_hash: str, action: str | None = None) -> dict:
+def run_log_js_scenario(
+    initial_hash: str,
+    action: str | None = None,
+    supplement_config: dict | None = None,
+) -> dict:
     script = textwrap.dedent(
         """
         const fs = require('fs');
@@ -16,6 +20,7 @@ def run_log_js_scenario(initial_hash: str, action: str | None = None) -> dict:
         const source = fs.readFileSync('static/js/log.js', 'utf8');
         const initialHash = process.argv[1];
         const action = process.argv[2] || '';
+        const supplementConfig = JSON.parse(process.argv[3] || '{"slots":[]}');
         const elements = {};
 
         function makeElement(id) {
@@ -77,7 +82,11 @@ def run_log_js_scenario(initial_hash: str, action: str | None = None) -> dict:
             },
             fetch: async (url) => ({
                 ok: true,
-                json: async () => url === '/api/habits/list' ? [] : [{ date: '2026-05-04', habits: [] }],
+                json: async () => {
+                    if (url === '/api/habits/list') return [];
+                    if (url === '/api/supplements/config') return supplementConfig;
+                    return [{ date: '2026-05-04', habits: [], supplements: [] }];
+                },
             }),
             loadHabitConfig: async () => {},
             loadHabitsList: async () => [],
@@ -110,6 +119,7 @@ def run_log_js_scenario(initial_hash: str, action: str | None = None) -> dict:
                 hash: context.window.location.hash,
                 replaceCalls,
                 dateText: elements['log-date'].textContent,
+                supplementsHtml: elements['log-supplements'].innerHTML,
             }));
         })().catch(err => {
             console.error(err);
@@ -118,7 +128,7 @@ def run_log_js_scenario(initial_hash: str, action: str | None = None) -> dict:
         """
     )
     result = subprocess.run(
-        ["node", "-e", script, initial_hash, action or ""],
+        ["node", "-e", script, initial_hash, action or "", json.dumps(supplement_config or {"slots": []})],
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,
@@ -139,3 +149,21 @@ def test_log_navigation_adds_selected_date_to_url():
 
     assert result["hash"] == "#2026-05-03"
     assert result["replaceCalls"] == ["#2026-05-03"]
+
+
+def test_log_only_renders_configured_supplement_slots():
+    result = run_log_js_scenario(
+        "",
+        supplement_config={
+            "slots": [
+                {"slot": "morning", "version": 1, "items": [{"name": "Vitamin D"}]},
+                {"slot": "midday", "version": None, "items": []},
+                {"slot": "evening", "version": None, "items": []},
+            ]
+        },
+    )
+
+    html = result["supplementsHtml"]
+    assert 'data-slot="morning"' in html
+    assert 'data-slot="midday"' not in html
+    assert 'data-slot="evening"' not in html
