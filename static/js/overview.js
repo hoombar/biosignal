@@ -42,7 +42,13 @@ async function loadCorrelations() {
 
     try {
         const corrResp = await fetch(`/api/correlations?target_habit=${encodeURIComponent(targetHabit)}`);
+        if (!corrResp.ok) {
+            throw new Error(`Correlation request failed (${corrResp.status})`);
+        }
         const correlations = await corrResp.json();
+        if (!Array.isArray(correlations)) {
+            throw new Error('Correlation response was not a list');
+        }
 
         const top3 = correlations.slice(0, 3);
 
@@ -52,8 +58,10 @@ async function loadCorrelations() {
             container.innerHTML = top3.map(c => `
                 <div style="margin-bottom: 1rem; padding: 1rem; border-left: 3px solid var(--primary-color);">
                     <strong>${c.metric.replace(/_/g, ' ')}</strong><br>
-                    Correlation: ${c.coefficient.toFixed(3)} (${c.strength})<br>
-                    ${c.fog_day_avg !== null ? `Positive days: ${c.fog_day_avg.toFixed(1)}, Negative days: ${c.clear_day_avg.toFixed(1)}` : ''}
+                    Correlation: ${Number(c.coefficient).toFixed(3)} (${c.strength})<br>
+                    ${Number.isFinite(c.fog_day_avg) && Number.isFinite(c.clear_day_avg)
+                        ? `Positive days: ${c.fog_day_avg.toFixed(1)}, Negative days: ${c.clear_day_avg.toFixed(1)}`
+                        : ''}
                 </div>
             `).join('');
         }
