@@ -610,7 +610,12 @@ window.addEventListener('popstate', () => {
 // ============================================
 
 function renderHabitsPanel(day) {
-    return HabitPanel.renderHabitsPanel(day, { mode: 'view' });
+    return `
+        <div class="daily-habits">
+            <h3 class="habits-panel-title">Habits</h3>
+            ${HabitPanel.renderHabitsPanel(day, { mode: 'view' })}
+        </div>
+    `;
 }
 
 function titleSlot(slot) {
