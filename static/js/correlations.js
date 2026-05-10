@@ -17,12 +17,27 @@ function formatMetricName(metricName) {
     if (metricName.startsWith('habit_')) {
         return metricName.slice(6).replace(/_/g, ' ');
     }
+    if (metricName.startsWith('supplement_')) {
+        const key = `supplement:${metricName.slice(11)}`;
+        const meta = metricMetadata[key];
+        if (meta && meta.description) {
+            return meta.description.replace(/^Supplement:\s*/, '');
+        }
+        return metricName.slice(11).replace(/_/g, ' ');
+    }
     return metricName.replace(/_/g, ' ');
 }
 
 function formatTargetOptionLabel(value) {
     if (value.startsWith('habit:')) {
         return value.slice(6).replace(/_/g, ' ');
+    }
+    if (value.startsWith('supplement:')) {
+        const meta = metricMetadata[value];
+        if (meta && meta.description) {
+            return meta.description.replace(/^Supplement:\s*/, '');
+        }
+        return value.slice(11).replace(/_/g, ' ');
     }
     return value.replace(/_/g, ' ');
 }
@@ -31,6 +46,9 @@ function targetDisplayLabel(value) {
     if (!value) return '—';
     if (value.startsWith('habit:')) {
         return `Habit: ${value.slice(6).replace(/_/g, ' ')}`;
+    }
+    if (value.startsWith('supplement:')) {
+        return `Supplement: ${formatTargetOptionLabel(value)}`;
     }
     return `Metric: ${value.replace(/_/g, ' ')}`;
 }
@@ -91,7 +109,11 @@ function toggleLegend() {
 }
 
 function getMetricTooltip(metricName) {
-    const lookupKey = metricName.startsWith('habit_') ? metricName.slice(6) : metricName;
+    const lookupKey = metricName.startsWith('habit_')
+        ? metricName.slice(6)
+        : metricName.startsWith('supplement_')
+            ? `supplement:${metricName.slice(11)}`
+            : metricName;
     const meta = metricMetadata[lookupKey];
     if (meta) {
         return `${meta.description} (${meta.unit})`;
@@ -101,7 +123,7 @@ function getMetricTooltip(metricName) {
 
 function buildMetricTargetOptions() {
     const metricEntries = Object.entries(metricMetadata)
-        .filter(([, meta]) => meta.category !== 'Habits' && isNumericTargetMeta(meta))
+        .filter(([, meta]) => !['Habits', 'Supplements'].includes(meta.category) && isNumericTargetMeta(meta))
         .sort((a, b) => {
             const catA = a[1].category || '';
             const catB = b[1].category || '';
@@ -116,6 +138,7 @@ async function loadTargetSelector() {
     const select = document.getElementById('target-habit');
     let metricTargets = [];
     let habitTargets = [];
+    let supplementTargets = [];
 
     try {
         const targetsResp = await fetch('/api/correlation-targets');
@@ -129,6 +152,9 @@ async function loadTargetSelector() {
             .map(t => t.target);
         habitTargets = allTargets
             .filter(t => t.kind === 'habit')
+            .map(t => t.target);
+        supplementTargets = allTargets
+            .filter(t => t.kind === 'supplement')
             .map(t => t.target);
     } catch (error) {
         console.warn('Correlation targets endpoint unavailable, falling back to client-built target list:', error);
@@ -147,6 +173,10 @@ async function loadTargetSelector() {
                 .slice()
                 .sort((a, b) => a.localeCompare(b))
                 .map(name => `habit:${name}`);
+            supplementTargets = Object.entries(metricMetadata)
+                .filter(([, meta]) => meta.category === 'Supplements' && isNumericTargetMeta(meta))
+                .map(([key]) => key)
+                .sort((a, b) => formatTargetOptionLabel(a).localeCompare(formatTargetOptionLabel(b)));
         } catch (fallbackError) {
             console.error('Error loading fallback correlation targets:', fallbackError);
             select.innerHTML = '<option value="">Failed to load targets</option>';
@@ -168,6 +198,12 @@ async function loadTargetSelector() {
             `<option value="${key}">Habit: ${formatTargetOptionLabel(key)}</option>`
         ).join('');
     }
+    if (supplementTargets.length > 0) {
+        html += '<option value="" disabled>Supplements</option>';
+        html += supplementTargets.map(key =>
+            `<option value="${key}">Supplement: ${formatTargetOptionLabel(key)}</option>`
+        ).join('');
+    }
 
     select.innerHTML = html;
 
@@ -179,7 +215,7 @@ async function loadTargetSelector() {
         }
     }
 
-    const validValues = new Set([...metricTargets, ...habitTargets]);
+    const validValues = new Set([...metricTargets, ...habitTargets, ...supplementTargets]);
     if (savedTarget && validValues.has(savedTarget)) {
         select.value = savedTarget;
         loadCorrelations();
