@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     sync_minute_environment: int = 5
     debug: bool = False
     automation_api_key: str | None = None
+    auto_migrate_on_startup: bool = True
 
     # Optional location for environmental metrics
     environment_latitude: float | None = None

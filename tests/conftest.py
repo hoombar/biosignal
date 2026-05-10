@@ -12,6 +12,7 @@ from sqlalchemy.orm import declarative_base
 os.environ.setdefault("GARMIN_EMAIL", "ci@example.com")
 os.environ.setdefault("GARMIN_PASSWORD", "ci-password")
 os.environ.setdefault("GARMIN_TOKEN_DIR", "/tmp/biosignal-test-garmin-tokens")
+os.environ.setdefault("AUTO_MIGRATE_ON_STARTUP", "false")
 
 from app.core.database import Base
 # Import all models so their metadata is registered on Base

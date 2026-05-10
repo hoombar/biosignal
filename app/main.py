@@ -19,6 +19,8 @@ from app.api import (
     sync,
 )
 from app.core.version import APP_VERSION
+from app.core.config import get_settings
+from app.core.migrations import run_startup_migrations
 from app.services.scheduler import start_scheduler, stop_scheduler
 
 
@@ -26,6 +28,9 @@ from app.services.scheduler import start_scheduler, stop_scheduler
 async def lifespan(app: FastAPI):
     """Application lifespan - startup and shutdown events."""
     # Startup
+    settings = get_settings()
+    if settings.auto_migrate_on_startup:
+        await run_startup_migrations()
     start_scheduler()
     yield
     # Shutdown
