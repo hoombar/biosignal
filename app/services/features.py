@@ -24,6 +24,7 @@ from app.models.database import (
     Habit,
     SupplementLog,
 )
+from app.services.supplements import supplement_key
 from app.services.environmental import AstronomyProvider, location_key
 
 logger = logging.getLogger(__name__)
@@ -531,6 +532,21 @@ async def compute_supplement_features(
         .order_by(SupplementLog.slot)
     )).scalars().all()
 
+    supplement_items_by_key: dict[str, dict] = {}
+    for row in rows:
+        value = 1 if row.completed else 0
+        for item in row.snapshot or []:
+            name = str(item.get("name", "")).strip()
+            if not name:
+                continue
+            key = supplement_key(name)
+            existing = supplement_items_by_key.get(key)
+            supplement_items_by_key[key] = {
+                "key": key,
+                "name": existing["name"] if existing else name,
+                "value": max(existing["value"], value) if existing else value,
+            }
+
     return {
         "supplements": [
             {
@@ -539,7 +555,8 @@ async def compute_supplement_features(
                 "snapshot": row.snapshot,
             }
             for row in rows
-        ]
+        ],
+        "supplement_items": list(supplement_items_by_key.values()),
     }
 
 

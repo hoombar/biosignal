@@ -34,9 +34,10 @@ const CATEGORY_DOT_COLORS = {
     'Light':        '#facc15',
     'Pollen':       '#84cc16',
     'Habits':       '#e879f9',
+    'Supplements':  '#14b8a6',
 };
 
-const CATEGORY_ORDER = ['Sleep', 'HRV', 'SpO2', 'Heart Rate', 'Body Battery', 'Stress', 'Activity', 'Light', 'Pollen', 'Habits'];
+const CATEGORY_ORDER = ['Sleep', 'HRV', 'SpO2', 'Heart Rate', 'Body Battery', 'Stress', 'Activity', 'Light', 'Pollen', 'Habits', 'Supplements'];
 const TARGET_STORAGE_KEY = 'biosignal_correlation_target';
 const LEGACY_HABIT_STORAGE_KEY = 'biosignal_target_habit';
 
@@ -272,12 +273,20 @@ async function loadCorrelationTargets() {
     } catch (err) {
         console.warn('Failed to load correlation targets, falling back to metadata and habits:', err);
         const metricTargets = Object.entries(metricMetadata)
-            .filter(([, meta]) => meta.category !== 'Habits' && isChartableUnit(meta.unit || ''))
+            .filter(([, meta]) => !['Habits', 'Supplements'].includes(meta.category) && isChartableUnit(meta.unit || ''))
             .map(([key, meta]) => ({
                 target: key,
                 label: key.replace(/_/g, ' '),
                 kind: 'metric',
                 category: meta.category || 'Other',
+            }));
+        const supplementTargets = Object.entries(metricMetadata)
+            .filter(([, meta]) => meta.category === 'Supplements' && isChartableUnit(meta.unit || ''))
+            .map(([key, meta]) => ({
+                target: key,
+                label: (meta.description || key).replace(/^Supplement:\s*/, ''),
+                kind: 'supplement',
+                category: 'Supplements',
             }));
         const habitTargets = habitNames.map(name => ({
             target: `habit:${name}`,
@@ -285,7 +294,7 @@ async function loadCorrelationTargets() {
             kind: 'habit',
             category: 'Habits',
         }));
-        correlationTargets = [...metricTargets, ...habitTargets];
+        correlationTargets = [...metricTargets, ...habitTargets, ...supplementTargets];
     }
 }
 
@@ -302,6 +311,7 @@ function buildTargetSelector() {
     const select = document.getElementById('correlate-target');
     const metricTargets = correlationTargets.filter(t => t.kind === 'metric');
     const habitTargets = correlationTargets.filter(t => t.kind === 'habit');
+    const supplementTargets = correlationTargets.filter(t => t.kind === 'supplement');
 
     let html = '<option value="">-- Select target --</option>';
     if (metricTargets.length > 0) {
@@ -314,6 +324,12 @@ function buildTargetSelector() {
         html += '<option value="" disabled>Habits</option>';
         html += habitTargets.map(t =>
             `<option value="${t.target}">Habit: ${t.label || targetLabel(t.target)}</option>`
+        ).join('');
+    }
+    if (supplementTargets.length > 0) {
+        html += '<option value="" disabled>Supplements</option>';
+        html += supplementTargets.map(t =>
+            `<option value="${t.target}">Supplement: ${t.label || targetLabel(t.target)}</option>`
         ).join('');
     }
 
@@ -355,7 +371,11 @@ async function onCorrelateTargetChange() {
             return;
         }
 
-        const targetKey = target.startsWith('habit:') ? `habit_${target.slice(6)}` : target;
+        const targetKey = target.startsWith('habit:')
+            ? `habit_${target.slice(6)}`
+            : target.startsWith('supplement:')
+                ? `supplement_${target.slice(11)}`
+                : target;
         const filtered = correlations
             .filter(c => Math.abs(c.coefficient) > 0.1 && c.metric !== targetKey && c.metric !== target)
             .slice(0, 8);
@@ -376,14 +396,18 @@ function renderSuggestions(correlations) {
     }
 
     content.innerHTML = correlations.map(c => {
-        const key = c.metric.startsWith('habit_') ? `habit:${c.metric.slice(6)}` : c.metric;
+        const key = c.metric.startsWith('habit_')
+            ? `habit:${c.metric.slice(6)}`
+            : c.metric.startsWith('supplement_')
+                ? `supplement:${c.metric.slice(11)}`
+                : c.metric;
         const isAdded = activeMetrics.has(key);
         const r = c.coefficient;
         const barColor = r > 0 ? '#4488ff' : '#fb923c';
         const barWidth = (Math.abs(r) * 100).toFixed(0);
         const label = key.startsWith('habit:')
             ? getHabitLabel(key.slice(6))
-            : key.replace(/_/g, ' ');
+            : targetLabel(key);
         const safeId = 'sug-' + keyToId(key);
         const safeKey = key.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
@@ -410,6 +434,8 @@ function addSuggestion(key) {
     let catId;
     if (key.startsWith('habit:')) {
         catId = 'Habits';
+    } else if (key.startsWith('supplement:')) {
+        catId = 'Supplements';
     } else {
         const meta = metricMetadata[key];
         catId = meta ? meta.category : null;
@@ -501,6 +527,8 @@ function buildMetricPicker() {
 function buildCheckboxHtml(key, meta) {
     const label = key.startsWith('habit:')
         ? getHabitLabel(key.slice(6))
+        : key.startsWith('supplement:')
+            ? targetLabel(key)
         : key.replace(/_/g, ' ');
     const title = meta.description + (meta.unit && meta.unit !== 'habit' ? ` (${meta.unit})` : '');
     const domId = keyToId(key);
@@ -554,6 +582,15 @@ function getMetricValues(key) {
             return isNaN(n) ? null : n;
         });
     }
+    if (key.startsWith('supplement:')) {
+        const supplementKey = key.slice(11);
+        return trendsData.map(d => {
+            const item = (d.supplement_items || []).find(s => s.key === supplementKey);
+            if (item == null) return null;
+            const n = Number(item.value);
+            return isNaN(n) ? null : n;
+        });
+    }
     return trendsData.map(d => {
         const v = d[key];
         if (v === null || v === undefined) return null;
@@ -581,6 +618,10 @@ function getAxisForKey(key) {
 function getMetricLabel(key) {
     if (key.startsWith('habit:')) {
         return getHabitLabel(key.slice(6));
+    }
+    if (key.startsWith('supplement:')) {
+        const meta = metricMetadata[key];
+        return meta ? meta.description : targetLabel(key);
     }
     const meta = metricMetadata[key];
     return meta ? meta.description : key.replace(/_/g, ' ');

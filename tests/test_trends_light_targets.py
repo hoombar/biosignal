@@ -52,6 +52,11 @@ def run_trends_target_scenario(target: str) -> dict:
                         unit: '0-100',
                         category: 'Sleep',
                     },
+                    'supplement:vitamin_d': {
+                        description: 'Supplement: Vitamin D',
+                        unit: 'boolean',
+                        category: 'Supplements',
+                    },
                 },
             },
             '/api/settings/habits': [
@@ -61,6 +66,7 @@ def run_trends_target_scenario(target: str) -> dict:
                 { target: 'daylight_minutes', label: 'daylight minutes', kind: 'metric', category: 'Light' },
                 { target: 'sleep_score', label: 'sleep score', kind: 'metric', category: 'Sleep' },
                 { target: 'habit:pm_slump', label: 'PM Slump', kind: 'habit', category: 'Habits' },
+                { target: 'supplement:vitamin_d', label: 'Vitamin D', kind: 'supplement', category: 'Supplements' },
             ],
             '/api/daily?start=2026-04-23&end=2026-05-06': [],
         };
@@ -157,3 +163,15 @@ def test_trends_selector_includes_light_metric_targets():
         for call in result["fetchCalls"]
     )
     assert "PM Slump" in result["suggestionsHtml"]
+
+
+def test_trends_selector_includes_supplement_targets():
+    result = run_trends_target_scenario("supplement:vitamin_d")
+
+    assert "Supplements" in result["optionsHtml"]
+    assert "Supplement: Vitamin D" in result["optionsHtml"]
+    assert any(
+        call == "/api/correlations?target=supplement%3Avitamin_d&min_days=5"
+        for call in result["fetchCalls"]
+    )
+    assert result["storedTarget"] == "supplement:vitamin_d"

@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 
 from app.api.export import router
 from app.core.database import get_db
-from app.models.database import SleepSession, DailyHabit, HabitDisplayConfig
+from app.models.database import SleepSession, DailyHabit, HabitDisplayConfig, SupplementLog, SupplementPlanVersion
 
 
 def _make_test_app(session):
@@ -214,3 +214,32 @@ class TestExportMetadata:
         assert "custom_focus" in features
         assert features["custom_focus"]["category"] == "Habits"
         assert "Focus Session" in features["custom_focus"]["description"]
+
+    @pytest.mark.asyncio
+    async def test_metadata_includes_dynamic_supplement_features(self, async_session):
+        """Supplement metadata should be generated per supplement item."""
+        plan = SupplementPlanVersion(
+            slot="morning",
+            version=1,
+            items=[{"name": "Vitamin D", "dose": None, "notes": None}],
+        )
+        async_session.add(plan)
+        await async_session.flush()
+        async_session.add(SupplementLog(
+            date=date(2026, 5, 1),
+            slot="morning",
+            plan_version_id=plan.id,
+            completed=True,
+            snapshot=plan.items,
+        ))
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get("/api/export/metadata")
+
+        assert resp.status_code == 200
+        features = resp.json()["features"]
+        assert "supplement:vitamin_d" in features
+        assert features["supplement:vitamin_d"]["category"] == "Supplements"
+        assert features["supplement:vitamin_d"]["description"] == "Supplement: Vitamin D"

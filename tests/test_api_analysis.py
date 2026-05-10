@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.api.analysis import router
 from app.core.database import get_db
-from app.models.database import SleepSession, DailyHabit, HabitDisplayConfig
+from app.models.database import SleepSession, DailyHabit, HabitDisplayConfig, SupplementLog, SupplementPlanVersion
 from tests.conftest import log_habit
 
 
@@ -81,6 +81,42 @@ class TestCorrelationsApi:
         data = resp.json()
         assert isinstance(data, list)
 
+    @pytest.mark.asyncio
+    async def test_returns_individual_supplement_correlations(self, async_session):
+        """Supplement slot logs should be analyzed as individual supplement items."""
+        plan = SupplementPlanVersion(
+            slot="morning",
+            version=1,
+            items=[{"name": "Vitamin D", "dose": None, "notes": None}],
+        )
+        async_session.add(plan)
+        await async_session.flush()
+
+        for i in range(10):
+            d = _make_date(i)
+            took_vitamin_d = i % 2 == 0
+            async_session.add(SleepSession(
+                date=d,
+                total_sleep_seconds=int((8.5 if took_vitamin_d else 5.5) * 3600),
+                sleep_score=85 if took_vitamin_d else 55,
+            ))
+            async_session.add(SupplementLog(
+                date=d,
+                slot="morning",
+                plan_version_id=plan.id,
+                completed=took_vitamin_d,
+                snapshot=plan.items,
+            ))
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get("/api/correlations", params={"target": "sleep_score", "min_days": 5})
+
+        assert resp.status_code == 200
+        metrics = {row["metric"] for row in resp.json()}
+        assert "supplement_vitamin_d" in metrics
+
 
 class TestCorrelationTargetsApi:
     """Tests for GET /api/correlation-targets."""
@@ -105,6 +141,39 @@ class TestCorrelationTargetsApi:
         assert "daylight_minutes" in targets
         assert "grass_pollen_avg" in targets
         assert "habit:pm_slump" in targets
+
+    @pytest.mark.asyncio
+    async def test_includes_individual_supplement_targets(self, async_session):
+        """Target options should include supplement items, not only supplement slot habits."""
+        plan = SupplementPlanVersion(
+            slot="evening",
+            version=1,
+            items=[
+                {"name": "Magnesium Glycinate", "dose": None, "notes": None},
+                {"name": "Glycine", "dose": None, "notes": None},
+            ],
+        )
+        async_session.add(plan)
+        await async_session.flush()
+        async_session.add(SupplementLog(
+            date=_make_date(0),
+            slot="evening",
+            plan_version_id=plan.id,
+            completed=True,
+            snapshot=plan.items,
+        ))
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get("/api/correlation-targets")
+
+        assert resp.status_code == 200
+        by_target = {row["target"]: row for row in resp.json()}
+        assert by_target["supplement:magnesium_glycinate"]["kind"] == "supplement"
+        assert by_target["supplement:magnesium_glycinate"]["category"] == "Supplements"
+        assert by_target["supplement:magnesium_glycinate"]["label"] == "Magnesium Glycinate"
+        assert by_target["supplement:glycine"]["category"] == "Supplements"
 
 
 class TestPatternsAndInsightsApi:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date as DateType, datetime
+import re
 from typing import Any
 
 from fastapi import HTTPException
@@ -26,6 +27,16 @@ def validate_slot(slot: str) -> str:
 def supplement_habit_name(slot: str) -> str:
     validate_slot(slot)
     return f"supplements_{slot}"
+
+
+def supplement_key(name: str) -> str:
+    """Return a stable analysis key for a supplement item name."""
+    key = re.sub(r"[^a-z0-9]+", "_", name.strip().lower()).strip("_")
+    return key or "unknown"
+
+
+def supplement_feature_name(name: str) -> str:
+    return f"supplement_{supplement_key(name)}"
 
 
 def normalize_items(items: list[dict[str, Any]]) -> list[dict[str, str | None]]:
@@ -64,6 +75,28 @@ async def list_active_plans(db: AsyncSession) -> list[dict]:
             "items": plan.items if plan else [],
         })
     return slots
+
+
+async def list_supplement_items(db: AsyncSession) -> list[dict[str, str]]:
+    """Return distinct supplement items seen in plans or logged snapshots."""
+    items_by_key: dict[str, str] = {}
+
+    plan_rows = (await db.execute(select(SupplementPlanVersion.items))).all()
+    log_rows = (await db.execute(select(SupplementLog.snapshot))).all()
+
+    for row in [*plan_rows, *log_rows]:
+        items = row[0] or []
+        for item in items:
+            name = str(item.get("name", "")).strip()
+            if not name:
+                continue
+            key = supplement_key(name)
+            items_by_key.setdefault(key, name)
+
+    return [
+        {"key": key, "name": name}
+        for key, name in sorted(items_by_key.items(), key=lambda kv: kv[1].lower())
+    ]
 
 
 async def create_plan_version(
@@ -188,4 +221,3 @@ async def delete_supplement_log(
             DailyHabit.habit_id == habit.id,
         ))
     await db.commit()
-

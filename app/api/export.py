@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.config import get_settings
 from app.services.habit_config import list_habit_display_entries
+from app.services.supplements import list_supplement_items
 from app.services.features import compute_features_range
 
 router = APIRouter(prefix="/api/export", tags=["export"])
@@ -103,6 +104,13 @@ async def _build_feature_metadata(db: AsyncSession) -> dict[str, dict]:
             "category": "Habits",
         }
 
+    for item in await list_supplement_items(db):
+        features[f"supplement:{item['key']}"] = {
+            "description": f"Supplement: {item['name']}",
+            "unit": "boolean",
+            "category": "Supplements",
+        }
+
     return features
 
 
@@ -177,7 +185,7 @@ async def export_features(
     ordered_columns = ["date"]
 
     # Add known columns by category
-    for category in ["Sleep", "HRV", "SpO2", "Heart Rate", "Body Battery", "Stress", "Activity", "Light", "Pollen", "Habits"]:
+    for category in ["Sleep", "HRV", "SpO2", "Heart Rate", "Body Battery", "Stress", "Activity", "Light", "Pollen", "Habits", "Supplements"]:
         for col, meta in metadata.items():
             if meta["category"] == category and col in all_columns:
                 ordered_columns.append(col)

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.config import get_settings
 from app.services.habit_config import list_habit_display_entries
+from app.services.supplements import list_supplement_items
 from app.api.export import FEATURE_METADATA
 from app.schemas.responses import (
     CorrelationResult,
@@ -51,6 +52,14 @@ async def get_correlation_targets(db: AsyncSession = Depends(get_db)):
             label=label,
             kind="habit",
             category="Habits",
+        ))
+
+    for item in await list_supplement_items(db):
+        targets.append(CorrelationTargetOption(
+            target=f"supplement:{item['key']}",
+            label=item["name"],
+            kind="supplement",
+            category="Supplements",
         ))
 
     return targets

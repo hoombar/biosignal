@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.habit_config import get_default_habit_name
 from app.services.features import compute_features_range
+from app.services.supplements import supplement_feature_name
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,14 @@ def _get_habit_value(features: dict, habit_name: str) -> float | None:
     return None
 
 
+def _get_supplement_value(features: dict, supplement_name: str) -> float | None:
+    """Extract an individual supplement item value from flattened supplement entries."""
+    for item in features.get("supplement_items", []):
+        if item["key"] == supplement_name:
+            return _to_numeric(item["value"])
+    return None
+
+
 def _flatten_habits(features: dict, exclude_habit: str | None = None) -> dict:
     """Flatten habits list into individual feature fields."""
     result = {}
@@ -53,11 +62,14 @@ def _parse_correlation_target(
     Returns:
         ("habit", "<habit_name>") for habit targets
         ("metric", "<metric_key>") for top-level numeric metric targets
+        ("supplement", "<supplement_key>") for supplement item targets
     """
     if target:
         target = target.strip()
         if target.startswith("habit:"):
             return "habit", target[6:]
+        if target.startswith("supplement:"):
+            return "supplement", target[11:]
         return "metric", target
 
     if target_habit:
@@ -70,6 +82,8 @@ def _get_target_value(features: dict, target_kind: str, target_name: str) -> flo
     """Extract target value from either habits list or top-level metric field."""
     if target_kind == "habit":
         return _get_habit_value(features, target_name)
+    if target_kind == "supplement":
+        return _get_supplement_value(features, target_name)
     return _to_numeric(features.get(target_name))
 
 
@@ -142,15 +156,19 @@ async def compute_correlations(
     # Collect feature names from ALL days to handle sparse data
     all_feature_names = set()
     all_habit_names = set()
+    all_supplement_names = set()
     for f in target_features:
         for k in f.keys():
-            if k not in ["date", "habits"]:
+            if k not in ["date", "habits", "supplements", "supplement_items"]:
                 all_feature_names.add(k)
         for h in f.get("habits", []):
             if not (target_kind == "habit" and h["name"] == target_name):
                 all_habit_names.add(f"habit_{h['name']}")
+        for item in f.get("supplement_items", []):
+            if not (target_kind == "supplement" and item["key"] == target_name):
+                all_supplement_names.add(supplement_feature_name(item["name"]))
 
-    feature_names = list(all_feature_names) + list(all_habit_names)
+    feature_names = list(all_feature_names) + list(all_habit_names) + list(all_supplement_names)
 
     for feature_name in feature_names:
         # Skip self-correlation against the selected target.
@@ -158,11 +176,16 @@ async def compute_correlations(
             continue
         if target_kind == "habit" and feature_name == f"habit_{target_name}":
             continue
+        if target_kind == "supplement" and feature_name == f"supplement_{target_name}":
+            continue
 
         # Extract feature values - check if it's a habit or regular feature
         if feature_name.startswith("habit_"):
             habit_name = feature_name[6:]  # Remove "habit_" prefix
             feature_values = [_get_habit_value(f, habit_name) for f in target_features]
+        elif feature_name.startswith("supplement_"):
+            supplement_name = feature_name[11:]
+            feature_values = [_get_supplement_value(f, supplement_name) for f in target_features]
         else:
             feature_values = [_to_numeric(f.get(feature_name)) for f in target_features]
 
@@ -190,6 +213,10 @@ async def compute_correlations(
             habit_name = feature_name[6:]
             pos_values = [_get_habit_value(f, habit_name) for f in positive_days]
             neg_values = [_get_habit_value(f, habit_name) for f in negative_days]
+        elif feature_name.startswith("supplement_"):
+            supplement_name = feature_name[11:]
+            pos_values = [_get_supplement_value(f, supplement_name) for f in positive_days]
+            neg_values = [_get_supplement_value(f, supplement_name) for f in negative_days]
         else:
             pos_values = [_to_numeric(f.get(feature_name)) for f in positive_days]
             neg_values = [_to_numeric(f.get(feature_name)) for f in negative_days]
@@ -231,7 +258,12 @@ async def compute_correlations(
     # Sort by absolute correlation coefficient
     results.sort(key=lambda x: abs(x["coefficient"]), reverse=True)
 
-    target_label = f"habit:{target_name}" if target_kind == "habit" else target_name
+    if target_kind == "habit":
+        target_label = f"habit:{target_name}"
+    elif target_kind == "supplement":
+        target_label = f"supplement:{target_name}"
+    else:
+        target_label = target_name
     logger.info(f"Computed correlations for {len(results)} features against {target_label}")
     return results
 

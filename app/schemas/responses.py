@@ -77,6 +77,13 @@ class SupplementDailyEntry(BaseModel):
     snapshot: list[dict[str, Any]] = []
 
 
+class SupplementItemEntry(BaseModel):
+    """Flattened supplement item signal for trends and analysis."""
+    key: str
+    name: str
+    value: int
+
+
 class HabitResponse(BaseModel):
     """Daily habits response."""
     date: str
@@ -150,6 +157,7 @@ class DailySummary(BaseModel):
     # Habit features (dynamic list)
     habits: list[Habit] = []
     supplements: list[SupplementDailyEntry] = []
+    supplement_items: list[SupplementItemEntry] = []
 
 
 class CalendarDaySummary(BaseModel):
