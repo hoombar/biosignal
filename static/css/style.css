@@ -1824,9 +1824,22 @@ input:focus {
     font-family: var(--font-display);
     color: var(--text-primary);
     cursor: help;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: normal;
+}
+
+.corr-threshold {
+    display: block;
+    margin-top: 3px;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    line-height: 1.25;
+    color: var(--text-muted);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .corr-col-chart {

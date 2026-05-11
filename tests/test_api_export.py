@@ -157,6 +157,46 @@ class TestExportFeatures:
             )
         assert "attachment" in resp.headers.get("content-disposition", "")
 
+    @pytest.mark.asyncio
+    async def test_csv_export_flattens_habit_values(self, async_session):
+        """CSV export should expose habit values as stable numeric columns."""
+        from tests.conftest import log_habit
+
+        await log_habit(async_session, "coffee", date(2025, 1, 28), 4, habit_type="counter")
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get(
+                "/api/export",
+                params={"format": "csv", "start": "2025-01-28", "end": "2025-01-28"}
+            )
+
+        reader = csv.DictReader(io.StringIO(resp.text))
+        rows = list(reader)
+        assert len(rows) == 1
+        assert "habit_coffee" in rows[0]
+        assert rows[0]["habit_coffee"] == "4"
+
+    @pytest.mark.asyncio
+    async def test_json_export_preserves_nested_habits_and_adds_flat_values(self, async_session):
+        """JSON export should keep existing nested habits while adding habit_* analysis columns."""
+        from tests.conftest import log_habit
+
+        await log_habit(async_session, "coffee", date(2025, 1, 28), 4, habit_type="counter")
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get(
+                "/api/export",
+                params={"format": "json", "start": "2025-01-28", "end": "2025-01-28"}
+            )
+
+        row = resp.json()["data"][0]
+        assert row["habit_coffee"] == 4
+        assert row["habits"] == [{"name": "coffee", "value": 4, "type": "counter"}]
+
 
 class TestExportMetadata:
 
@@ -196,7 +236,10 @@ class TestExportMetadata:
     async def test_metadata_includes_dynamic_habit_features(self, async_session):
         """Habit feature metadata should be generated from configured habits."""
         from tests.conftest import ensure_habit
-        await ensure_habit(async_session, "custom_focus", habit_type="counter")
+        habit = await ensure_habit(async_session, "custom_focus", habit_type="counter")
+        habit.is_negative = True
+        habit.target_value = 3
+        habit.period = "day"
         async_session.add(HabitDisplayConfig(
             habit_name="custom_focus",
             display_name="Focus Session",
@@ -212,8 +255,12 @@ class TestExportMetadata:
         assert resp.status_code == 200
         features = resp.json()["features"]
         assert "custom_focus" in features
+        assert "habit_custom_focus" in features
         assert features["custom_focus"]["category"] == "Habits"
         assert "Focus Session" in features["custom_focus"]["description"]
+        assert features["habit_custom_focus"]["target_value"] == 3
+        assert features["habit_custom_focus"]["is_negative"] is True
+        assert features["habit_custom_focus"]["period"] == "day"
 
     @pytest.mark.asyncio
     async def test_metadata_includes_dynamic_supplement_features(self, async_session):

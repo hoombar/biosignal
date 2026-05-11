@@ -4,8 +4,10 @@ import logging
 from datetime import date, timedelta
 import numpy as np
 from scipy import stats
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.database import Habit
 from app.services.habit_config import get_default_habit_name
 from app.services.features import compute_features_range
 from app.services.supplements import supplement_feature_name
@@ -87,6 +89,52 @@ def _get_target_value(features: dict, target_kind: str, target_name: str) -> flo
     return _to_numeric(features.get(target_name))
 
 
+async def _load_habit_thresholds(session: AsyncSession) -> dict[str, Habit]:
+    """Return counter habits with configured threshold values, keyed by name."""
+    rows = (await session.execute(
+        select(Habit)
+        .where(Habit.habit_type == "counter")
+        .where(Habit.target_value.is_not(None))
+    )).scalars().all()
+    return {habit.name: habit for habit in rows}
+
+
+def _threshold_summary(
+    target_vals: tuple[float, ...],
+    feat_vals: tuple[float, ...],
+    habit: Habit,
+) -> dict | None:
+    """Summarize a binary target split by a configured counter-habit threshold."""
+    threshold = habit.target_value
+    if threshold is None:
+        return None
+
+    operator = ">" if habit.is_negative else ">="
+    if habit.is_negative:
+        above = [(t, f) for t, f in zip(target_vals, feat_vals) if f > threshold]
+        below = [(t, f) for t, f in zip(target_vals, feat_vals) if f <= threshold]
+    else:
+        above = [(t, f) for t, f in zip(target_vals, feat_vals) if f >= threshold]
+        below = [(t, f) for t, f in zip(target_vals, feat_vals) if f < threshold]
+
+    if not above or not below:
+        return None
+
+    above_rate = sum(1 for t, _ in above if t == 1.0) / len(above)
+    below_rate = sum(1 for t, _ in below if t == 1.0) / len(below)
+    relative_risk = above_rate / below_rate if below_rate > 0 else None
+
+    return {
+        "threshold_value": int(threshold),
+        "threshold_operator": operator,
+        "above_threshold_n": len(above),
+        "below_threshold_n": len(below),
+        "above_threshold_target_rate": float(above_rate),
+        "below_threshold_target_rate": float(below_rate),
+        "relative_risk": float(relative_risk) if relative_risk is not None else None,
+    }
+
+
 async def compute_correlations(
     session: AsyncSession,
     timezone: str = "Europe/London",
@@ -136,6 +184,7 @@ async def compute_correlations(
     target_features = [f for f, _ in target_data]
     target_values = [v for _, v in target_data]
     target_is_binary = all(v in (0.0, 1.0) for v in target_values)
+    habit_thresholds = await _load_habit_thresholds(session)
 
     # Separate positive and negative days for mean comparisons
     if target_is_binary:
@@ -241,7 +290,7 @@ async def compute_correlations(
         else:
             strength = "weak"
 
-        results.append({
+        result = {
             "metric": feature_name,
             "coefficient": float(r),
             "p_value": float(p_value),
@@ -253,7 +302,16 @@ async def compute_correlations(
             "target_is_binary": target_is_binary,
             "positive_label": positive_label,
             "negative_label": negative_label,
-        })
+        }
+
+        if target_is_binary and feature_name.startswith("habit_"):
+            threshold_habit = habit_thresholds.get(feature_name[6:])
+            if threshold_habit is not None:
+                summary = _threshold_summary(target_vals, feat_vals, threshold_habit)
+                if summary:
+                    result.update(summary)
+
+        results.append(result)
 
     # Sort by absolute correlation coefficient
     results.sort(key=lambda x: abs(x["coefficient"]), reverse=True)

@@ -119,3 +119,86 @@ def test_correlations_selector_includes_supplement_targets():
         call == "/api/correlations?target=supplement%3Avitamin_d3"
         for call in result["fetchCalls"]
     )
+
+
+def test_correlations_rows_render_threshold_summary():
+    script = textwrap.dedent(
+        """
+        const fs = require('fs');
+        const vm = require('vm');
+
+        const source = fs.readFileSync('static/js/correlations.js', 'utf8');
+        const elements = {};
+
+        function makeElement(id) {
+            return {
+                id,
+                innerHTML: '',
+                textContent: '',
+                style: { display: 'none' },
+                dataset: {},
+                classList: { add() {}, remove() {}, toggle() {} },
+                addEventListener() {},
+                hasAttribute() { return false; },
+                removeAttribute() {},
+                setAttribute() {},
+                focus() {},
+            };
+        }
+
+        const context = {
+            console: { error() {}, warn() {} },
+            localStorage: {
+                values: {},
+                getItem(key) { return this.values[key] || null; },
+                setItem(key, value) { this.values[key] = String(value); },
+            },
+            document: {
+                addEventListener() {},
+                querySelector() { return makeElement('query'); },
+                querySelectorAll() { return []; },
+                getElementById(id) {
+                    if (!elements[id]) elements[id] = makeElement(id);
+                    return elements[id];
+                },
+            },
+        };
+
+        vm.createContext(context);
+        vm.runInContext(source, context);
+        vm.runInContext(`
+            metricMetadata = {
+                coffee: { description: 'Tracked habit: Coffee', unit: 'count', category: 'Habits' },
+            };
+            lastCorrelations = [{
+                metric: 'habit_coffee',
+                coefficient: 0.8,
+                p_value: 0.01,
+                n: 10,
+                strength: 'strong',
+                threshold_value: 3,
+                threshold_operator: '>',
+                above_threshold_n: 5,
+                below_threshold_n: 5,
+                above_threshold_target_rate: 0.8,
+                below_threshold_target_rate: 0.2,
+                relative_risk: 4,
+            }];
+            renderRows();
+        `, context);
+
+        console.log(JSON.stringify({ html: elements['correlation-rows'].innerHTML }));
+        """
+    )
+    result = subprocess.run(
+        ["node", "-e", script],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    html = json.loads(result.stdout)["html"]
+    assert "coffee &gt; 3" in html
+    assert "80%" in html
+    assert "20%" in html

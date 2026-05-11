@@ -9,7 +9,7 @@ from datetime import date, timedelta
 
 from app.models.database import SleepSession, DailyHabit, HabitDisplayConfig
 from app.services.analysis import compute_correlations, compute_patterns, generate_insights
-from tests.conftest import log_habit
+from tests.conftest import ensure_habit, log_habit
 
 
 def _make_date(offset: int) -> date:
@@ -179,6 +179,79 @@ class TestComputeCorrelations:
         slump_corr = next((r for r in result if r["metric"] == "habit_pm_slump"), None)
         assert slump_corr is not None
         assert slump_corr["coefficient"] < 0, "More sleep should correlate with fewer slump events"
+
+    @pytest.mark.asyncio
+    async def test_counter_habit_threshold_summary_for_binary_target(self, async_session):
+        """Configured counter thresholds should report target rates above vs below the cutoff."""
+        coffee = await ensure_habit(async_session, "coffee", habit_type="counter")
+        coffee.is_negative = True
+        coffee.target_value = 3
+
+        for i in range(10):
+            d = _make_date(i)
+            high_coffee = i < 5
+            await log_habit(async_session, "reflux", d, 1 if high_coffee else 0, habit_type="binary")
+            await log_habit(async_session, "coffee", d, 4 if high_coffee else 1, habit_type="counter")
+        await async_session.commit()
+
+        result = await compute_correlations(async_session, target_habit="reflux", min_days=5)
+        coffee_corr = next((r for r in result if r["metric"] == "habit_coffee"), None)
+
+        assert coffee_corr is not None
+        assert coffee_corr["threshold_value"] == 3
+        assert coffee_corr["threshold_operator"] == ">"
+        assert coffee_corr["above_threshold_n"] == 5
+        assert coffee_corr["below_threshold_n"] == 5
+        assert coffee_corr["above_threshold_target_rate"] == pytest.approx(1.0)
+        assert coffee_corr["below_threshold_target_rate"] == pytest.approx(0.0)
+        assert coffee_corr["relative_risk"] is None
+
+    @pytest.mark.asyncio
+    async def test_no_threshold_summary_without_configured_target_value(self, async_session):
+        """Counter habits without target_value should keep plain numeric correlation output."""
+        await ensure_habit(async_session, "coffee", habit_type="counter")
+
+        for i in range(10):
+            d = _make_date(i)
+            high_coffee = i < 5
+            await log_habit(async_session, "reflux", d, 1 if high_coffee else 0, habit_type="binary")
+            await log_habit(async_session, "coffee", d, 4 if high_coffee else 1, habit_type="counter")
+        await async_session.commit()
+
+        result = await compute_correlations(async_session, target_habit="reflux", min_days=5)
+        coffee_corr = next((r for r in result if r["metric"] == "habit_coffee"), None)
+
+        assert coffee_corr is not None
+        assert "threshold_value" not in coffee_corr
+
+    @pytest.mark.asyncio
+    async def test_positive_counter_threshold_uses_greater_than_or_equal(self, async_session):
+        """Positive counter thresholds should include the configured value in the threshold group."""
+        meditation = await ensure_habit(async_session, "meditation_minutes", habit_type="counter")
+        meditation.is_negative = False
+        meditation.target_value = 10
+
+        for i in range(10):
+            d = _make_date(i)
+            met_target = i < 5
+            await log_habit(async_session, "clear_head", d, 1 if met_target else 0, habit_type="binary")
+            await log_habit(
+                async_session,
+                "meditation_minutes",
+                d,
+                10 if met_target else 5,
+                habit_type="counter",
+            )
+        await async_session.commit()
+
+        result = await compute_correlations(async_session, target_habit="clear_head", min_days=5)
+        meditation_corr = next((r for r in result if r["metric"] == "habit_meditation_minutes"), None)
+
+        assert meditation_corr is not None
+        assert meditation_corr["threshold_value"] == 10
+        assert meditation_corr["threshold_operator"] == ">="
+        assert meditation_corr["above_threshold_n"] == 5
+        assert meditation_corr["below_threshold_n"] == 5
 
 
 class TestComputePatterns:

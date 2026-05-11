@@ -5,10 +5,12 @@ import io
 from datetime import date, timedelta
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.config import get_settings
+from app.models.database import Habit
 from app.services.habit_config import list_habit_display_entries
 from app.services.supplements import list_supplement_items
 from app.services.features import compute_features_range
@@ -94,15 +96,29 @@ FEATURE_METADATA = {
 async def _build_feature_metadata(db: AsyncSession) -> dict[str, dict]:
     """Return metadata including dynamic habit entries from settings/data."""
     features = {k: v.copy() for k, v in FEATURE_METADATA.items()}
+    habits = (await db.execute(
+        select(Habit).where(Habit.source == "manual")
+    )).scalars().all()
+    habit_by_name = {habit.name: habit for habit in habits}
 
     for entry in await list_habit_display_entries(db):
         habit_name = entry["habit_name"]
         label = entry["display_name"] or habit_name.replace("_", " ")
-        features[habit_name] = {
+        habit = habit_by_name.get(habit_name)
+        habit_meta = {
             "description": f"Tracked habit: {label}",
             "unit": "count",
             "category": "Habits",
         }
+        if habit is not None:
+            habit_meta.update({
+                "habit_type": habit.habit_type,
+                "target_value": habit.target_value,
+                "is_negative": habit.is_negative,
+                "period": habit.period,
+            })
+        features[habit_name] = habit_meta.copy()
+        features[f"habit_{habit_name}"] = habit_meta
 
     for item in await list_supplement_items(db):
         features[f"supplement:{item['key']}"] = {
@@ -112,6 +128,16 @@ async def _build_feature_metadata(db: AsyncSession) -> dict[str, dict]:
         }
 
     return features
+
+
+def _with_flattened_habit_values(features: dict) -> dict:
+    """Add stable habit_* numeric columns while preserving nested habit data."""
+    row = dict(features)
+    for habit in row.get("habits", []) or []:
+        name = habit.get("name")
+        if name:
+            row[f"habit_{name}"] = habit.get("value")
+    return row
 
 
 @router.get("")
@@ -155,20 +181,20 @@ async def export_features(
         end_date,
         timezone=settings.tz
     )
+    export_rows = [_with_flattened_habit_values(row) for row in features_list]
 
     if format == "json":
-        import json
         return {
-            "data": features_list,
+            "data": export_rows,
             "date_range": {
                 "start": start_date.isoformat(),
                 "end": end_date.isoformat()
             },
-            "count": len(features_list)
+            "count": len(export_rows)
         }
 
     # CSV format
-    if not features_list:
+    if not export_rows:
         return StreamingResponse(
             iter(["date\n"]),
             media_type="text/csv",
@@ -178,8 +204,10 @@ async def export_features(
     # Create CSV
     output = io.StringIO()
 
-    # Get all possible columns from first row and metadata
-    all_columns = set(features_list[0].keys())
+    # Get all possible columns across rows and metadata
+    all_columns = set()
+    for row in export_rows:
+        all_columns.update(row.keys())
 
     # Order columns logically
     ordered_columns = ["date"]
@@ -197,7 +225,7 @@ async def export_features(
 
     writer = csv.DictWriter(output, fieldnames=ordered_columns, extrasaction='ignore')
     writer.writeheader()
-    writer.writerows(features_list)
+    writer.writerows(export_rows)
 
     # Get CSV content
     csv_content = output.getvalue()

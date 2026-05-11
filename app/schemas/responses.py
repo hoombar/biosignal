@@ -188,6 +188,13 @@ class CorrelationResult(BaseModel):
     target_is_binary: bool | None = None
     positive_label: str | None = None
     negative_label: str | None = None
+    threshold_value: int | None = None
+    threshold_operator: str | None = None
+    above_threshold_n: int | None = None
+    below_threshold_n: int | None = None
+    above_threshold_target_rate: float | None = None
+    below_threshold_target_rate: float | None = None
+    relative_risk: float | None = None
 
 
 class CorrelationTargetOption(BaseModel):

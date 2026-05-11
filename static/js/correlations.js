@@ -288,6 +288,32 @@ function formatSignedR(coef) {
     return `${sign}${Math.abs(coef).toFixed(3)}`;
 }
 
+function formatPercent(value) {
+    return `${Math.round(value * 100)}%`;
+}
+
+function thresholdSummaryHTML(c) {
+    if (
+        c.threshold_value === null ||
+        c.threshold_value === undefined ||
+        !c.threshold_operator ||
+        c.above_threshold_target_rate === null ||
+        c.above_threshold_target_rate === undefined ||
+        c.below_threshold_target_rate === null ||
+        c.below_threshold_target_rate === undefined ||
+        (c.above_threshold_n || 0) < 3 ||
+        (c.below_threshold_n || 0) < 3
+    ) {
+        return '';
+    }
+
+    const metric = formatMetricName(c.metric);
+    const operator = c.threshold_operator === '>' ? '&gt;' : '&gt;=';
+    const aboveRate = formatPercent(c.above_threshold_target_rate);
+    const belowRate = formatPercent(c.below_threshold_target_rate);
+    return `<span class="corr-threshold">${metric} ${operator} ${c.threshold_value}: ${aboveRate} vs ${belowRate}</span>`;
+}
+
 function renderRows() {
     const container = document.getElementById('correlation-rows');
     const metricCountEl = document.getElementById('corr-metric-count');
@@ -315,7 +341,7 @@ function renderRows() {
             return `
                 <div class="corr-row${dim}">
                     <span class="corr-col-index">${String(i + 1).padStart(2, '0')}</span>
-                    <span class="corr-col-metric"${titleAttr}>${formatMetricName(c.metric)}</span>
+                    <span class="corr-col-metric"${titleAttr}>${formatMetricName(c.metric)}${thresholdSummaryHTML(c)}</span>
                     <span class="corr-col-chart">${lollipopHTML(c.coefficient, c.n)}</span>
                     <span class="corr-col-r ${rClass}">${formatSignedR(c.coefficient)}</span>
                     <span class="corr-col-n">n=${c.n}</span>
