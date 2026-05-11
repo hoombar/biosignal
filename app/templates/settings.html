@@ -3,7 +3,18 @@
 {% block title %}Settings - Energy Tracker{% endblock %}
 
 {% block content %}
-<div class="settings-section">
+<div class="settings-tabs">
+    <input class="settings-tab-input" type="radio" name="settings-tab" id="settings-tab-sync" checked>
+    <input class="settings-tab-input" type="radio" name="settings-tab" id="settings-tab-supplements">
+    <input class="settings-tab-input" type="radio" name="settings-tab" id="settings-tab-habits">
+
+    <div class="settings-tab-list" role="tablist" aria-label="Settings sections">
+        <label class="settings-tab-label" id="settings-tab-label-sync" for="settings-tab-sync" role="tab" aria-controls="settings-panel-sync">Sync</label>
+        <label class="settings-tab-label" id="settings-tab-label-supplements" for="settings-tab-supplements" role="tab" aria-controls="settings-panel-supplements">Supplements</label>
+        <label class="settings-tab-label" id="settings-tab-label-habits" for="settings-tab-habits" role="tab" aria-controls="settings-panel-habits">Habits</label>
+    </div>
+
+<section class="settings-section settings-tab-panel" id="settings-panel-sync" role="tabpanel" aria-labelledby="settings-tab-label-sync">
     <div class="settings-header">
         <h2>Service Sync</h2>
         <p class="settings-desc">Run and monitor external service ingestion. Environment sync includes daylight and Open-Meteo pollen for the selected date.</p>
@@ -46,9 +57,9 @@
         </div>
         <div id="backfill-result" class="save-status" style="display: none;"></div>
     </div>
-</div>
+</section>
 
-<div class="settings-section">
+<section class="settings-section settings-tab-panel" id="settings-panel-supplements" role="tabpanel" aria-labelledby="settings-tab-label-supplements">
     <div class="settings-header">
         <h2>Supplements</h2>
         <p class="settings-desc">Group supplements by dose window. Logs keep the exact list from the day they were recorded.</p>
@@ -63,9 +74,9 @@
             <span id="supplements-save-status" class="save-status"></span>
         </div>
     </div>
-</div>
+</section>
 
-<div class="settings-section">
+<section class="settings-section settings-tab-panel" id="settings-panel-habits" role="tabpanel" aria-labelledby="settings-tab-label-habits">
     <div class="settings-header">
         <h2>Habits</h2>
         <p class="settings-desc">Add new habits, customise how they display, or archive habits you no longer track. Archived habits keep their history but disappear from the daily logger.</p>
@@ -157,6 +168,7 @@
     <div id="no-habits" style="display:none;" class="empty-state">
         No habits configured yet. Use "+ Add habit" above to create one.
     </div>
+</section>
 </div>
 
 <script>

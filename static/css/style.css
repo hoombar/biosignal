@@ -1981,12 +1981,86 @@ input:focus {
    SETTINGS PAGE
    ============================================ */
 
+.settings-tabs {
+    max-width: 1000px;
+}
+
+.settings-tab-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.settings-tab-list {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px;
+    margin-bottom: var(--space-lg);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: var(--bg-secondary);
+}
+
+.settings-tab-label {
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.settings-tab-label:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+}
+
+.settings-tab-panel {
+    display: none;
+}
+
+#settings-tab-sync:checked ~ .settings-tab-list label[for="settings-tab-sync"],
+#settings-tab-supplements:checked ~ .settings-tab-list label[for="settings-tab-supplements"],
+#settings-tab-habits:checked ~ .settings-tab-list label[for="settings-tab-habits"] {
+    color: var(--text-primary);
+    background: var(--primary-color);
+}
+
+#settings-tab-sync:focus-visible ~ .settings-tab-list label[for="settings-tab-sync"],
+#settings-tab-supplements:focus-visible ~ .settings-tab-list label[for="settings-tab-supplements"],
+#settings-tab-habits:focus-visible ~ .settings-tab-list label[for="settings-tab-habits"] {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 3px;
+}
+
+#settings-tab-sync:checked ~ #settings-panel-sync,
+#settings-tab-supplements:checked ~ #settings-panel-supplements,
+#settings-tab-habits:checked ~ #settings-panel-habits {
+    display: block;
+}
+
 .settings-section {
     background: var(--bg-secondary);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
     padding: var(--space-xl);
-    max-width: 800px;
+    max-width: 1000px;
+}
+
+@media (max-width: 600px) {
+    .settings-tab-list {
+        display: flex;
+        width: 100%;
+    }
+
+    .settings-tab-label {
+        flex: 1 1 0;
+        text-align: center;
+    }
 }
 
 .supplements-settings {

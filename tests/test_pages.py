@@ -31,6 +31,22 @@ def test_settings_page_renders_sync_controls():
     assert 'id="sync-status"' in html
 
 
+def test_settings_page_groups_sections_in_tabs():
+    with TestClient(app) as client:
+        resp = client.get("/settings")
+
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'class="settings-tabs"' in html
+    assert 'role="tablist"' in html
+    assert 'for="settings-tab-sync"' in html
+    assert 'for="settings-tab-supplements"' in html
+    assert 'for="settings-tab-habits"' in html
+    assert 'id="settings-panel-sync"' in html
+    assert 'id="settings-panel-supplements"' in html
+    assert 'id="settings-panel-habits"' in html
+
+
 def test_overview_page_no_longer_renders_manual_sync_controls():
     with TestClient(app) as client:
         resp = client.get("/")
