@@ -421,11 +421,10 @@ class TestActivityFeatures:
         assert result["steps_peak_hour"] == 3000
         assert result["steps_active_hours"] == 1
         assert result["steps_walking_hours"] == 1
-        assert result["had_likely_walk"] is True
         assert result["steps_peak_hour_share"] == pytest.approx(3000 / 3560)
 
     @pytest.mark.asyncio
-    async def test_detects_walking_hour_from_subhour_samples(self, async_session):
+    async def test_detects_likely_walk_from_sustained_30_minute_steps(self, async_session):
         for minute, steps in [(0, 700), (15, 900), (30, 800), (45, 600)]:
             async_session.add(StepsSample(
                 timestamp=datetime(2025, 1, 28, 9, minute),
@@ -440,7 +439,70 @@ class TestActivityFeatures:
         assert result["steps_peak_hour"] == 3000
         assert result["steps_active_hours"] == 1
         assert result["steps_walking_hours"] == 1
+        assert result["steps_peak_30min"] == 1600
+        assert result["steps_walking_30min_blocks"] == 2
         assert result["had_likely_walk"] is True
+
+    @pytest.mark.asyncio
+    async def test_ignores_single_15_minute_step_burst_as_likely_walk(self, async_session):
+        async_session.add(StepsSample(
+            timestamp=datetime(2025, 1, 28, 9, 0),
+            steps=1300,
+            duration_seconds=900,
+        ))
+        await async_session.commit()
+
+        result = await compute_activity_features(async_session, TEST_DATE, TZ)
+
+        assert result["steps_peak_30min"] == 1300
+        assert result["steps_walking_30min_blocks"] == 0
+        assert result["had_likely_walk"] is False
+
+    @pytest.mark.asyncio
+    async def test_adds_hr_elevation_for_sustained_walk_blocks(self, async_session):
+        for minute, steps in [(0, 900), (15, 1000), (30, 1100)]:
+            async_session.add(StepsSample(
+                timestamp=datetime(2025, 1, 28, 9, minute),
+                steps=steps,
+                duration_seconds=900,
+            ))
+        for hour, minute, hr in [(2, 0, 60), (2, 15, 62), (9, 0, 92), (9, 15, 96), (9, 30, 98)]:
+            async_session.add(HeartRateSample(
+                timestamp=datetime(2025, 1, 28, hour, minute),
+                heart_rate=hr,
+            ))
+        await async_session.commit()
+
+        result = await compute_activity_features(async_session, TEST_DATE, TZ)
+
+        assert result["steps_peak_45min"] == 3000
+        assert result["steps_walking_45min_windows"] == 1
+        assert result["walk_peak_45min_avg_hr"] == pytest.approx((92 + 96 + 98) / 3)
+        assert result["walk_peak_45min_hr_delta"] == pytest.approx(((92 + 96 + 98) / 3) - 61)
+        assert result["walk_hr_elevated_45min_windows"] == 1
+        assert result["had_likely_brisk_walk"] is True
+
+    @pytest.mark.asyncio
+    async def test_school_run_with_wait_does_not_count_as_brisk_walk(self, async_session):
+        for minute, steps in [(0, 900), (15, 0), (30, 950)]:
+            async_session.add(StepsSample(
+                timestamp=datetime(2025, 1, 28, 9, minute),
+                steps=steps,
+                duration_seconds=900,
+            ))
+        for hour, minute, hr in [(2, 0, 60), (2, 15, 62), (9, 0, 96), (9, 15, 72), (9, 30, 98)]:
+            async_session.add(HeartRateSample(
+                timestamp=datetime(2025, 1, 28, hour, minute),
+                heart_rate=hr,
+            ))
+        await async_session.commit()
+
+        result = await compute_activity_features(async_session, TEST_DATE, TZ)
+
+        assert result["steps_peak_45min"] == 1850
+        assert result["steps_walking_45min_windows"] == 0
+        assert result.get("walk_hr_elevated_45min_windows") is None
+        assert result.get("had_likely_brisk_walk") is None
 
     @pytest.mark.asyncio
     async def test_distinguishes_pottering_from_likely_walk(self, async_session):

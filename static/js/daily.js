@@ -862,6 +862,8 @@ function renderStressCard(day) {
 function renderActivityCard(day) {
     const trainingBadge = day.had_training ?
         `<span style="background: var(--color-activity); color: var(--bg-primary); padding: 2px 8px; border-radius: 4px; font-size: 0.625rem; font-weight: 600; text-transform: uppercase;">${day.training_type || 'Training'}</span>` : '';
+    const walkBadge = day.had_likely_brisk_walk ?
+        `<span style="background: var(--color-positive); color: var(--bg-primary); padding: 2px 8px; border-radius: 4px; font-size: 0.625rem; font-weight: 600; text-transform: uppercase;">Likely brisk walk</span>` : '';
 
     return `
         <div class="metric-card">
@@ -869,6 +871,7 @@ function renderActivityCard(day) {
                 <span class="card-icon">&#127939;</span>
                 <span class="card-title">Activity</span>
                 ${trainingBadge}
+                ${walkBadge}
             </div>
             <div class="primary-metric">
                 <span class="metric-value">${formatNum(day.steps_total)}</span>
@@ -879,6 +882,24 @@ function renderActivityCard(day) {
                     <span class="metric-label">Morning Steps</span>
                     <span class="metric-value">${formatNum(day.steps_morning)}</span>
                 </div>
+                <div class="metric-row">
+                    <span class="metric-label">Peak 45 min</span>
+                    <span class="metric-value">${formatNum(day.steps_peak_45min)}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Brisk walk windows</span>
+                    <span class="metric-value">${day.walk_hr_elevated_45min_windows ?? 0} x 45m</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Step-only 30m blocks</span>
+                    <span class="metric-value">${day.steps_walking_30min_blocks ?? 0}</span>
+                </div>
+                ${day.walk_peak_45min_hr_delta !== null && day.walk_peak_45min_hr_delta !== undefined ? `
+                <div class="metric-row">
+                    <span class="metric-label">Walk HR lift</span>
+                    <span class="metric-value">+${formatNum(day.walk_peak_45min_hr_delta)} bpm</span>
+                </div>
+                ` : ''}
                 ${day.had_training ? `
                 <div class="metric-row">
                     <span class="metric-label">Training Duration</span>

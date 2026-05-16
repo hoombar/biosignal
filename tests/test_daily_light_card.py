@@ -69,6 +69,10 @@ def render_pollen_card(day: dict) -> str:
     return render_daily_card("renderPollenCard", day)
 
 
+def render_activity_card(day: dict) -> str:
+    return render_daily_card("renderActivityCard", day)
+
+
 def test_daily_light_card_renders_daylight_and_sun_times():
     html = render_light_card({
         "daylight_minutes": 984,
@@ -85,6 +89,29 @@ def test_daily_light_card_renders_daylight_and_sun_times():
     assert "21:06" in html
     assert "Solar Noon" in html
     assert "12:54" in html
+
+
+def test_daily_activity_card_renders_likely_walk_metrics():
+    html = render_activity_card({
+        "steps_total": 8400,
+        "steps_morning": 3200,
+        "steps_peak_45min": 3000,
+        "steps_walking_30min_blocks": 2,
+        "walk_hr_elevated_45min_windows": 1,
+        "walk_peak_45min_hr_delta": 33,
+        "had_likely_walk": True,
+        "had_likely_brisk_walk": True,
+        "had_training": False,
+    })
+
+    assert "Likely brisk walk" in html
+    assert "Peak 45 min" in html
+    assert "3,000" in html
+    assert "Brisk walk windows" in html
+    assert "1 x 45m" in html
+    assert "Step-only 30m blocks" in html
+    assert "Walk HR lift" in html
+    assert "+33 bpm" in html
 
 
 def test_daily_light_card_renders_empty_values_when_location_unset():

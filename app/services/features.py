@@ -29,6 +29,10 @@ from app.services.environmental import AstronomyProvider, location_key
 
 logger = logging.getLogger(__name__)
 
+WALK_30MIN_STEP_THRESHOLD = 1250
+WALK_45MIN_STEP_THRESHOLD = 3000
+WALK_HR_DELTA_THRESHOLD = 20
+
 
 def _datetime_in_tz(dt: datetime, tz: ZoneInfo) -> datetime:
     """Convert datetime to timezone-aware datetime."""
@@ -41,6 +45,20 @@ def _time_to_datetime(target_date: date, t: time, tz: ZoneInfo) -> datetime:
     """Combine date and time into a naive-UTC datetime for SQLite comparison."""
     aware = datetime.combine(target_date, t, tzinfo=tz)
     return aware.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+
+
+def _local_half_hour(dt: datetime, tz: ZoneInfo) -> datetime:
+    """Return the local half-hour bucket for a naive UTC timestamp."""
+    local_dt = dt.replace(tzinfo=timezone.utc).astimezone(tz)
+    minute = 0 if local_dt.minute < 30 else 30
+    return local_dt.replace(minute=minute, second=0, microsecond=0)
+
+
+def _local_quarter_hour(dt: datetime, tz: ZoneInfo) -> datetime:
+    """Return the local 15-minute bucket for a naive UTC timestamp."""
+    local_dt = dt.replace(tzinfo=timezone.utc).astimezone(tz)
+    minute = (local_dt.minute // 15) * 15
+    return local_dt.replace(minute=minute, second=0, microsecond=0)
 
 
 def _closest_value(samples: list, target_time: datetime, window_minutes: int = 30) -> Optional[float]:
@@ -401,6 +419,8 @@ async def compute_activity_features(
     if steps_samples:
         steps_total = sum(s.steps for s in steps_samples)
         steps_by_hour = {}
+        steps_by_half_hour = {}
+        steps_by_quarter_hour = {}
         for sample in steps_samples:
             local_hour = sample.timestamp.replace(tzinfo=timezone.utc).astimezone(tz).replace(
                 minute=0,
@@ -408,16 +428,119 @@ async def compute_activity_features(
                 microsecond=0,
             )
             steps_by_hour[local_hour] = steps_by_hour.get(local_hour, 0) + sample.steps
+            half_hour = _local_half_hour(sample.timestamp, tz)
+            block = steps_by_half_hour.setdefault(half_hour, {"steps": 0, "positive_samples": 0})
+            block["steps"] += sample.steps
+            if sample.steps > 0:
+                block["positive_samples"] += 1
+            quarter_hour = _local_quarter_hour(sample.timestamp, tz)
+            quarter_block = steps_by_quarter_hour.setdefault(quarter_hour, {"steps": 0})
+            quarter_block["steps"] += sample.steps
         hourly_step_counts = list(steps_by_hour.values())
         steps_peak_hour = max(hourly_step_counts)
+        half_hour_blocks = list(steps_by_half_hour.values())
+        walking_blocks = [
+            block for block in half_hour_blocks
+            if block["steps"] >= WALK_30MIN_STEP_THRESHOLD and block["positive_samples"] >= 2
+        ]
+        steps_peak_30min = max(block["steps"] for block in half_hour_blocks)
+        quarter_hours = sorted(steps_by_quarter_hour)
+        windows_45min = []
+        for quarter_hour in quarter_hours:
+            window_keys = [
+                quarter_hour,
+                quarter_hour + timedelta(minutes=15),
+                quarter_hour + timedelta(minutes=30),
+            ]
+            if not all(key in steps_by_quarter_hour for key in window_keys):
+                continue
+            window_steps = [steps_by_quarter_hour[key]["steps"] for key in window_keys]
+            total_steps = sum(window_steps)
+            windows_45min.append({
+                "start": quarter_hour,
+                "steps": total_steps,
+                "positive_samples": sum(1 for steps in window_steps if steps > 0),
+            })
+        walking_45min_windows = [
+            window for window in windows_45min
+            if window["steps"] >= WALK_45MIN_STEP_THRESHOLD and window["positive_samples"] == 3
+        ]
+        steps_peak_45min = max((window["steps"] for window in windows_45min), default=steps_peak_30min)
 
         features["steps_total"] = steps_total
         features["steps_peak_hour"] = steps_peak_hour
         features["steps_active_hours"] = sum(1 for steps in hourly_step_counts if steps >= 500)
         features["steps_walking_hours"] = sum(1 for steps in hourly_step_counts if steps >= 2500)
-        features["had_likely_walk"] = features["steps_walking_hours"] > 0
+        features["steps_peak_30min"] = steps_peak_30min
+        features["steps_walking_30min_blocks"] = len(walking_blocks)
+        features["steps_peak_45min"] = steps_peak_45min
+        features["steps_walking_45min_windows"] = len(walking_45min_windows)
+        features["had_likely_walk"] = len(walking_blocks) > 0
         if steps_total > 0:
             features["steps_peak_hour_share"] = steps_peak_hour / steps_total
+            features["steps_peak_30min_share"] = steps_peak_30min / steps_total
+            features["steps_peak_45min_share"] = steps_peak_45min / steps_total
+
+        if walking_45min_windows:
+            hr_samples = await _get_samples_in_range(session, HeartRateSample, day_start, day_end)
+            hr_values = [s.heart_rate for s in hr_samples if s.heart_rate > 0]
+            if hr_values:
+                resting_hr = min(
+                    np.mean(hr_values[i:i + 2])
+                    for i in range(len(hr_values) - 1)
+                ) if len(hr_values) >= 2 else hr_values[0]
+                hr_by_half_hour = {}
+                for sample in hr_samples:
+                    if sample.heart_rate <= 0:
+                        continue
+                    half_hour = _local_half_hour(sample.timestamp, tz)
+                    hr_by_half_hour.setdefault(half_hour, []).append(sample.heart_rate)
+                hr_by_quarter_hour = {}
+                for sample in hr_samples:
+                    if sample.heart_rate <= 0:
+                        continue
+                    quarter_hour = _local_quarter_hour(sample.timestamp, tz)
+                    hr_by_quarter_hour.setdefault(quarter_hour, []).append(sample.heart_rate)
+
+                walk_block_hr = []
+                elevated_blocks = 0
+                for half_hour, block in steps_by_half_hour.items():
+                    if block["steps"] < WALK_30MIN_STEP_THRESHOLD or block["positive_samples"] < 2:
+                        continue
+                    hrs = hr_by_half_hour.get(half_hour, [])
+                    if not hrs:
+                        continue
+                    avg_hr = float(np.mean(hrs))
+                    delta = avg_hr - resting_hr
+                    walk_block_hr.append((block["steps"], avg_hr, delta))
+                    if delta >= WALK_HR_DELTA_THRESHOLD:
+                        elevated_blocks += 1
+
+                walk_window_hr = []
+                elevated_windows = 0
+                for window in walking_45min_windows:
+                    hrs = []
+                    for offset in [0, 15, 30]:
+                        hrs.extend(hr_by_quarter_hour.get(window["start"] + timedelta(minutes=offset), []))
+                    if not hrs:
+                        continue
+                    avg_hr = float(np.mean(hrs))
+                    delta = avg_hr - resting_hr
+                    walk_window_hr.append((window["steps"], avg_hr, delta))
+                    if delta >= WALK_HR_DELTA_THRESHOLD:
+                        elevated_windows += 1
+
+                if walk_block_hr:
+                    _, peak_avg_hr, peak_delta = max(walk_block_hr, key=lambda entry: entry[0])
+                    features["walk_peak_30min_avg_hr"] = peak_avg_hr
+                    features["walk_peak_30min_hr_delta"] = peak_delta
+                    features["walk_hr_elevated_30min_blocks"] = elevated_blocks
+                if walk_window_hr:
+                    _, peak_avg_hr, peak_delta = max(walk_window_hr, key=lambda entry: entry[0])
+                    features["walk_peak_45min_avg_hr"] = peak_avg_hr
+                    features["walk_peak_45min_hr_delta"] = peak_delta
+                    features["walk_hr_elevated_45min_windows"] = elevated_windows
+                    features["had_likely_brisk_walk"] = elevated_windows > 0
 
         morning_end = _time_to_datetime(target_date, time(12, 0), tz)
         morning_steps = sum(s.steps for s in steps_samples if s.timestamp < morning_end)
