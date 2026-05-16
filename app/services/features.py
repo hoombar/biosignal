@@ -399,7 +399,17 @@ async def compute_activity_features(
     # Steps
     steps_samples = await _get_samples_in_range(session, StepsSample, day_start, day_end)
     if steps_samples:
-        features["steps_total"] = sum(s.steps for s in steps_samples)
+        step_counts = [s.steps for s in steps_samples]
+        steps_total = sum(step_counts)
+        steps_peak_hour = max(step_counts)
+
+        features["steps_total"] = steps_total
+        features["steps_peak_hour"] = steps_peak_hour
+        features["steps_active_hours"] = sum(1 for steps in step_counts if steps >= 500)
+        features["steps_walking_hours"] = sum(1 for steps in step_counts if steps >= 2500)
+        features["had_likely_walk"] = features["steps_walking_hours"] > 0
+        if steps_total > 0:
+            features["steps_peak_hour_share"] = steps_peak_hour / steps_total
 
         morning_end = _time_to_datetime(target_date, time(12, 0), tz)
         morning_steps = sum(s.steps for s in steps_samples if s.timestamp < morning_end)

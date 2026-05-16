@@ -130,6 +130,11 @@ class DailySummary(BaseModel):
     # Activity features
     steps_total: int | None = None
     steps_morning: int | None = None
+    steps_peak_hour: int | None = None
+    steps_active_hours: int | None = None
+    steps_walking_hours: int | None = None
+    steps_peak_hour_share: float | None = None
+    had_likely_walk: bool | None = None
     active_minutes: int | None = None
     had_training: bool | None = None
     training_type: str | None = None

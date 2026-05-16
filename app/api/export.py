@@ -62,6 +62,11 @@ FEATURE_METADATA = {
     # Activity features
     "steps_total": {"description": "Total daily steps", "unit": "steps", "category": "Activity"},
     "steps_morning": {"description": "Steps before 12pm", "unit": "steps", "category": "Activity"},
+    "steps_peak_hour": {"description": "Highest hourly step count", "unit": "steps", "category": "Activity"},
+    "steps_active_hours": {"description": "Hours with at least 500 steps", "unit": "hours", "category": "Activity"},
+    "steps_walking_hours": {"description": "Hours with at least 2500 steps", "unit": "hours", "category": "Activity"},
+    "steps_peak_hour_share": {"description": "Share of daily steps in the peak hour", "unit": "ratio", "category": "Activity"},
+    "had_likely_walk": {"description": "At least one walking-like step hour", "unit": "boolean", "category": "Activity"},
     "active_minutes": {"description": "Minutes of moderate+ activity", "unit": "minutes", "category": "Activity"},
     "had_training": {"description": "Training session occurred", "unit": "boolean", "category": "Activity"},
     "training_type": {"description": "Type of training", "unit": "text", "category": "Activity"},

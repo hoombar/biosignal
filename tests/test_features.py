@@ -407,6 +407,42 @@ class TestActivityFeatures:
         assert result["steps_morning"] == 500 + 800  # before noon
 
     @pytest.mark.asyncio
+    async def test_detects_concentrated_walking_hour(self, async_session):
+        for hour, steps in [(8, 120), (9, 3000), (10, 180), (11, 260)]:
+            async_session.add(StepsSample(
+                timestamp=utc_dt(2025, 1, 28, hour),
+                steps=steps,
+                duration_seconds=3600,
+            ))
+        await async_session.commit()
+
+        result = await compute_activity_features(async_session, TEST_DATE, TZ)
+
+        assert result["steps_peak_hour"] == 3000
+        assert result["steps_active_hours"] == 1
+        assert result["steps_walking_hours"] == 1
+        assert result["had_likely_walk"] is True
+        assert result["steps_peak_hour_share"] == pytest.approx(3000 / 3560)
+
+    @pytest.mark.asyncio
+    async def test_distinguishes_pottering_from_likely_walk(self, async_session):
+        for hour in range(8, 16):
+            async_session.add(StepsSample(
+                timestamp=utc_dt(2025, 1, 28, hour),
+                steps=800,
+                duration_seconds=3600,
+            ))
+        await async_session.commit()
+
+        result = await compute_activity_features(async_session, TEST_DATE, TZ)
+
+        assert result["steps_peak_hour"] == 800
+        assert result["steps_active_hours"] == 8
+        assert result["steps_walking_hours"] == 0
+        assert result["had_likely_walk"] is False
+        assert result["steps_peak_hour_share"] == pytest.approx(0.125)
+
+    @pytest.mark.asyncio
     async def test_had_training_true_with_activity(self, async_session):
         async_session.add(Activity(
             garmin_activity_id="12345",
