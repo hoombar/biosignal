@@ -425,6 +425,24 @@ class TestActivityFeatures:
         assert result["steps_peak_hour_share"] == pytest.approx(3000 / 3560)
 
     @pytest.mark.asyncio
+    async def test_detects_walking_hour_from_subhour_samples(self, async_session):
+        for minute, steps in [(0, 700), (15, 900), (30, 800), (45, 600)]:
+            async_session.add(StepsSample(
+                timestamp=datetime(2025, 1, 28, 9, minute),
+                steps=steps,
+                duration_seconds=900,
+            ))
+        await async_session.commit()
+
+        result = await compute_activity_features(async_session, TEST_DATE, TZ)
+
+        assert result["steps_total"] == 3000
+        assert result["steps_peak_hour"] == 3000
+        assert result["steps_active_hours"] == 1
+        assert result["steps_walking_hours"] == 1
+        assert result["had_likely_walk"] is True
+
+    @pytest.mark.asyncio
     async def test_distinguishes_pottering_from_likely_walk(self, async_session):
         for hour in range(8, 16):
             async_session.add(StepsSample(

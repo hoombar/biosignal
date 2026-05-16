@@ -1,7 +1,7 @@
 """Computed features engine - derives features from raw time-series data."""
 
 import logging
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
 import numpy as np
@@ -399,14 +399,22 @@ async def compute_activity_features(
     # Steps
     steps_samples = await _get_samples_in_range(session, StepsSample, day_start, day_end)
     if steps_samples:
-        step_counts = [s.steps for s in steps_samples]
-        steps_total = sum(step_counts)
-        steps_peak_hour = max(step_counts)
+        steps_total = sum(s.steps for s in steps_samples)
+        steps_by_hour = {}
+        for sample in steps_samples:
+            local_hour = sample.timestamp.replace(tzinfo=timezone.utc).astimezone(tz).replace(
+                minute=0,
+                second=0,
+                microsecond=0,
+            )
+            steps_by_hour[local_hour] = steps_by_hour.get(local_hour, 0) + sample.steps
+        hourly_step_counts = list(steps_by_hour.values())
+        steps_peak_hour = max(hourly_step_counts)
 
         features["steps_total"] = steps_total
         features["steps_peak_hour"] = steps_peak_hour
-        features["steps_active_hours"] = sum(1 for steps in step_counts if steps >= 500)
-        features["steps_walking_hours"] = sum(1 for steps in step_counts if steps >= 2500)
+        features["steps_active_hours"] = sum(1 for steps in hourly_step_counts if steps >= 500)
+        features["steps_walking_hours"] = sum(1 for steps in hourly_step_counts if steps >= 2500)
         features["had_likely_walk"] = features["steps_walking_hours"] > 0
         if steps_total > 0:
             features["steps_peak_hour_share"] = steps_peak_hour / steps_total
