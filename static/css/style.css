@@ -2048,7 +2048,7 @@ input:focus {
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
     padding: var(--space-xl);
-    max-width: 1000px;
+    max-width: 1280px;
 }
 
 @media (max-width: 600px) {
@@ -2171,54 +2171,84 @@ input:focus {
 
 .settings-table {
     width: 100%;
-    border-collapse: collapse;
+    min-width: 1360px;
+    border-collapse: separate;
+    border-spacing: 0 8px;
+    table-layout: fixed;
     font-size: 0.8125rem;
 }
 
+.settings-table-col--name { width: 20rem; }
+.settings-table-col--type { width: 7rem; }
+.settings-table-col--period { width: 7rem; }
+.settings-table-col--target { width: 5.5rem; }
+.settings-table-col--negative { width: 4.5rem; }
+.settings-table-col--label { width: 15rem; }
+.settings-table-col--emoji { width: 5.5rem; }
+.settings-table-col--color { width: 12rem; }
+.settings-table-col--order { width: 5rem; }
+.settings-table-col--actions { width: 10.5rem; }
+
 .settings-table th {
     text-align: left;
-    padding: var(--space-sm) var(--space-md);
+    padding: 0 var(--space-md) var(--space-xs);
     font-size: 0.6875rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--text-muted);
-    border-bottom: 1px solid var(--border-subtle);
 }
 
 .settings-table td {
     padding: var(--space-sm) var(--space-md);
+    border-top: 1px solid var(--border-subtle);
     border-bottom: 1px solid var(--border-subtle);
+    background: rgba(26, 26, 36, 0.68);
     vertical-align: middle;
 }
 
-.settings-table tr:last-child td {
-    border-bottom: none;
+.settings-table tbody tr:hover td {
+    background: var(--bg-tertiary);
+    border-color: var(--border-strong);
+}
+
+.settings-table td:first-child {
+    border-left: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+.settings-table td:last-child {
+    border-right: 1px solid var(--border-subtle);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
 }
 
 .habit-name-cell {
     display: flex;
     flex-direction: column;
     gap: 2px;
+    min-width: 0;
 }
 
 .habit-raw-name {
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     color: var(--text-primary);
+    overflow-wrap: anywhere;
 }
 
 .habit-default-label {
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     color: var(--text-muted);
+    overflow-wrap: anywhere;
 }
 
 .settings-input {
     background: var(--bg-tertiary);
     border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
     color: var(--text-primary);
-    padding: var(--space-xs) var(--space-sm);
+    min-height: 2.5rem;
+    padding: var(--space-sm) var(--space-sm);
     font-family: var(--font-display);
     font-size: 0.8125rem;
     width: 100%;
@@ -2231,20 +2261,50 @@ input:focus {
 }
 
 .settings-input--emoji {
-    width: 60px;
+    width: 100%;
     text-align: center;
     font-size: 1rem;
 }
 
 .settings-input--order {
-    width: 60px;
+    width: 100%;
     text-align: center;
 }
 
+.settings-input--label {
+    min-width: 0;
+}
+
 .settings-input--color {
-    width: 90px;
+    min-width: 0;
     font-family: var(--font-mono);
     text-transform: lowercase;
+}
+
+.color-field {
+    display: grid;
+    grid-template-columns: 2.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.color-field--compact {
+    flex: 1 1 180px;
+}
+
+.settings-color-picker {
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 3px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-tertiary);
+    cursor: pointer;
+}
+
+.settings-color-picker:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
 }
 
 .settings-actions {
@@ -2254,8 +2314,8 @@ input:focus {
 }
 
 .save-cell {
-    width: 2rem;
-    text-align: center;
+    text-align: right;
+    white-space: nowrap;
 }
 
 .row-status {
@@ -2388,6 +2448,15 @@ input:focus {
     width: auto;
     flex: 1 1 140px;
     min-width: 0;
+}
+
+.add-habit-form .color-field .settings-input {
+    width: 100%;
+    flex: 1 1 auto;
+}
+
+.add-habit-form .settings-color-picker {
+    flex: 0 0 auto;
 }
 
 .add-habit-form select.settings-input {

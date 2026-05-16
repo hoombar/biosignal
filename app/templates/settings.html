@@ -101,7 +101,10 @@
                 Negative (do less)
             </label>
             <input type="text" name="emoji" placeholder="Emoji" maxlength="8" class="settings-input settings-input--emoji">
-            <input type="text" name="color" placeholder="#4488ff" pattern="^#[0-9a-fA-F]{6}$" class="settings-input settings-input--color">
+            <label class="color-field color-field--compact">
+                <input type="color" class="settings-color-picker" value="#4488ff" aria-label="Habit accent color picker">
+                <input type="text" name="color" placeholder="#4488ff" pattern="^#[0-9a-fA-F]{6}$" class="settings-input settings-input--color">
+            </label>
             <button type="submit" class="btn-primary">Create</button>
             <span id="add-habit-status" class="save-status"></span>
         </form>
@@ -140,6 +143,18 @@
         </div>
         <div class="settings-table-wrap">
             <table class="settings-table">
+                <colgroup>
+                    <col class="settings-table-col--name">
+                    <col class="settings-table-col--type">
+                    <col class="settings-table-col--period">
+                    <col class="settings-table-col--target">
+                    <col class="settings-table-col--negative">
+                    <col class="settings-table-col--label">
+                    <col class="settings-table-col--emoji">
+                    <col class="settings-table-col--color">
+                    <col class="settings-table-col--order">
+                    <col class="settings-table-col--actions">
+                </colgroup>
                 <thead>
                     <tr>
                         <th>Habit name</th>
@@ -652,7 +667,7 @@
                     aria-label="Negative habit flag for ${habit.name}">
             </td>
             <td>
-                <input type="text" class="settings-input" name="display_name"
+                <input type="text" class="settings-input settings-input--label" name="display_name"
                     value="${label}" placeholder="${defaultLabel(habit.name)}"
                     aria-label="Display label for ${habit.name}">
             </td>
@@ -662,9 +677,13 @@
                     aria-label="Emoji for ${habit.name}">
             </td>
             <td>
-                <input type="text" class="settings-input settings-input--color" name="color"
-                    value="${color}" placeholder="#4488ff"
-                    pattern="^#[0-9a-fA-F]{6}$" aria-label="Accent color for ${habit.name}">
+                <label class="color-field">
+                    <input type="color" class="settings-color-picker" value="${color || '#4488ff'}"
+                        aria-label="Accent color picker for ${habit.name}">
+                    <input type="text" class="settings-input settings-input--color" name="color"
+                        value="${color}" placeholder="#4488ff"
+                        pattern="^#[0-9a-fA-F]{6}$" aria-label="Accent color hex value for ${habit.name}">
+                </label>
             </td>
             <td>
                 <input type="number" class="settings-input settings-input--order" name="sort_order"
@@ -711,6 +730,41 @@
     }
 
     if (searchInput) searchInput.addEventListener('input', rerender);
+
+    function syncColorFields(container) {
+        const picker = container.querySelector('.settings-color-picker');
+        const text = container.querySelector('.settings-input--color');
+        if (!picker || !text) return;
+
+        picker.addEventListener('input', () => {
+            text.value = picker.value;
+        });
+
+        text.addEventListener('input', () => {
+            if (/^#[0-9a-fA-F]{6}$/.test(text.value.trim())) {
+                picker.value = text.value.trim();
+            }
+        });
+    }
+
+    syncColorFields(addForm);
+
+    tbody.addEventListener('input', (e) => {
+        const picker = e.target.closest('.settings-color-picker');
+        const colorText = e.target.closest('.settings-input--color');
+
+        if (picker) {
+            const field = picker.closest('.color-field');
+            const text = field?.querySelector('.settings-input--color');
+            if (text) text.value = picker.value;
+        }
+
+        if (colorText && /^#[0-9a-fA-F]{6}$/.test(colorText.value.trim())) {
+            const field = colorText.closest('.color-field');
+            const fieldPicker = field?.querySelector('.settings-color-picker');
+            if (fieldPicker) fieldPicker.value = colorText.value.trim();
+        }
+    });
 
     async function load() {
         errorEl.style.display = 'none';
