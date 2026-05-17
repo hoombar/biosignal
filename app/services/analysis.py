@@ -89,6 +89,96 @@ def _get_target_value(features: dict, target_kind: str, target_name: str) -> flo
     return _to_numeric(features.get(target_name))
 
 
+def _target_selector(target_kind: str, target_name: str) -> str:
+    if target_kind == "habit":
+        return f"habit:{target_name}"
+    if target_kind == "supplement":
+        return f"supplement:{target_name}"
+    return target_name
+
+
+def _target_feature_name(target_kind: str, target_name: str) -> str:
+    if target_kind == "habit":
+        return f"habit_{target_name}"
+    if target_kind == "supplement":
+        return f"supplement_{target_name}"
+    return target_name
+
+
+def _target_label(target_kind: str, target_name: str) -> str:
+    return target_name.replace("_", " ")
+
+
+def _snapshot_category(feature_name: str) -> str:
+    name = feature_name
+    is_habit = False
+    if name.startswith("supplement_"):
+        return "supplement"
+    if name.startswith("habit_"):
+        is_habit = True
+        name = name[6:]
+
+    if name.startswith(("sleep_", "deep_sleep", "rem_sleep")):
+        return "sleep"
+    if name.startswith("hrv_"):
+        return "hrv"
+    if name.startswith("spo2_"):
+        return "spo2"
+    if name.startswith(("hr_", "resting_hr")):
+        return "heart_rate"
+    if name.startswith("bb_"):
+        return "body_battery"
+    if name.startswith(("stress_", "high_stress")):
+        return "stress"
+    if name.startswith(("steps_", "walk_", "training_", "active_", "had_training")):
+        return "activity"
+    if any(token in name for token in ("daylight", "sunrise", "sunset", "solar_noon")):
+        return "light"
+    if "pollen" in name:
+        return "pollen"
+    if is_habit:
+        return "habit"
+    return "metric"
+
+
+def _snapshot_tokens(feature_name: str) -> set[str]:
+    name = feature_name.replace("habit_", "", 1).replace("supplement_", "", 1)
+    return {token for token in name.split("_") if token not in {"avg", "max", "min", "pct", "share"}}
+
+
+def _is_snapshot_target_candidate(target_kind: str, target_name: str) -> bool:
+    if target_kind in {"habit", "supplement"}:
+        return True
+    return target_name in {
+        "sleep_hours",
+        "sleep_efficiency",
+        "sleep_score",
+        "hrv_overnight_avg",
+        "hrv_overnight_min",
+        "bb_wakeup",
+        "bb_daily_min",
+        "stress_morning_avg",
+        "stress_afternoon_avg",
+        "stress_2pm_window",
+        "stress_peak",
+        "high_stress_minutes",
+    }
+
+
+def _is_obvious_snapshot_pair(target_feature: str, metric: str) -> bool:
+    target_category = _snapshot_category(target_feature)
+    metric_category = _snapshot_category(metric)
+    if target_category == metric_category and target_category in {"activity", "light", "pollen"}:
+        return True
+
+    target_tokens = _snapshot_tokens(target_feature)
+    metric_tokens = _snapshot_tokens(metric)
+    if target_tokens & metric_tokens & {"steps", "walk", "walking", "peak", "daylight", "sunrise", "sunset", "pollen"}:
+        return True
+
+    return False
+
+
 async def _load_habit_thresholds(session: AsyncSession) -> dict[str, Habit]:
     """Return counter habits with configured threshold values, keyed by name."""
     rows = (await session.execute(
@@ -140,7 +230,9 @@ async def compute_correlations(
     timezone: str = "Europe/London",
     target: str | None = None,
     target_habit: str | None = None,
-    min_days: int = 5
+    min_days: int = 5,
+    features_list: list[dict] | None = None,
+    habit_thresholds: dict[str, Habit] | None = None,
 ) -> list[dict]:
     """
     Compute correlations between all features and a target habit.
@@ -167,7 +259,8 @@ async def compute_correlations(
     end_date = date.today()
     start_date = end_date - timedelta(days=365)  # Look back 1 year max
 
-    features_list = await compute_features_range(session, start_date, end_date, timezone)
+    if features_list is None:
+        features_list = await compute_features_range(session, start_date, end_date, timezone)
 
     # Filter to days with target habit data
     target_data = [
@@ -184,7 +277,8 @@ async def compute_correlations(
     target_features = [f for f, _ in target_data]
     target_values = [v for _, v in target_data]
     target_is_binary = all(v in (0.0, 1.0) for v in target_values)
-    habit_thresholds = await _load_habit_thresholds(session)
+    if habit_thresholds is None:
+        habit_thresholds = await _load_habit_thresholds(session)
 
     # Separate positive and negative days for mean comparisons
     if target_is_binary:
@@ -324,6 +418,74 @@ async def compute_correlations(
         target_label = target_name
     logger.info(f"Computed correlations for {len(results)} features against {target_label}")
     return results
+
+
+async def compute_correlation_snapshot(
+    session: AsyncSession,
+    timezone: str = "Europe/London",
+    min_days: int = 14,
+    min_abs: float = 0.6,
+    limit: int = 6,
+) -> list[dict]:
+    """Find strong cross-domain correlations while skipping obvious derived pairs."""
+    end_date = date.today()
+    start_date = end_date - timedelta(days=365)
+    features_list = await compute_features_range(session, start_date, end_date, timezone)
+    habit_thresholds = await _load_habit_thresholds(session)
+
+    candidates: set[tuple[str, str]] = set()
+    for features in features_list:
+        for habit in features.get("habits", []):
+            if _to_numeric(habit.get("value")) is not None:
+                candidates.add(("habit", habit["name"]))
+        for item in features.get("supplement_items", []):
+            if _to_numeric(item.get("value")) is not None:
+                candidates.add(("supplement", item["key"]))
+        for key, value in features.items():
+            if key in {"date", "habits", "supplements", "supplement_items"}:
+                continue
+            if _to_numeric(value) is not None and _is_snapshot_target_candidate("metric", key):
+                candidates.add(("metric", key))
+
+    kind_order = {"habit": 0, "supplement": 1, "metric": 2}
+    ordered_candidates = sorted(candidates, key=lambda c: (kind_order[c[0]], c[1]))
+    seen_pairs: set[tuple[str, str]] = set()
+    snapshot = []
+
+    for target_kind, target_name in ordered_candidates:
+        target = _target_selector(target_kind, target_name)
+        target_feature = _target_feature_name(target_kind, target_name)
+        correlations = await compute_correlations(
+            session,
+            timezone=timezone,
+            target=target,
+            min_days=min_days,
+            features_list=features_list,
+            habit_thresholds=habit_thresholds,
+        )
+
+        for row in correlations:
+            coefficient = row["coefficient"]
+            if abs(coefficient) < min_abs:
+                continue
+            if _is_obvious_snapshot_pair(target_feature, row["metric"]):
+                continue
+
+            pair_key = tuple(sorted((target_feature, row["metric"])))
+            if pair_key in seen_pairs:
+                continue
+            seen_pairs.add(pair_key)
+
+            snapshot.append({
+                **row,
+                "target": target,
+                "target_label": _target_label(target_kind, target_name),
+                "target_kind": target_kind,
+                "target_feature": target_feature,
+            })
+
+    snapshot.sort(key=lambda x: (abs(x["coefficient"]), x["n"]), reverse=True)
+    return snapshot[:limit]
 
 
 async def compute_patterns(

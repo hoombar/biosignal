@@ -10,11 +10,17 @@ from app.services.supplements import list_supplement_items
 from app.api.export import FEATURE_METADATA
 from app.schemas.responses import (
     CorrelationResult,
+    CorrelationSnapshotResult,
     CorrelationTargetOption,
     PatternResult,
     InsightResult,
 )
-from app.services.analysis import compute_correlations, compute_patterns, generate_insights
+from app.services.analysis import (
+    compute_correlation_snapshot,
+    compute_correlations,
+    compute_patterns,
+    generate_insights,
+)
 
 router = APIRouter(prefix="/api", tags=["analysis"])
 
@@ -94,6 +100,25 @@ async def get_correlations(
     )
 
     return [CorrelationResult(**c) for c in correlations]
+
+
+@router.get("/correlation-snapshot", response_model=list[CorrelationSnapshotResult])
+async def get_correlation_snapshot(
+    min_days: int = 14,
+    min_abs: float = 0.6,
+    limit: int = 6,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get strong cross-domain correlations while skipping obvious derived pairs."""
+    settings = get_settings()
+    snapshot = await compute_correlation_snapshot(
+        db,
+        settings.tz,
+        min_days=min_days,
+        min_abs=min_abs,
+        limit=limit,
+    )
+    return [CorrelationSnapshotResult(**c) for c in snapshot]
 
 
 @router.get("/patterns", response_model=list[PatternResult])

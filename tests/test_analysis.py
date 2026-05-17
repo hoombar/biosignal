@@ -8,7 +8,12 @@ import pytest
 from datetime import date, timedelta
 
 from app.models.database import SleepSession, DailyHabit, HabitDisplayConfig
-from app.services.analysis import compute_correlations, compute_patterns, generate_insights
+from app.services.analysis import (
+    compute_correlation_snapshot,
+    compute_correlations,
+    compute_patterns,
+    generate_insights,
+)
 from tests.conftest import ensure_habit, log_habit
 
 
@@ -252,6 +257,82 @@ class TestComputeCorrelations:
         assert meditation_corr["threshold_operator"] == ">="
         assert meditation_corr["above_threshold_n"] == 5
         assert meditation_corr["below_threshold_n"] == 5
+
+
+class TestComputeCorrelationSnapshot:
+
+    @pytest.mark.asyncio
+    async def test_returns_strong_signals_without_selected_target(self, async_session):
+        for i in range(10):
+            slump = i % 2 == 0
+            await _seed_day(async_session, i, sleep_hours=5.0 if slump else 9.0, slump=slump)
+        await async_session.commit()
+
+        result = await compute_correlation_snapshot(async_session, min_days=5, min_abs=0.7)
+
+        sleep_slump = next(
+            (
+                r for r in result
+                if r["target"] == "habit:pm_slump" and r["metric"] == "sleep_hours"
+            ),
+            None,
+        )
+        assert sleep_slump is not None
+        assert sleep_slump["target_label"] == "pm slump"
+        assert sleep_slump["target_kind"] == "habit"
+        assert sleep_slump["coefficient"] < -0.7
+
+    @pytest.mark.asyncio
+    async def test_deduplicates_symmetric_metric_habit_pairs(self, async_session):
+        for i in range(10):
+            slump = i % 2 == 0
+            await _seed_day(async_session, i, sleep_hours=5.0 if slump else 9.0, slump=slump)
+        await async_session.commit()
+
+        result = await compute_correlation_snapshot(async_session, min_days=5, min_abs=0.7)
+
+        pair_count = sum(
+            1 for r in result
+            if {r["target_feature"], r["metric"]} == {"habit_pm_slump", "sleep_hours"}
+        )
+        assert pair_count == 1
+
+    @pytest.mark.asyncio
+    async def test_defaults_exclude_low_sample_signals(self, async_session):
+        for i in range(10):
+            slump = i % 2 == 0
+            await _seed_day(async_session, i, sleep_hours=5.0 if slump else 9.0, slump=slump)
+        await async_session.commit()
+
+        result = await compute_correlation_snapshot(async_session)
+
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_excludes_obvious_same_family_signals(self, async_session):
+        for i in range(20):
+            slump = i % 2 == 0
+            d = await _seed_day(async_session, i, sleep_hours=5.0 if slump else 9.0, slump=slump)
+            await log_habit(
+                async_session,
+                "steps_walking_45min_windows",
+                d,
+                10 if slump else 1,
+                habit_type="counter",
+            )
+        await async_session.commit()
+
+        result = await compute_correlation_snapshot(async_session, min_abs=0.6)
+
+        assert all(
+            {r["target_feature"], r["metric"]}
+            != {"habit_steps_walking_45min_windows", "walk_hr_elevated_45min_windows"}
+            for r in result
+        )
+        assert any(
+            r["target"] == "habit:pm_slump" and r["metric"] == "sleep_hours"
+            for r in result
+        )
 
 
 class TestComputePatterns:

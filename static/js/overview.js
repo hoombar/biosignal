@@ -1,79 +1,48 @@
 // Overview page JavaScript
 
-const STORAGE_KEY = 'biosignal_target_habit';
-
-async function loadHabitSelector() {
-    try {
-        const resp = await fetch('/api/habits/names');
-        const habitNames = await resp.json();
-
-        const select = document.getElementById('target-habit');
-        const savedHabit = localStorage.getItem(STORAGE_KEY);
-
-        select.innerHTML = '<option value="">-- Select a habit --</option>' +
-            habitNames.map(name =>
-                `<option value="${name}" ${name === savedHabit ? 'selected' : ''}>${name.replace(/_/g, ' ')}</option>`
-            ).join('');
-
-        // Load correlations if a habit was previously selected
-        if (savedHabit && habitNames.includes(savedHabit)) {
-            loadCorrelations();
-        }
-    } catch (error) {
-        console.error('Error loading habit names:', error);
-        document.getElementById('target-habit').innerHTML = '<option value="">Failed to load habits</option>';
-    }
+function formatName(value) {
+    return String(value || '').replace(/^habit_/, '').replace(/^supplement_/, '').replace(/_/g, ' ');
 }
 
-async function loadCorrelations() {
-    const select = document.getElementById('target-habit');
-    const targetHabit = select.value;
+function signalText(c) {
+    const metric = formatName(c.metric);
+    const target = c.target_label || formatName(c.target_feature || c.target);
+    const direction = Number(c.coefficient) >= 0 ? 'higher' : 'lower';
+    return `When ${metric} is higher, ${target} tends to be ${direction}`;
+}
+
+async function loadCorrelationSnapshot() {
     const container = document.getElementById('top-correlates');
-
-    if (!targetHabit) {
-        container.innerHTML = '<p>Select a habit to see correlations</p>';
-        return;
-    }
-
-    // Save selection
-    localStorage.setItem(STORAGE_KEY, targetHabit);
-
-    container.innerHTML = '<p class="loading">Loading correlations...</p>';
+    container.innerHTML = '<p class="loading">Loading unexpected signals...</p>';
 
     try {
-        const corrResp = await fetch(`/api/correlations?target_habit=${encodeURIComponent(targetHabit)}`);
+        const corrResp = await fetch('/api/correlation-snapshot?limit=6&min_abs=0.6&min_days=14');
         if (!corrResp.ok) {
-            throw new Error(`Correlation request failed (${corrResp.status})`);
+            throw new Error(`Correlation snapshot request failed (${corrResp.status})`);
         }
-        const correlations = await corrResp.json();
-        if (!Array.isArray(correlations)) {
-            throw new Error('Correlation response was not a list');
+        const snapshot = await corrResp.json();
+        if (!Array.isArray(snapshot)) {
+            throw new Error('Correlation snapshot response was not a list');
         }
 
-        const top3 = correlations.slice(0, 3);
-
-        if (top3.length === 0) {
-            container.innerHTML = '<p>Insufficient data for correlations (need at least 5 days)</p>';
+        if (snapshot.length === 0) {
+            container.innerHTML = '<p>No unexpected strong correlations found yet.</p>';
         } else {
-            container.innerHTML = top3.map(c => `
+            container.innerHTML = snapshot.map(c => `
                 <div style="margin-bottom: 1rem; padding: 1rem; border-left: 3px solid var(--primary-color);">
-                    <strong>${c.metric.replace(/_/g, ' ')}</strong><br>
-                    Correlation: ${Number(c.coefficient).toFixed(3)} (${c.strength})<br>
-                    ${Number.isFinite(c.fog_day_avg) && Number.isFinite(c.clear_day_avg)
-                        ? `Positive days: ${c.fog_day_avg.toFixed(1)}, Negative days: ${c.clear_day_avg.toFixed(1)}`
-                        : ''}
+                    <strong>${signalText(c)}</strong><br>
+                    ${formatName(c.metric)} vs ${c.target_label || formatName(c.target_feature)}: r=${Number(c.coefficient).toFixed(3)} (${c.strength}), n=${c.n}
                 </div>
             `).join('');
         }
     } catch (error) {
-        console.error('Error loading correlations:', error);
-        container.innerHTML = '<p class="error">Failed to load correlations</p>';
+        console.error('Error loading correlation snapshot:', error);
+        container.innerHTML = '<p class="error">Failed to load unexpected signals</p>';
     }
 }
 
 async function loadOverview() {
-    // Load habit selector first
-    await loadHabitSelector();
+    loadCorrelationSnapshot();
 
     try {
         // Load daily summaries
@@ -83,38 +52,23 @@ async function loadOverview() {
         // Count days with any habit data
         const daysWithData = dailyData.filter(d => d.habits && d.habits.length > 0);
 
-        // Calculate stats based on selected habit
-        const targetHabit = document.getElementById('target-habit').value;
-        let fogDays = [];
         let filteredDays = daysWithData;
-
-        if (targetHabit) {
-            filteredDays = daysWithData.filter(d => {
-                const habit = d.habits.find(h => h.name === targetHabit);
-                return habit !== undefined;
-            });
-            fogDays = filteredDays.filter(d => {
-                const habit = d.habits.find(h => h.name === targetHabit);
-                return habit && habit.value === 1;
-            });
-        }
+        const eventDays = daysWithData.filter(d => d.habits.some(h => Number(h.value) !== 0));
 
         document.getElementById('total-days').textContent = filteredDays.length;
-        document.getElementById('fog-days').textContent = fogDays.length;
+        document.getElementById('fog-days').textContent = eventDays.length;
 
-        const fogPct = filteredDays.length > 0 ? (fogDays.length / filteredDays.length * 100).toFixed(1) : 0;
+        const fogPct = filteredDays.length > 0 ? (eventDays.length / filteredDays.length * 100).toFixed(1) : 0;
         document.getElementById('fog-pct').textContent = fogPct + '%';
 
-        // Calculate current streak of negative (clear) days
+        // Calculate current streak of days without any non-zero habit event.
         let streak = 0;
-        if (targetHabit) {
-            for (let i = filteredDays.length - 1; i >= 0; i--) {
-                const habit = filteredDays[i].habits.find(h => h.name === targetHabit);
-                if (habit && habit.value === 0) {
-                    streak++;
-                } else {
-                    break;
-                }
+        for (let i = filteredDays.length - 1; i >= 0; i--) {
+            const hasEvent = filteredDays[i].habits.some(h => Number(h.value) !== 0);
+            if (!hasEvent) {
+                streak++;
+            } else {
+                break;
             }
         }
         document.getElementById('clear-streak').textContent = streak + ' days';

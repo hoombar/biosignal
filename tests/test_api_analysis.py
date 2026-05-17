@@ -118,6 +118,58 @@ class TestCorrelationsApi:
         assert "supplement_vitamin_d" in metrics
 
 
+class TestCorrelationSnapshotApi:
+    """Tests for GET /api/correlation-snapshot."""
+
+    @pytest.mark.asyncio
+    async def test_returns_strong_correlations_across_targets(self, async_session):
+        for i in range(10):
+            slump = i % 2 == 0
+            sleep_hours = 5.0 if slump else 9.0
+            async_session.add(SleepSession(
+                date=_make_date(i),
+                total_sleep_seconds=int(sleep_hours * 3600),
+                sleep_score=int(sleep_hours * 10),
+            ))
+            await log_habit(
+                async_session, "pm_slump", _make_date(i), 1 if slump else 0, habit_type="binary"
+            )
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get("/api/correlation-snapshot", params={"min_days": 5, "min_abs": 0.7})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data[0]["target"] == "habit:pm_slump"
+        assert data[0]["target_kind"] == "habit"
+        assert data[0]["metric"] == "sleep_hours"
+        assert data[0]["coefficient"] < -0.7
+
+    @pytest.mark.asyncio
+    async def test_default_min_days_excludes_tiny_samples(self, async_session):
+        for i in range(10):
+            slump = i % 2 == 0
+            sleep_hours = 5.0 if slump else 9.0
+            async_session.add(SleepSession(
+                date=_make_date(i),
+                total_sleep_seconds=int(sleep_hours * 3600),
+                sleep_score=int(sleep_hours * 10),
+            ))
+            await log_habit(
+                async_session, "pm_slump", _make_date(i), 1 if slump else 0, habit_type="binary"
+            )
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get("/api/correlation-snapshot")
+
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+
 class TestCorrelationTargetsApi:
     """Tests for GET /api/correlation-targets."""
 

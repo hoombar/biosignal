@@ -9,30 +9,24 @@
         <div class="value" id="total-days">-</div>
     </div>
     <div class="stat-card">
-        <h3>Fog Days</h3>
+        <h3>Habit Event Days</h3>
         <div class="value" id="fog-days">-</div>
     </div>
     <div class="stat-card">
-        <h3>Fog Percentage</h3>
+        <h3>Event Percentage</h3>
         <div class="value" id="fog-pct">-</div>
     </div>
     <div class="stat-card">
-        <h3>Current Clear Streak</h3>
+        <h3>Current Quiet Streak</h3>
         <div class="value" id="clear-streak">-</div>
     </div>
 </div>
 
 <div class="chart-container">
-    <h2>Top 3 Correlates</h2>
-    <div class="habit-selector">
-        <span class="habit-selector-indicator"></span>
-        <span class="habit-selector-label">Analyze habit</span>
-        <select id="target-habit" onchange="loadCorrelations()">
-            <option value="">Loading habits...</option>
-        </select>
-    </div>
+    <h2>Unexpected Correlation Signals</h2>
+    <p class="muted">Filters out obvious derived metric pairs so cross-domain signals are easier to spot.</p>
     <div id="top-correlates">
-        <p class="loading">Select a habit to see correlations</p>
+        <p class="loading">Loading unexpected signals...</p>
     </div>
 </div>
 

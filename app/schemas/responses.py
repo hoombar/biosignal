@@ -215,6 +215,14 @@ class CorrelationResult(BaseModel):
     relative_risk: float | None = None
 
 
+class CorrelationSnapshotResult(CorrelationResult):
+    """Unexpected correlation result annotated with the target it was computed against."""
+    target: str
+    target_label: str
+    target_kind: str
+    target_feature: str
+
+
 class CorrelationTargetOption(BaseModel):
     """Selectable target option for correlation analysis."""
     target: str
