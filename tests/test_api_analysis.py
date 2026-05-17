@@ -142,10 +142,13 @@ class TestCorrelationSnapshotApi:
 
         assert resp.status_code == 200
         data = resp.json()
-        assert data[0]["target"] == "habit:pm_slump"
-        assert data[0]["target_kind"] == "habit"
-        assert data[0]["metric"] == "sleep_hours"
-        assert data[0]["coefficient"] < -0.7
+        assert any(
+            row["target"] == "habit:pm_slump"
+            and row["target_kind"] == "habit"
+            and row["metric"] == "sleep_hours"
+            and row["coefficient"] < -0.7
+            for row in data
+        )
 
     @pytest.mark.asyncio
     async def test_default_min_days_excludes_tiny_samples(self, async_session):

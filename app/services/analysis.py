@@ -146,6 +146,26 @@ def _snapshot_tokens(feature_name: str) -> set[str]:
     return {token for token in name.split("_") if token not in {"avg", "max", "min", "pct", "share"}}
 
 
+def _is_symptom_like_habit(feature_name: str) -> bool:
+    if not feature_name.startswith("habit_"):
+        return False
+    return bool(_snapshot_tokens(feature_name) & {
+        "anxiety",
+        "energy",
+        "fatigue",
+        "fog",
+        "headache",
+        "insomnia",
+        "migraine",
+        "mood",
+        "nausea",
+        "pain",
+        "reflux",
+        "sleep",
+        "slump",
+    })
+
+
 def _is_snapshot_target_candidate(target_kind: str, target_name: str) -> bool:
     if target_kind in {"habit", "supplement"}:
         return True
@@ -168,13 +188,22 @@ def _is_snapshot_target_candidate(target_kind: str, target_name: str) -> bool:
 def _is_obvious_snapshot_pair(target_feature: str, metric: str) -> bool:
     target_category = _snapshot_category(target_feature)
     metric_category = _snapshot_category(metric)
-    if target_category == metric_category and target_category in {"activity", "light", "pollen"}:
+    if target_category == metric_category and target_category in {"activity", "light", "pollen", "stress", "heart_rate"}:
         return True
 
     target_tokens = _snapshot_tokens(target_feature)
     metric_tokens = _snapshot_tokens(metric)
     if target_tokens & metric_tokens & {"steps", "walk", "walking", "peak", "daylight", "sunrise", "sunset", "pollen"}:
         return True
+
+    if {target_category, metric_category} == {"heart_rate", "stress"}:
+        if target_tokens & metric_tokens & {"morning", "afternoon", "2pm", "peak"}:
+            return True
+
+    if {target_category, metric_category} == {"habit", "light"}:
+        habit_feature = target_feature if target_category == "habit" else metric
+        if not _is_symptom_like_habit(habit_feature):
+            return True
 
     return False
 

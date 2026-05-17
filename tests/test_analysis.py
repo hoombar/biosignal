@@ -13,6 +13,7 @@ from app.services.analysis import (
     compute_correlations,
     compute_patterns,
     generate_insights,
+    _is_obvious_snapshot_pair,
 )
 from tests.conftest import ensure_habit, log_habit
 
@@ -260,6 +261,19 @@ class TestComputeCorrelations:
 
 
 class TestComputeCorrelationSnapshot:
+
+    def test_obvious_filter_excludes_same_window_physiology_pairs(self):
+        assert _is_obvious_snapshot_pair("stress_2pm_window", "stress_afternoon_avg")
+        assert _is_obvious_snapshot_pair("stress_2pm_window", "hr_2pm_window")
+        assert _is_obvious_snapshot_pair("stress_afternoon_avg", "hr_afternoon_avg")
+
+    def test_obvious_filter_excludes_seasonal_light_routine_habit_pairs(self):
+        assert _is_obvious_snapshot_pair("habit_read", "daylight_minutes")
+        assert _is_obvious_snapshot_pair("habit_read", "sunset_minutes_after_midnight")
+
+    def test_obvious_filter_allows_cross_domain_symptom_signals(self):
+        assert not _is_obvious_snapshot_pair("habit_pm_slump", "sleep_hours")
+        assert not _is_obvious_snapshot_pair("habit_reflux", "stress_2pm_window")
 
     @pytest.mark.asyncio
     async def test_returns_strong_signals_without_selected_target(self, async_session):
