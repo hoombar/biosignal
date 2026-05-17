@@ -188,7 +188,18 @@ def _is_snapshot_target_candidate(target_kind: str, target_name: str) -> bool:
 def _is_obvious_snapshot_pair(target_feature: str, metric: str) -> bool:
     target_category = _snapshot_category(target_feature)
     metric_category = _snapshot_category(metric)
-    if target_category == metric_category and target_category in {"activity", "light", "pollen", "stress", "heart_rate"}:
+    derived_metric_categories = {
+        "activity",
+        "body_battery",
+        "heart_rate",
+        "hrv",
+        "light",
+        "pollen",
+        "sleep",
+        "spo2",
+        "stress",
+    }
+    if target_category == metric_category and target_category in derived_metric_categories:
         return True
 
     target_tokens = _snapshot_tokens(target_feature)
@@ -197,8 +208,11 @@ def _is_obvious_snapshot_pair(target_feature: str, metric: str) -> bool:
         return True
 
     if {target_category, metric_category} == {"heart_rate", "stress"}:
-        if target_tokens & metric_tokens & {"morning", "afternoon", "2pm", "peak"}:
-            return True
+        return True
+
+    categories = {target_category, metric_category}
+    if "body_battery" in categories and categories & {"heart_rate", "hrv", "sleep", "stress"}:
+        return True
 
     if {target_category, metric_category} == {"habit", "light"}:
         habit_feature = target_feature if target_category == "habit" else metric

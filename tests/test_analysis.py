@@ -267,6 +267,13 @@ class TestComputeCorrelationSnapshot:
         assert _is_obvious_snapshot_pair("stress_2pm_window", "hr_2pm_window")
         assert _is_obvious_snapshot_pair("stress_afternoon_avg", "hr_afternoon_avg")
 
+    def test_obvious_filter_excludes_garmin_derived_physiology_pairs(self):
+        assert _is_obvious_snapshot_pair("stress_2pm_window", "hr_afternoon_avg")
+        assert _is_obvious_snapshot_pair("bb_wakeup", "bb_daily_min")
+        assert _is_obvious_snapshot_pair("sleep_score", "bb_wakeup")
+        assert _is_obvious_snapshot_pair("hrv_overnight_min", "hrv_overnight_avg")
+        assert _is_obvious_snapshot_pair("hrv_overnight_avg", "bb_wakeup")
+
     def test_obvious_filter_excludes_seasonal_light_routine_habit_pairs(self):
         assert _is_obvious_snapshot_pair("habit_read", "daylight_minutes")
         assert _is_obvious_snapshot_pair("habit_read", "sunset_minutes_after_midnight")
