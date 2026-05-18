@@ -5,10 +5,15 @@ function formatName(value) {
 }
 
 function signalText(c) {
+    if (c.summary) return c.summary;
     const metric = formatName(c.metric);
     const target = c.target_label || formatName(c.target_feature || c.target);
     const direction = Number(c.coefficient) >= 0 ? 'higher' : 'lower';
     return `When ${metric} is higher, ${target} tends to be ${direction}`;
+}
+
+function confidenceLabel(c) {
+    return c.confidence ? `${c.confidence} confidence` : `${c.strength || 'signal'} signal`;
 }
 
 async function loadCorrelationSnapshot() {
@@ -16,7 +21,7 @@ async function loadCorrelationSnapshot() {
     container.innerHTML = '<p class="loading">Loading unexpected signals...</p>';
 
     try {
-        const corrResp = await fetch('/api/correlation-snapshot?limit=6&min_abs=0.6&min_days=14');
+        const corrResp = await fetch('/api/correlation-snapshot?limit=5&min_abs=0.3&min_days=14');
         if (!corrResp.ok) {
             throw new Error(`Correlation snapshot request failed (${corrResp.status})`);
         }
@@ -31,7 +36,7 @@ async function loadCorrelationSnapshot() {
             container.innerHTML = snapshot.map(c => `
                 <div style="margin-bottom: 1rem; padding: 1rem; border-left: 3px solid var(--primary-color);">
                     <strong>${signalText(c)}</strong><br>
-                    ${formatName(c.metric)} vs ${c.target_label || formatName(c.target_feature)}: r=${Number(c.coefficient).toFixed(3)} (${c.strength}), n=${c.n}
+                    ${confidenceLabel(c)} · r=${Number(c.coefficient).toFixed(3)}, n=${c.n}
                 </div>
             `).join('');
         }

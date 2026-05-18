@@ -84,12 +84,14 @@ def test_overview_snapshot_renders_strong_signal_without_selected_habit():
             "metric": "sleep_hours",
             "coefficient": -0.4567,
             "strength": "moderate",
+            "confidence": "medium",
+            "summary": "Your sleep score is lower after you log pm slump the day before",
             "n": 12,
         },
     ])
 
-    assert "sleep hours" in result["html"]
-    assert "pm slump" in result["html"]
+    assert "Your sleep score is lower after you log pm slump the day before" in result["html"]
+    assert "medium confidence" in result["html"]
     assert "r=-0.457" in result["html"]
     assert "n=12" in result["html"]
-    assert result["fetchCalls"] == ["/api/correlation-snapshot?limit=6&min_abs=0.6&min_days=14"]
+    assert result["fetchCalls"] == ["/api/correlation-snapshot?limit=5&min_abs=0.3&min_days=14"]

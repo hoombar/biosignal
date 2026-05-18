@@ -123,13 +123,14 @@ class TestCorrelationSnapshotApi:
 
     @pytest.mark.asyncio
     async def test_returns_strong_correlations_across_targets(self, async_session):
-        for i in range(10):
+        for i in range(16):
             slump = i % 2 == 0
+            prev_slump = i > 0 and (i - 1) % 2 == 0
             sleep_hours = 5.0 if slump else 9.0
             async_session.add(SleepSession(
                 date=_make_date(i),
                 total_sleep_seconds=int(sleep_hours * 3600),
-                sleep_score=int(sleep_hours * 10),
+                sleep_score=55 if prev_slump else 85,
             ))
             await log_habit(
                 async_session, "pm_slump", _make_date(i), 1 if slump else 0, habit_type="binary"
@@ -143,10 +144,11 @@ class TestCorrelationSnapshotApi:
         assert resp.status_code == 200
         data = resp.json()
         assert any(
-            row["target"] == "habit:pm_slump"
-            and row["target_kind"] == "habit"
-            and row["metric"] == "sleep_hours"
+            row["target"] == "sleep_score"
+            and row["target_kind"] == "metric"
+            and row["metric"] == "habit_pm_slump_prev_day"
             and row["coefficient"] < -0.7
+            and row["confidence"] == "high"
             for row in data
         )
 

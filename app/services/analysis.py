@@ -222,6 +222,245 @@ def _is_obvious_snapshot_pair(target_feature: str, metric: str) -> bool:
     return False
 
 
+def _feature_label(feature_name: str) -> str:
+    name = feature_name
+    if name.startswith("habit_"):
+        name = name[6:]
+    if name.endswith("_prev_day"):
+        name = name[:-9]
+    if name.startswith("supplement_slot_"):
+        return f"{name[16:].replace('_', ' ')} supplements"
+    if name.startswith("supplement_"):
+        name = name[11:]
+    return name.replace("_", " ")
+
+
+def _signal_confidence(coefficient: float, n: int) -> str:
+    abs_r = abs(coefficient)
+    if n >= 30 and abs_r >= 0.5:
+        return "high"
+    if n >= 14 and abs_r >= 0.65:
+        return "high"
+    if n >= 14 and abs_r >= 0.4:
+        return "medium"
+    return "low"
+
+
+def _feature_value(features: dict, key: str) -> float | None:
+    if key.startswith("habit_"):
+        return _get_habit_value(features, key[6:])
+    if key.startswith("supplement_slot_"):
+        slot = key[16:]
+        values = [
+            1.0 if row.get("completed") else 0.0
+            for row in features.get("supplements", [])
+            if row.get("slot") == slot
+        ]
+        return max(values) if values else None
+    if key.startswith("supplement_"):
+        return _get_supplement_value(features, key[11:])
+    if key == "overall_pollen_avg":
+        values = [
+            _to_numeric(value)
+            for name, value in features.items()
+            if name.endswith("_pollen_avg")
+        ]
+        values = [value for value in values if value is not None]
+        return float(sum(values)) if values else None
+    return _to_numeric(features.get(key))
+
+
+def _available_signal_keys(features_list: list[dict]) -> dict[str, set[str]]:
+    keys: dict[str, set[str]] = {
+        "habits": set(),
+        "supplement_slots": set(),
+        "supplements": set(),
+        "pollen": set(),
+        "temperature": set(),
+    }
+    for features in features_list:
+        for habit in features.get("habits", []):
+            if _to_numeric(habit.get("value")) is not None:
+                keys["habits"].add(f"habit_{habit['name']}")
+        for row in features.get("supplements", []):
+            if row.get("slot"):
+                keys["supplement_slots"].add(f"supplement_slot_{row['slot']}")
+        for item in features.get("supplement_items", []):
+            if _to_numeric(item.get("value")) is not None:
+                keys["supplements"].add(f"supplement_{item['key']}")
+        for key, value in features.items():
+            if _to_numeric(value) is None:
+                continue
+            if key.endswith("_pollen_avg"):
+                keys["pollen"].add(key)
+            if "temp" in key or "temperature" in key:
+                keys["temperature"].add(key)
+    if keys["pollen"]:
+        keys["pollen"].add("overall_pollen_avg")
+    return keys
+
+
+def _signal_summary(bucket: str, target: str, predictor: str, coefficient: float) -> str:
+    target_label = _feature_label(target)
+    predictor_label = _feature_label(predictor)
+    higher_lower = "higher" if coefficient > 0 else "lower"
+    more_less = "more" if coefficient > 0 else "less"
+
+    if bucket == "prior_day_habit_sleep":
+        return f"Your {target_label} is {higher_lower} after you log {predictor_label} the day before"
+    if bucket == "habit_stress":
+        return f"Your {target_label} is {higher_lower} when you log {predictor_label} more"
+    if bucket == "pollen_habit":
+        return f"You log {target_label} {more_less} when {predictor_label} is higher"
+    if bucket == "supplement_sleep":
+        return f"Your {target_label} is {higher_lower} when {predictor_label} are logged"
+    if bucket == "prior_day_habit_body_battery":
+        return f"Your {target_label} is {higher_lower} after you log {predictor_label} the day before"
+    if bucket == "pollen_sleep":
+        return f"Your {target_label} is {higher_lower} when {predictor_label} is higher"
+    if bucket == "temperature_sleep":
+        return f"Your {target_label} is {higher_lower} when {predictor_label} is higher"
+    if bucket == "sunrise_wake":
+        return f"Your wake time tracks {predictor_label}"
+    return f"{target_label} is {higher_lower} when {predictor_label} is higher"
+
+
+def _correlate_signal(
+    features_list: list[dict],
+    bucket: str,
+    target: str,
+    predictor: str,
+    lag_days: int,
+    min_days: int,
+    min_abs: float,
+) -> dict | None:
+    pairs = []
+    for idx, features in enumerate(features_list):
+        source_idx = idx - lag_days
+        if source_idx < 0:
+            continue
+        target_value = _feature_value(features, target)
+        predictor_value = _feature_value(features_list[source_idx], predictor)
+        if target_value is not None and predictor_value is not None:
+            pairs.append((target_value, predictor_value))
+
+    if len(pairs) < min_days:
+        return None
+
+    target_vals, predictor_vals = zip(*pairs)
+    if np.std(target_vals) == 0 or np.std(predictor_vals) == 0:
+        return None
+
+    try:
+        r, p_value = stats.pearsonr(target_vals, predictor_vals)
+    except Exception as e:
+        logger.warning(f"Bucketed correlation failed for {target} vs {predictor}: {e}")
+        return None
+
+    if abs(r) < min_abs:
+        return None
+
+    abs_r = abs(r)
+    strength = "strong" if abs_r > 0.5 else "moderate" if abs_r > 0.3 else "weak"
+    metric = f"{predictor}_prev_day" if lag_days else predictor
+    target_kind = "habit" if target.startswith("habit_") else "metric"
+    return {
+        "metric": metric,
+        "coefficient": float(r),
+        "p_value": float(p_value),
+        "n": len(pairs),
+        "strength": strength,
+        "target": f"habit:{target[6:]}" if target_kind == "habit" else target,
+        "target_label": _feature_label(target),
+        "target_kind": target_kind,
+        "target_feature": target,
+        "bucket": bucket,
+        "confidence": _signal_confidence(float(r), len(pairs)),
+        "summary": _signal_summary(bucket, target, metric, float(r)),
+    }
+
+
+def _compute_bucketed_correlation_signals(
+    features_list: list[dict],
+    min_days: int = 14,
+    min_abs: float = 0.3,
+    limit: int = 5,
+) -> list[dict]:
+    """Compute curated overview signals from common interesting health buckets."""
+    features_list = sorted(features_list, key=lambda row: row.get("date"))
+    keys = _available_signal_keys(features_list)
+    candidates: list[tuple[str, str, str, int]] = []
+
+    sleep_targets = ["sleep_score", "deep_sleep_pct"]
+    stress_targets = ["stress_2pm_window", "stress_afternoon_avg", "high_stress_minutes"]
+    body_battery_targets = ["bb_wakeup", "bb_morning_drain_rate"]
+
+    for habit in sorted(keys["habits"]):
+        for target in sleep_targets:
+            candidates.append(("prior_day_habit_sleep", target, habit, 1))
+        for target in stress_targets:
+            candidates.append(("habit_stress", target, habit, 0))
+        for target in body_battery_targets:
+            candidates.append(("prior_day_habit_body_battery", target, habit, 1))
+        for pollen in sorted(keys["pollen"]):
+            candidates.append(("pollen_habit", habit, pollen, 0))
+
+    for supplement in sorted(keys["supplement_slots"] | keys["supplements"]):
+        for target in sleep_targets:
+            candidates.append(("supplement_sleep", target, supplement, 0))
+
+    for pollen in sorted(keys["pollen"]):
+        for target in sleep_targets:
+            candidates.append(("pollen_sleep", target, pollen, 0))
+
+    for temperature in sorted(keys["temperature"]):
+        for target in sleep_targets:
+            candidates.append(("temperature_sleep", target, temperature, 0))
+
+    signals = []
+    for bucket, target, predictor, lag_days in candidates:
+        signal = _correlate_signal(features_list, bucket, target, predictor, lag_days, min_days, min_abs)
+        if signal is not None:
+            signals.append(signal)
+
+    bucket_priority = {
+        "prior_day_habit_sleep": 7,
+        "supplement_sleep": 7,
+        "prior_day_habit_body_battery": 6,
+        "pollen_sleep": 6,
+        "temperature_sleep": 6,
+        "habit_stress": 5,
+        "pollen_habit": 5,
+    }
+    signals.sort(
+        key=lambda row: (
+            bucket_priority.get(row["bucket"], 0),
+            row["confidence"] == "high",
+            abs(row["coefficient"]),
+            row["n"],
+        ),
+        reverse=True,
+    )
+
+    selected = []
+    used_buckets = set()
+    for signal in signals:
+        if signal["bucket"] in used_buckets:
+            continue
+        selected.append(signal)
+        used_buckets.add(signal["bucket"])
+        if len(selected) >= limit:
+            return selected
+
+    for signal in signals:
+        if signal in selected:
+            continue
+        selected.append(signal)
+        if len(selected) >= limit:
+            break
+    return selected
+
+
 async def _load_habit_thresholds(session: AsyncSession) -> dict[str, Habit]:
     """Return counter habits with configured threshold values, keyed by name."""
     rows = (await session.execute(
@@ -467,68 +706,14 @@ async def compute_correlation_snapshot(
     session: AsyncSession,
     timezone: str = "Europe/London",
     min_days: int = 14,
-    min_abs: float = 0.6,
-    limit: int = 6,
+    min_abs: float = 0.3,
+    limit: int = 5,
 ) -> list[dict]:
-    """Find strong cross-domain correlations while skipping obvious derived pairs."""
+    """Find curated overview correlations from common interesting signal buckets."""
     end_date = date.today()
     start_date = end_date - timedelta(days=365)
     features_list = await compute_features_range(session, start_date, end_date, timezone)
-    habit_thresholds = await _load_habit_thresholds(session)
-
-    candidates: set[tuple[str, str]] = set()
-    for features in features_list:
-        for habit in features.get("habits", []):
-            if _to_numeric(habit.get("value")) is not None:
-                candidates.add(("habit", habit["name"]))
-        for item in features.get("supplement_items", []):
-            if _to_numeric(item.get("value")) is not None:
-                candidates.add(("supplement", item["key"]))
-        for key, value in features.items():
-            if key in {"date", "habits", "supplements", "supplement_items"}:
-                continue
-            if _to_numeric(value) is not None and _is_snapshot_target_candidate("metric", key):
-                candidates.add(("metric", key))
-
-    kind_order = {"habit": 0, "supplement": 1, "metric": 2}
-    ordered_candidates = sorted(candidates, key=lambda c: (kind_order[c[0]], c[1]))
-    seen_pairs: set[tuple[str, str]] = set()
-    snapshot = []
-
-    for target_kind, target_name in ordered_candidates:
-        target = _target_selector(target_kind, target_name)
-        target_feature = _target_feature_name(target_kind, target_name)
-        correlations = await compute_correlations(
-            session,
-            timezone=timezone,
-            target=target,
-            min_days=min_days,
-            features_list=features_list,
-            habit_thresholds=habit_thresholds,
-        )
-
-        for row in correlations:
-            coefficient = row["coefficient"]
-            if abs(coefficient) < min_abs:
-                continue
-            if _is_obvious_snapshot_pair(target_feature, row["metric"]):
-                continue
-
-            pair_key = tuple(sorted((target_feature, row["metric"])))
-            if pair_key in seen_pairs:
-                continue
-            seen_pairs.add(pair_key)
-
-            snapshot.append({
-                **row,
-                "target": target,
-                "target_label": _target_label(target_kind, target_name),
-                "target_kind": target_kind,
-                "target_feature": target_feature,
-            })
-
-    snapshot.sort(key=lambda x: (abs(x["coefficient"]), x["n"]), reverse=True)
-    return snapshot[:limit]
+    return _compute_bucketed_correlation_signals(features_list, min_days=min_days, min_abs=min_abs, limit=limit)
 
 
 async def compute_patterns(

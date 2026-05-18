@@ -9,6 +9,7 @@ from datetime import date, timedelta
 
 from app.models.database import SleepSession, DailyHabit, HabitDisplayConfig
 from app.services.analysis import (
+    _compute_bucketed_correlation_signals,
     compute_correlation_snapshot,
     compute_correlations,
     compute_patterns,
@@ -262,6 +263,65 @@ class TestComputeCorrelations:
 
 class TestComputeCorrelationSnapshot:
 
+    def test_bucketed_snapshot_prefers_prior_day_habit_sleep_signals(self):
+        features = []
+        for i in range(20):
+            reflux = 1 if i % 2 == 0 else 0
+            prev_reflux = 1 if i > 0 and (i - 1) % 2 == 0 else 0
+            features.append({
+                "date": _make_date(i),
+                "sleep_score": 55 if prev_reflux else 85,
+                "habits": [{"name": "reflux", "value": reflux, "type": "binary"}],
+            })
+
+        result = _compute_bucketed_correlation_signals(features, min_days=14, min_abs=0.3, limit=5)
+
+        signal = next(r for r in result if r["bucket"] == "prior_day_habit_sleep")
+        assert signal["metric"] == "habit_reflux_prev_day"
+        assert signal["target"] == "sleep_score"
+        assert signal["coefficient"] < -0.9
+        assert signal["confidence"] == "high"
+        assert "day before" in signal["summary"]
+
+    def test_bucketed_snapshot_finds_pollen_habit_and_supplement_sleep_signals(self):
+        features = []
+        for i in range(20):
+            high_pollen = i % 2 == 0
+            features.append({
+                "date": _make_date(i),
+                "deep_sleep_pct": 12 if high_pollen else 24,
+                "grass_pollen_avg": 80 if high_pollen else 5,
+                "supplements": [{"slot": "evening", "completed": not high_pollen}],
+                "habits": [{"name": "headache", "value": 1 if high_pollen else 0, "type": "binary"}],
+            })
+
+        result = _compute_bucketed_correlation_signals(features, min_days=14, min_abs=0.3, limit=5)
+
+        buckets = {r["bucket"] for r in result}
+        assert "pollen_habit" in buckets
+        assert "supplement_sleep" in buckets
+        assert all("confidence" in r for r in result)
+
+    def test_bucketed_snapshot_limits_to_five_signals(self):
+        features = []
+        for i in range(30):
+            high = i % 2 == 0
+            habits = [
+                {"name": f"symptom_{j}", "value": 1 if high else 0, "type": "binary"}
+                for j in range(8)
+            ]
+            features.append({
+                "date": _make_date(i),
+                "sleep_score": 60 if high else 90,
+                "stress_afternoon_avg": 80 if high else 20,
+                "grass_pollen_avg": 70 if high else 3,
+                "habits": habits,
+            })
+
+        result = _compute_bucketed_correlation_signals(features, min_days=14, min_abs=0.3, limit=5)
+
+        assert len(result) == 5
+
     def test_obvious_filter_excludes_same_window_physiology_pairs(self):
         assert _is_obvious_snapshot_pair("stress_2pm_window", "stress_afternoon_avg")
         assert _is_obvious_snapshot_pair("stress_2pm_window", "hr_2pm_window")
@@ -284,9 +344,16 @@ class TestComputeCorrelationSnapshot:
 
     @pytest.mark.asyncio
     async def test_returns_strong_signals_without_selected_target(self, async_session):
-        for i in range(10):
+        for i in range(16):
             slump = i % 2 == 0
-            await _seed_day(async_session, i, sleep_hours=5.0 if slump else 9.0, slump=slump)
+            prev_slump = i > 0 and (i - 1) % 2 == 0
+            d = _make_date(i)
+            async_session.add(SleepSession(
+                date=d,
+                total_sleep_seconds=int((5.0 if slump else 9.0) * 3600),
+                sleep_score=55 if prev_slump else 85,
+            ))
+            await log_habit(async_session, "pm_slump", d, 1 if slump else 0, habit_type="binary")
         await async_session.commit()
 
         result = await compute_correlation_snapshot(async_session, min_days=5, min_abs=0.7)
@@ -294,27 +361,34 @@ class TestComputeCorrelationSnapshot:
         sleep_slump = next(
             (
                 r for r in result
-                if r["target"] == "habit:pm_slump" and r["metric"] == "sleep_hours"
+                if r["target"] == "sleep_score" and r["metric"] == "habit_pm_slump_prev_day"
             ),
             None,
         )
         assert sleep_slump is not None
-        assert sleep_slump["target_label"] == "pm slump"
-        assert sleep_slump["target_kind"] == "habit"
+        assert sleep_slump["target_label"] == "sleep score"
+        assert sleep_slump["target_kind"] == "metric"
         assert sleep_slump["coefficient"] < -0.7
 
     @pytest.mark.asyncio
-    async def test_deduplicates_symmetric_metric_habit_pairs(self, async_session):
-        for i in range(10):
+    async def test_bucketed_snapshot_does_not_repeat_exact_signal(self, async_session):
+        for i in range(16):
             slump = i % 2 == 0
-            await _seed_day(async_session, i, sleep_hours=5.0 if slump else 9.0, slump=slump)
+            prev_slump = i > 0 and (i - 1) % 2 == 0
+            d = _make_date(i)
+            async_session.add(SleepSession(
+                date=d,
+                total_sleep_seconds=int((5.0 if slump else 9.0) * 3600),
+                sleep_score=55 if prev_slump else 85,
+            ))
+            await log_habit(async_session, "pm_slump", d, 1 if slump else 0, habit_type="binary")
         await async_session.commit()
 
         result = await compute_correlation_snapshot(async_session, min_days=5, min_abs=0.7)
 
         pair_count = sum(
             1 for r in result
-            if {r["target_feature"], r["metric"]} == {"habit_pm_slump", "sleep_hours"}
+            if (r["target_feature"], r["metric"]) == ("sleep_score", "habit_pm_slump_prev_day")
         )
         assert pair_count == 1
 
@@ -350,10 +424,7 @@ class TestComputeCorrelationSnapshot:
             != {"habit_steps_walking_45min_windows", "walk_hr_elevated_45min_windows"}
             for r in result
         )
-        assert any(
-            r["target"] == "habit:pm_slump" and r["metric"] == "sleep_hours"
-            for r in result
-        )
+        assert all(r["bucket"] != "activity" for r in result)
 
 
 class TestComputePatterns:

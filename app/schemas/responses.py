@@ -221,6 +221,9 @@ class CorrelationSnapshotResult(CorrelationResult):
     target_label: str
     target_kind: str
     target_feature: str
+    bucket: str | None = None
+    confidence: str | None = None
+    summary: str | None = None
 
 
 class CorrelationTargetOption(BaseModel):

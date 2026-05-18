@@ -105,11 +105,11 @@ async def get_correlations(
 @router.get("/correlation-snapshot", response_model=list[CorrelationSnapshotResult])
 async def get_correlation_snapshot(
     min_days: int = 14,
-    min_abs: float = 0.6,
-    limit: int = 6,
+    min_abs: float = 0.3,
+    limit: int = 5,
     db: AsyncSession = Depends(get_db),
 ):
-    """Get strong cross-domain correlations while skipping obvious derived pairs."""
+    """Get curated overview correlations from common interesting signal buckets."""
     settings = get_settings()
     snapshot = await compute_correlation_snapshot(
         db,
