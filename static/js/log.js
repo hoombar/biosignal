@@ -6,6 +6,7 @@
     'use strict';
 
     const habitsEl = document.getElementById('log-habits');
+    const contextEl = document.getElementById('log-context');
     const supplementsEl = document.getElementById('log-supplements');
     const loadingEl = document.getElementById('log-loading');
     const errorEl = document.getElementById('log-error');
@@ -122,6 +123,90 @@
         return slot.charAt(0).toUpperCase() + slot.slice(1);
     }
 
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>'"]/g, ch => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;',
+        }[ch]));
+    }
+
+    function titleCase(value) {
+        return String(value || 'other')
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, ch => ch.toUpperCase());
+    }
+
+    function renderContextPanel(day) {
+        const contexts = day.contexts || [];
+        const eventsHtml = contexts.length ? contexts.map(event => {
+            const tags = (event.tags || []).map(tag => `<span class="context-tag">${escapeHtml(tag)}</span>`).join('');
+            const range = event.start_date === event.end_date
+                ? event.start_date
+                : `${event.start_date} to ${event.end_date}`;
+            return `
+                <article class="context-event ${event.exclude_from_baseline ? 'context-event--excluded' : ''}">
+                    <div class="context-event-main">
+                        <span class="context-category">${titleCase(event.category)}</span>
+                        <h3>${escapeHtml(event.title)}</h3>
+                        <p>${escapeHtml(range)}${event.intensity ? ` · ${titleCase(event.intensity)} intensity` : ''}</p>
+                        ${event.notes ? `<p class="context-notes">${escapeHtml(event.notes)}</p>` : ''}
+                        ${tags ? `<div class="context-tags">${tags}</div>` : ''}
+                    </div>
+                    <button type="button" class="context-delete" data-context-delete="${event.id}" aria-label="Delete context event">Remove</button>
+                </article>
+            `;
+        }).join('') : '<p class="context-empty">No outlier context for this day.</p>';
+
+        return `
+            <section class="context-panel" aria-label="Context events">
+                <div class="context-panel-header">
+                    <div>
+                        <h2>Context</h2>
+                        <p>Mark travel, conferences, illness, or other non-baseline periods.</p>
+                    </div>
+                    ${day.baseline_excluded ? '<span class="context-baseline">Excluded from baseline</span>' : ''}
+                </div>
+                <div class="context-event-list">${eventsHtml}</div>
+                <form class="context-form" id="context-form">
+                    <input type="text" name="title" placeholder="Conference abroad, hotel sleep, long flight" required maxlength="120">
+                    <div class="context-form-grid">
+                        <label>Start <input type="date" name="start_date" value="${currentDate}" required></label>
+                        <label>End <input type="date" name="end_date" value="${currentDate}" required></label>
+                        <label>Category
+                            <select name="category">
+                                <option value="travel">Travel</option>
+                                <option value="conference">Conference</option>
+                                <option value="illness">Illness</option>
+                                <option value="stress">Stress</option>
+                                <option value="vacation">Vacation</option>
+                                <option value="recovery">Recovery</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </label>
+                        <label>Intensity
+                            <select name="intensity">
+                                <option value="">None</option>
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                            </select>
+                        </label>
+                    </div>
+                    <input type="text" name="tags" placeholder="Tags: flight, hotel, timezone_shift">
+                    <textarea name="notes" rows="2" placeholder="Optional notes"></textarea>
+                    <label class="context-baseline-toggle">
+                        <input type="checkbox" name="exclude_from_baseline" checked>
+                        Exclude from baseline calculations
+                    </label>
+                    <button type="submit" class="context-submit">Add context</button>
+                </form>
+            </section>
+        `;
+    }
+
     function renderSupplementsPanel(day) {
         if (!supplementSlots.length) return '';
         const logsBySlot = Object.fromEntries((day.supplements || []).map(log => [log.slot, log]));
@@ -173,15 +258,18 @@
 
         loadingEl.style.display = '';
         errorEl.style.display = 'none';
+        contextEl.style.display = 'none';
         habitsEl.style.display = 'none';
         supplementsEl.style.display = 'none';
         emptyEl.style.display = 'none';
 
         try {
             const day = await loadDay(dateStr);
+            contextEl.innerHTML = renderContextPanel(day);
             supplementsEl.innerHTML = renderSupplementsPanel(day);
             habitsEl.innerHTML = HabitPanel.renderHabitsPanel(day, { mode: 'edit' });
             loadingEl.style.display = 'none';
+            contextEl.style.display = '';
             const hasSupplements = supplementSlots.some(slot => (slot.items || []).length > 0);
             if ((window._activeHabits || []).length === 0 && !hasSupplements) {
                 emptyEl.style.display = '';
@@ -241,6 +329,63 @@
             }
             delete dayCache[currentDate];
             await refreshActiveHabits();
+            render(currentDate);
+        } finally {
+            button.disabled = false;
+        }
+    });
+
+    contextEl.addEventListener('submit', async (event) => {
+        if (event.target.id !== 'context-form') return;
+        event.preventDefault();
+        const form = event.target;
+        const submit = form.querySelector('button[type="submit"]');
+        const formData = new FormData(form);
+        const tags = String(formData.get('tags') || '')
+            .split(',')
+            .map(tag => tag.trim())
+            .filter(Boolean);
+        const body = {
+            title: formData.get('title'),
+            start_date: formData.get('start_date'),
+            end_date: formData.get('end_date'),
+            category: formData.get('category') || 'other',
+            tags,
+            intensity: formData.get('intensity') || null,
+            exclude_from_baseline: formData.get('exclude_from_baseline') === 'on',
+            notes: formData.get('notes') || null,
+        };
+        submit.disabled = true;
+        try {
+            const resp = await fetch('/api/context-events', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body),
+            });
+            if (!resp.ok) {
+                const detail = await resp.text();
+                console.error('Failed to create context event:', detail);
+                return;
+            }
+            delete dayCache[currentDate];
+            render(currentDate);
+        } finally {
+            submit.disabled = false;
+        }
+    });
+
+    contextEl.addEventListener('click', async (event) => {
+        const button = event.target.closest('button[data-context-delete]');
+        if (!button) return;
+        button.disabled = true;
+        try {
+            const resp = await fetch(`/api/context-events/${button.dataset.contextDelete}`, {method: 'DELETE'});
+            if (!resp.ok) {
+                const detail = await resp.text();
+                console.error('Failed to delete context event:', detail);
+                return;
+            }
+            delete dayCache[currentDate];
             render(currentDate);
         } finally {
             button.disabled = false;

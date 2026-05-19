@@ -71,6 +71,16 @@ def test_log_page_renders_brand_logo_and_favicon():
     assert "/static/images/logo.jpeg" in html
 
 
+def test_log_page_renders_context_panel_shell():
+    with TestClient(app) as client:
+        resp = client.get("/log")
+
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'id="log-context"' in html
+    assert 'class="log-context"' in html
+
+
 def test_log_page_renders_responsive_navigation_shell():
     with TestClient(app) as client:
         resp = client.get("/log")
