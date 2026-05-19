@@ -1,18 +1,31 @@
 """Correlation and pattern analysis engine."""
 
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta, timezone as dt_timezone
+from zoneinfo import ZoneInfo
 import numpy as np
 from scipy import stats
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.database import Habit
+from app.models.database import (
+    BodyBatterySample,
+    DailyHabit,
+    EnvironmentalMetric,
+    Habit,
+    SleepSession,
+    StressSample,
+    SupplementLog,
+)
 from app.services.habit_config import get_default_habit_name
 from app.services.features import compute_features_range
 from app.services.supplements import supplement_feature_name
 
 logger = logging.getLogger(__name__)
+
+
+def _day_boundary(target_date: date, tz: ZoneInfo) -> datetime:
+    return datetime.combine(target_date, time(0, 0), tzinfo=tz).astimezone(dt_timezone.utc).replace(tzinfo=None)
 
 
 def _to_numeric(value) -> float | None:
@@ -473,6 +486,144 @@ def _compute_bucketed_correlation_signals(
     return selected
 
 
+async def _load_bucketed_signal_features(
+    session: AsyncSession,
+    start_date: date,
+    end_date: date,
+    timezone: str,
+) -> list[dict]:
+    """Load only fields needed for overview signal buckets using bulk queries."""
+    tz = ZoneInfo(timezone)
+    features_by_date = {
+        (start_date + timedelta(days=offset)): {"date": (start_date + timedelta(days=offset)).isoformat()}
+        for offset in range((end_date - start_date).days + 1)
+    }
+
+    sleep_rows = (await session.execute(
+        select(SleepSession).where(SleepSession.date >= start_date, SleepSession.date <= end_date)
+    )).scalars().all()
+    sleep_by_date = {row.date: row for row in sleep_rows}
+    for row in sleep_rows:
+        features = features_by_date.get(row.date)
+        if features is None:
+            continue
+        if row.sleep_score is not None:
+            features["sleep_score"] = row.sleep_score
+        if row.total_sleep_seconds and row.deep_sleep_seconds is not None:
+            features["deep_sleep_pct"] = (row.deep_sleep_seconds / row.total_sleep_seconds) * 100
+
+    habit_rows = (await session.execute(
+        select(DailyHabit, Habit)
+        .join(Habit, Habit.id == DailyHabit.habit_id)
+        .where(DailyHabit.date >= start_date, DailyHabit.date <= end_date)
+    )).all()
+    for daily, habit in habit_rows:
+        features_by_date.setdefault(daily.date, {"date": daily.date.isoformat()}).setdefault("habits", []).append({
+            "name": habit.name,
+            "value": daily.habit_value,
+            "type": habit.habit_type,
+        })
+
+    supplement_rows = (await session.execute(
+        select(SupplementLog)
+        .where(SupplementLog.date >= start_date, SupplementLog.date <= end_date)
+        .order_by(SupplementLog.slot)
+    )).scalars().all()
+    for row in supplement_rows:
+        features = features_by_date.setdefault(row.date, {"date": row.date.isoformat()})
+        features.setdefault("supplements", []).append({
+            "slot": row.slot,
+            "completed": row.completed,
+            "snapshot": row.snapshot,
+        })
+        items_by_key = {item["key"]: item for item in features.setdefault("supplement_items", [])}
+        for item in row.snapshot or []:
+            name = str(item.get("name", "")).strip()
+            if not name:
+                continue
+            key = supplement_feature_name(name)[11:]
+            existing = items_by_key.get(key)
+            value = 1.0 if row.completed else 0.0
+            if existing is None:
+                entry = {"key": key, "name": name, "value": value}
+                features["supplement_items"].append(entry)
+                items_by_key[key] = entry
+            else:
+                existing["value"] = max(existing["value"], value)
+
+    environmental_rows = (await session.execute(
+        select(EnvironmentalMetric)
+        .where(EnvironmentalMetric.date >= start_date, EnvironmentalMetric.date <= end_date)
+    )).scalars().all()
+    for row in environmental_rows:
+        key = row.metric_key
+        if key.endswith("_pollen_avg") or "temp" in key or "temperature" in key:
+            features_by_date.setdefault(row.date, {"date": row.date.isoformat()})[key] = row.value
+
+    start_dt = _day_boundary(start_date, tz)
+    end_dt = _day_boundary(end_date + timedelta(days=1), tz)
+    stress_rows = (await session.execute(
+        select(StressSample)
+        .where(StressSample.timestamp >= start_dt, StressSample.timestamp < end_dt)
+        .order_by(StressSample.timestamp)
+    )).scalars().all()
+    stress_by_date: dict[date, list[StressSample]] = {}
+    for sample in stress_rows:
+        local_dt = sample.timestamp.replace(tzinfo=dt_timezone.utc).astimezone(tz)
+        if sample.stress_level > 0:
+            stress_by_date.setdefault(local_dt.date(), []).append(sample)
+    for sample_date, samples in stress_by_date.items():
+        features = features_by_date.get(sample_date)
+        if features is None:
+            continue
+        afternoon = []
+        window_2pm = []
+        high_stress = 0
+        for sample in samples:
+            local_dt = sample.timestamp.replace(tzinfo=dt_timezone.utc).astimezone(tz)
+            if 12 <= local_dt.hour < 18:
+                afternoon.append(sample.stress_level)
+            if 13 <= local_dt.hour < 16:
+                window_2pm.append(sample.stress_level)
+            if sample.stress_level > 60:
+                high_stress += 1
+        if afternoon:
+            features["stress_afternoon_avg"] = float(np.mean(afternoon))
+        if window_2pm:
+            features["stress_2pm_window"] = float(np.mean(window_2pm))
+        features["high_stress_minutes"] = high_stress * 15
+
+    bb_rows = (await session.execute(
+        select(BodyBatterySample)
+        .where(BodyBatterySample.timestamp >= start_dt, BodyBatterySample.timestamp < end_dt)
+        .order_by(BodyBatterySample.timestamp)
+    )).scalars().all()
+    bb_by_date: dict[date, list[BodyBatterySample]] = {}
+    for sample in bb_rows:
+        local_dt = sample.timestamp.replace(tzinfo=dt_timezone.utc).astimezone(tz)
+        if not (local_dt.hour == 0 and local_dt.minute == 0):
+            bb_by_date.setdefault(local_dt.date(), []).append(sample)
+    for sample_date, samples in bb_by_date.items():
+        features = features_by_date.get(sample_date)
+        if features is None:
+            continue
+        sleep = sleep_by_date.get(sample_date)
+        if sleep and sleep.sleep_end:
+            closest = min(samples, key=lambda sample: abs(sample.timestamp - sleep.sleep_end), default=None)
+            if closest is not None and abs(closest.timestamp - sleep.sleep_end) <= timedelta(minutes=30):
+                features["bb_wakeup"] = closest.body_battery
+        noon = _day_boundary(sample_date, tz) + timedelta(hours=12)
+        morning = [sample for sample in samples if sample.timestamp < noon]
+        if len(morning) >= 2:
+            first = morning[0]
+            last = morning[-1]
+            hours = (last.timestamp - first.timestamp).total_seconds() / 3600
+            if hours > 0:
+                features["bb_morning_drain_rate"] = (last.body_battery - first.body_battery) / hours
+
+    return [features_by_date[key] for key in sorted(features_by_date)]
+
+
 async def _load_habit_thresholds(session: AsyncSession) -> dict[str, Habit]:
     """Return counter habits with configured threshold values, keyed by name."""
     rows = (await session.execute(
@@ -724,7 +875,7 @@ async def compute_correlation_snapshot(
     """Find curated overview correlations from common interesting signal buckets."""
     end_date = date.today()
     start_date = end_date - timedelta(days=365)
-    features_list = await compute_features_range(session, start_date, end_date, timezone)
+    features_list = await _load_bucketed_signal_features(session, start_date, end_date, timezone)
     return _compute_bucketed_correlation_signals(features_list, min_days=min_days, min_abs=min_abs, limit=limit)
 
 

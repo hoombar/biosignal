@@ -7,6 +7,7 @@ compute_correlations() and compute_patterns() detect them correctly.
 import pytest
 from datetime import date, timedelta
 
+import app.services.analysis as analysis_service
 from app.models.database import SleepSession, DailyHabit, HabitDisplayConfig
 from app.services.analysis import (
     _compute_bucketed_correlation_signals,
@@ -348,6 +349,17 @@ class TestComputeCorrelationSnapshot:
 
         assert predictor_roots.count("habit_read") == 1
         assert len(set(predictor_roots)) >= 3
+
+    @pytest.mark.asyncio
+    async def test_snapshot_avoids_full_feature_recompute(self, async_session, monkeypatch):
+        async def fail_if_called(*args, **kwargs):
+            raise AssertionError("snapshot should use the narrow bulk loader")
+
+        monkeypatch.setattr(analysis_service, "compute_features_range", fail_if_called)
+
+        result = await analysis_service.compute_correlation_snapshot(async_session)
+
+        assert result == []
 
     def test_obvious_filter_excludes_same_window_physiology_pairs(self):
         assert _is_obvious_snapshot_pair("stress_2pm_window", "stress_afternoon_avg")
