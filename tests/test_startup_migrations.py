@@ -13,7 +13,7 @@ from app.core.config import get_settings
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 PRIOR_HEAD = "a1d2e3f4b5c6"
-CURRENT_HEAD = "b1c2d3e4f5a6"
+CURRENT_HEAD = "c7a9d1e2f3b4"
 
 
 def _run_alembic(args: list[str], db_path: str) -> None:
@@ -71,3 +71,4 @@ async def test_startup_migrations_upgrade_database_to_head(monkeypatch, temp_db_
     assert revision == CURRENT_HEAD
     assert "source" in habit_columns
     assert "supplement_plan_versions" in tables
+    assert "context_events" in tables
