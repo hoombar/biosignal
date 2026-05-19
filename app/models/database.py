@@ -217,6 +217,24 @@ class HabitDisplayConfig(Base):
     sort_order = Column(Integer, default=0, nullable=False)
 
 
+class ContextEvent(Base):
+    """Date-range context that explains non-baseline days."""
+
+    __tablename__ = "context_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String, nullable=False)
+    start_date = Column(Date, nullable=False, index=True)
+    end_date = Column(Date, nullable=False, index=True)
+    category = Column(String, nullable=False, index=True)
+    tags = Column(JSON, nullable=False, default=list)
+    intensity = Column(String, nullable=True)
+    exclude_from_baseline = Column(Boolean, nullable=False, server_default=text("1"), default=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class SupplementPlanVersion(Base):
     """Versioned supplement list for a dose slot."""
 
