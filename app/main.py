@@ -9,6 +9,7 @@ from app.api import (
     analysis,
     automation,
     config,
+    context_events,
     daily,
     export,
     garmin_auth,
@@ -55,6 +56,7 @@ templates = Jinja2Templates(env=_jinja_env)
 
 # Include routers
 app.include_router(config.router)
+app.include_router(context_events.router)
 app.include_router(sync.router)
 app.include_router(raw.router)
 app.include_router(daily.router)
