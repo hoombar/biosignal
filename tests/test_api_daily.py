@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 
 from app.api.daily import router
 from app.core.database import get_db
-from app.models.database import SleepSession, HeartRateSample, DailyHabit
+from app.models.database import ContextEvent, SleepSession, HeartRateSample, DailyHabit
 
 
 def _make_test_app(session):
@@ -155,6 +155,43 @@ class TestDailyDateRange:
         data = resp.json()
         dates = [d["date"] for d in data]
         assert dates == ["2025-01-26", "2025-01-27", "2025-01-28"]
+
+    @pytest.mark.asyncio
+    async def test_daily_summary_includes_context_events(self, async_session):
+        async_session.add(ContextEvent(
+            title="Conference abroad",
+            start_date=date(2026, 5, 19),
+            end_date=date(2026, 5, 24),
+            category="conference",
+            tags=["flight", "hotel", "timezone_shift"],
+            intensity="high",
+            exclude_from_baseline=True,
+            notes="Long travel day before arrival.",
+        ))
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get(
+                "/api/daily",
+                params={"start": "2026-05-20", "end": "2026-05-20"},
+            )
+
+        assert resp.status_code == 200
+        day = resp.json()[0]
+        assert day["baseline_excluded"] is True
+        assert day["context_categories"] == ["conference"]
+        assert day["contexts"] == [{
+            "id": 1,
+            "title": "Conference abroad",
+            "start_date": "2026-05-19",
+            "end_date": "2026-05-24",
+            "category": "conference",
+            "tags": ["flight", "hotel", "timezone_shift"],
+            "intensity": "high",
+            "exclude_from_baseline": True,
+            "notes": "Long travel day before arrival.",
+        }]
 
 
 class TestCalendarEndpoint:

@@ -84,6 +84,19 @@ class SupplementItemEntry(BaseModel):
     value: int
 
 
+class ContextDailyEntry(BaseModel):
+    """Context event active on a day."""
+    id: int
+    title: str
+    start_date: date
+    end_date: date
+    category: str
+    tags: list[str] = []
+    intensity: str | None = None
+    exclude_from_baseline: bool
+    notes: str | None = None
+
+
 class HabitResponse(BaseModel):
     """Daily habits response."""
     date: str
@@ -176,6 +189,9 @@ class DailySummary(BaseModel):
     habits: list[Habit] = []
     supplements: list[SupplementDailyEntry] = []
     supplement_items: list[SupplementItemEntry] = []
+    contexts: list[ContextDailyEntry] = []
+    baseline_excluded: bool = False
+    context_categories: list[str] = []
 
 
 class CalendarDaySummary(BaseModel):

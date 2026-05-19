@@ -19,6 +19,7 @@ from app.models.database import (
     StepsSample,
     SleepSession,
     Activity,
+    ContextEvent,
     DailyHabit,
     EnvironmentalMetric,
     Habit,
@@ -701,6 +702,45 @@ async def compute_supplement_features(
     }
 
 
+async def compute_context_features(
+    session: AsyncSession,
+    target_date: date
+) -> dict:
+    """Return context events active on the target date."""
+    rows = (await session.execute(
+        select(ContextEvent)
+        .where(ContextEvent.start_date <= target_date)
+        .where(ContextEvent.end_date >= target_date)
+        .order_by(ContextEvent.start_date, ContextEvent.id)
+    )).scalars().all()
+
+    categories = []
+    seen_categories = set()
+    for row in rows:
+        if row.category not in seen_categories:
+            categories.append(row.category)
+            seen_categories.add(row.category)
+
+    return {
+        "contexts": [
+            {
+                "id": row.id,
+                "title": row.title,
+                "start_date": row.start_date,
+                "end_date": row.end_date,
+                "category": row.category,
+                "tags": row.tags or [],
+                "intensity": row.intensity,
+                "exclude_from_baseline": row.exclude_from_baseline,
+                "notes": row.notes,
+            }
+            for row in rows
+        ],
+        "baseline_excluded": any(row.exclude_from_baseline for row in rows),
+        "context_categories": categories,
+    }
+
+
 async def compute_daily_features(
     session: AsyncSession,
     target_date: date,
@@ -751,6 +791,9 @@ async def compute_daily_features(
     features.update(habit_features)
     supplement_features = await compute_supplement_features(session, target_date)
     features.update(supplement_features)
+
+    context_features = await compute_context_features(session, target_date)
+    features.update(context_features)
 
     logger.debug(f"Computed {len(features)} features for {target_date}")
     return features
