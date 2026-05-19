@@ -444,20 +444,32 @@ def _compute_bucketed_correlation_signals(
 
     selected = []
     used_buckets = set()
+    used_predictors = set()
+
+    def predictor_key(signal: dict) -> str:
+        return signal["metric"].removesuffix("_prev_day")
+
     for signal in signals:
         if signal["bucket"] in used_buckets:
             continue
+        if predictor_key(signal) in used_predictors:
+            continue
         selected.append(signal)
         used_buckets.add(signal["bucket"])
+        used_predictors.add(predictor_key(signal))
         if len(selected) >= limit:
             return selected
 
     for signal in signals:
         if signal in selected:
             continue
+        if predictor_key(signal) in used_predictors:
+            continue
         selected.append(signal)
+        used_predictors.add(predictor_key(signal))
         if len(selected) >= limit:
-            break
+            return selected
+
     return selected
 
 

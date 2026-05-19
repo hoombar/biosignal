@@ -322,6 +322,33 @@ class TestComputeCorrelationSnapshot:
 
         assert len(result) == 5
 
+    def test_bucketed_snapshot_limits_repeated_predictors_when_possible(self):
+        features = []
+        for i in range(30):
+            read = 1 if i % 2 == 0 else 0
+            nose_strip = 1 if i % 3 == 0 else 0
+            caffeine = 1 if i % 5 in {0, 1} else 0
+            features.append({
+                "date": _make_date(i),
+                "sleep_score": 80 if read else 60,
+                "bb_wakeup": 70 if read else 45,
+                "bb_morning_drain_rate": 6 if read else -2,
+                "stress_afternoon_avg": 30 if read else 70,
+                "deep_sleep_pct": 25 if nose_strip else 12,
+                "high_stress_minutes": 90 if caffeine else 10,
+                "habits": [
+                    {"name": "read", "value": read, "type": "binary"},
+                    {"name": "nose_strip_overnight", "value": nose_strip, "type": "binary"},
+                    {"name": "caffeine", "value": caffeine, "type": "binary"},
+                ],
+            })
+
+        result = _compute_bucketed_correlation_signals(features, min_days=14, min_abs=0.3, limit=5)
+        predictor_roots = [r["metric"].removesuffix("_prev_day") for r in result]
+
+        assert predictor_roots.count("habit_read") == 1
+        assert len(set(predictor_roots)) >= 3
+
     def test_obvious_filter_excludes_same_window_physiology_pairs(self):
         assert _is_obvious_snapshot_pair("stress_2pm_window", "stress_afternoon_avg")
         assert _is_obvious_snapshot_pair("stress_2pm_window", "hr_2pm_window")
