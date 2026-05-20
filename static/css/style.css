@@ -2764,27 +2764,41 @@ input:focus {
 }
 
 .log-context {
-    margin-bottom: var(--space-lg);
+    margin-top: var(--space-lg);
 }
 
 .context-panel {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-md);
-    padding: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
     border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-lg);
-    background: linear-gradient(135deg, color-mix(in srgb, var(--color-neutral) 8%, var(--bg-secondary)), var(--bg-secondary));
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--bg-secondary) 62%, transparent);
 }
 
-.context-panel-header {
-    display: flex;
-    justify-content: space-between;
+.context-panel-summary {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
     gap: var(--space-md);
-    align-items: flex-start;
+    align-items: center;
+    cursor: pointer;
+    list-style: none;
 }
 
-.context-panel-header h2 {
+.context-panel-summary::-webkit-details-marker {
+    display: none;
+}
+
+.context-panel-summary::before {
+    content: '+';
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+}
+
+.context-panel[open] .context-panel-summary::before {
+    content: '-';
+}
+
+.context-panel-summary h2 {
     margin: 0;
     font-size: 0.75rem;
     color: var(--text-muted);
@@ -2793,11 +2807,26 @@ input:focus {
     letter-spacing: 0.08em;
 }
 
-.context-panel-header p,
-.context-empty {
+.context-panel-summary p,
+.context-empty,
+.context-help {
     margin: 2px 0 0;
     color: var(--text-secondary);
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
+}
+
+.context-help {
+    margin: 0;
+    line-height: 1.45;
+}
+
+.context-panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    margin-top: var(--space-md);
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--border-subtle);
 }
 
 .context-baseline {
@@ -2853,22 +2882,6 @@ input:focus {
 .context-event .context-notes {
     margin-top: 3px;
     color: var(--text-primary);
-}
-
-.context-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-top: var(--space-xs);
-}
-
-.context-tag {
-    padding: 2px 6px;
-    border-radius: 999px;
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-    font-family: var(--font-mono);
-    font-size: 0.6875rem;
 }
 
 .context-delete {
@@ -3097,9 +3110,11 @@ input:focus {
 }
 
 @media (max-width: 640px) {
-    .context-panel-header,
+    .context-panel-summary,
     .context-event {
+        display: flex;
         flex-direction: column;
+        align-items: flex-start;
     }
 
     .context-form-grid {

@@ -119,6 +119,16 @@
         }
     }
 
+    function renderPreservingScroll(dateStr) {
+        const scrollX = window.scrollX || 0;
+        const scrollY = window.scrollY || 0;
+        return render(dateStr).then(() => {
+            if (typeof window.scrollTo === 'function') {
+                window.scrollTo(scrollX, scrollY);
+            }
+        });
+    }
+
     function titleSlot(slot) {
         return slot.charAt(0).toUpperCase() + slot.slice(1);
     }
@@ -141,8 +151,13 @@
 
     function renderContextPanel(day) {
         const contexts = day.contexts || [];
+        const summaryText = contexts.length
+            ? `${contexts.length} context${contexts.length === 1 ? '' : 's'}: ${contexts.map(event => event.title).join(', ')}`
+            : 'Context';
+        const summaryHint = contexts.length
+            ? 'Saved for this date range'
+            : 'Optional travel, conference, illness, or other non-baseline notes';
         const eventsHtml = contexts.length ? contexts.map(event => {
-            const tags = (event.tags || []).map(tag => `<span class="context-tag">${escapeHtml(tag)}</span>`).join('');
             const range = event.start_date === event.end_date
                 ? event.start_date
                 : `${event.start_date} to ${event.end_date}`;
@@ -151,9 +166,8 @@
                     <div class="context-event-main">
                         <span class="context-category">${titleCase(event.category)}</span>
                         <h3>${escapeHtml(event.title)}</h3>
-                        <p>${escapeHtml(range)}${event.intensity ? ` · ${titleCase(event.intensity)} intensity` : ''}</p>
+                        <p>${escapeHtml(range)}</p>
                         ${event.notes ? `<p class="context-notes">${escapeHtml(event.notes)}</p>` : ''}
-                        ${tags ? `<div class="context-tags">${tags}</div>` : ''}
                     </div>
                     <button type="button" class="context-delete" data-context-delete="${event.id}" aria-label="Delete context event">Remove</button>
                 </article>
@@ -161,49 +175,47 @@
         }).join('') : '<p class="context-empty">No outlier context for this day.</p>';
 
         return `
-            <section class="context-panel" aria-label="Context events">
-                <div class="context-panel-header">
+            <details class="context-panel">
+                <summary class="context-panel-summary">
                     <div>
-                        <h2>Context</h2>
-                        <p>Mark travel, conferences, illness, or other non-baseline periods.</p>
+                        <h2>${escapeHtml(summaryText)}</h2>
+                        <p>${escapeHtml(summaryHint)}</p>
                     </div>
                     ${day.baseline_excluded ? '<span class="context-baseline">Excluded from baseline</span>' : ''}
+                </summary>
+                <div class="context-panel-body">
+                    <p class="context-help">
+                        Use this when the day is not part of your normal baseline, like travel, a conference, illness,
+                        unusual stress, or sleeping somewhere unfamiliar. Saved context appears on Daily and marked
+                        days can be excluded from baseline calculations.
+                    </p>
+                    <div class="context-event-list">${eventsHtml}</div>
+                    <form class="context-form" id="context-form">
+                        <input type="text" name="title" placeholder="Conference abroad, hotel sleep, long flight" required maxlength="120">
+                        <div class="context-form-grid">
+                            <label>Start <input type="date" name="start_date" value="${currentDate}" required></label>
+                            <label>End <input type="date" name="end_date" value="${currentDate}" required></label>
+                            <label>Category
+                                <select name="category">
+                                    <option value="travel">Travel</option>
+                                    <option value="conference">Conference</option>
+                                    <option value="illness">Illness</option>
+                                    <option value="stress">Stress</option>
+                                    <option value="vacation">Vacation</option>
+                                    <option value="recovery">Recovery</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </label>
+                        </div>
+                        <textarea name="notes" rows="2" placeholder="Optional note: what changed, and why this day may not compare fairly to normal days"></textarea>
+                        <label class="context-baseline-toggle">
+                            <input type="checkbox" name="exclude_from_baseline" checked>
+                            Treat this date range as non-baseline
+                        </label>
+                        <button type="submit" class="context-submit">Add context</button>
+                    </form>
                 </div>
-                <div class="context-event-list">${eventsHtml}</div>
-                <form class="context-form" id="context-form">
-                    <input type="text" name="title" placeholder="Conference abroad, hotel sleep, long flight" required maxlength="120">
-                    <div class="context-form-grid">
-                        <label>Start <input type="date" name="start_date" value="${currentDate}" required></label>
-                        <label>End <input type="date" name="end_date" value="${currentDate}" required></label>
-                        <label>Category
-                            <select name="category">
-                                <option value="travel">Travel</option>
-                                <option value="conference">Conference</option>
-                                <option value="illness">Illness</option>
-                                <option value="stress">Stress</option>
-                                <option value="vacation">Vacation</option>
-                                <option value="recovery">Recovery</option>
-                                <option value="other">Other</option>
-                            </select>
-                        </label>
-                        <label>Intensity
-                            <select name="intensity">
-                                <option value="">None</option>
-                                <option value="low">Low</option>
-                                <option value="medium">Medium</option>
-                                <option value="high">High</option>
-                            </select>
-                        </label>
-                    </div>
-                    <input type="text" name="tags" placeholder="Tags: flight, hotel, timezone_shift">
-                    <textarea name="notes" rows="2" placeholder="Optional notes"></textarea>
-                    <label class="context-baseline-toggle">
-                        <input type="checkbox" name="exclude_from_baseline" checked>
-                        Exclude from baseline calculations
-                    </label>
-                    <button type="submit" class="context-submit">Add context</button>
-                </form>
-            </section>
+            </details>
         `;
     }
 
@@ -302,7 +314,7 @@
             patchCache(date, habitName, habitType, newValue);
             // Re-fetch streak/completion data, then re-render.
             await refreshActiveHabits();
-            render(currentDate);
+            renderPreservingScroll(currentDate);
         },
     });
 
@@ -341,17 +353,13 @@
         const form = event.target;
         const submit = form.querySelector('button[type="submit"]');
         const formData = new FormData(form);
-        const tags = String(formData.get('tags') || '')
-            .split(',')
-            .map(tag => tag.trim())
-            .filter(Boolean);
         const body = {
             title: formData.get('title'),
             start_date: formData.get('start_date'),
             end_date: formData.get('end_date'),
             category: formData.get('category') || 'other',
-            tags,
-            intensity: formData.get('intensity') || null,
+            tags: [],
+            intensity: null,
             exclude_from_baseline: formData.get('exclude_from_baseline') === 'on',
             notes: formData.get('notes') || null,
         };

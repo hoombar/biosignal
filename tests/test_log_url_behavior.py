@@ -11,6 +11,7 @@ def run_log_js_scenario(
     initial_hash: str,
     action: str | None = None,
     supplement_config: dict | None = None,
+    daily_response: list[dict] | None = None,
 ) -> dict:
     script = textwrap.dedent(
         """
@@ -21,7 +22,10 @@ def run_log_js_scenario(
         const initialHash = process.argv[1];
         const action = process.argv[2] || '';
         const supplementConfig = JSON.parse(process.argv[3] || '{"slots":[]}');
+        const dailyResponse = JSON.parse(process.argv[4] || 'null');
         const elements = {};
+        let habitBindOptions = null;
+        const scrollCalls = [];
 
         function makeElement(id) {
             return {
@@ -64,6 +68,13 @@ def run_log_js_scenario(
             window: {
                 location: { hash: initialHash },
                 _activeHabits: [],
+                scrollX: 0,
+                scrollY: 480,
+                scrollTo(x, y) {
+                    scrollCalls.push([x, y]);
+                    this.scrollX = x;
+                    this.scrollY = y;
+                },
             },
             history: {
                 replaceState(_state, _title, url) {
@@ -85,14 +96,14 @@ def run_log_js_scenario(
                 json: async () => {
                     if (url === '/api/habits/list') return [];
                     if (url === '/api/supplements/config') return supplementConfig;
-                    return [{ date: '2026-05-04', habits: [], supplements: [] }];
+                    return dailyResponse || [{ date: '2026-05-04', habits: [], supplements: [], contexts: [] }];
                 },
             }),
             loadHabitConfig: async () => {},
             loadHabitsList: async () => [],
             HabitPanel: {
                 renderHabitsPanel: () => '<div></div>',
-                bindHabitsPanel: () => {},
+                bindHabitsPanel: (_container, opts) => { habitBindOptions = opts; },
             },
         };
         context.window.Date = FixedDate;
@@ -114,11 +125,16 @@ def run_log_js_scenario(
             if (action === 'prev') {
                 elements['log-prev'].click();
                 await flushAsyncWork();
+            } else if (action === 'habitChange') {
+                await habitBindOptions.onValueChange('2026-05-04', 'coffee', 'counter', 2);
+                await flushAsyncWork();
             }
             console.log(JSON.stringify({
                 hash: context.window.location.hash,
                 replaceCalls,
                 dateText: elements['log-date'].textContent,
+                contextHtml: elements['log-context'].innerHTML,
+                scrollCalls,
                 supplementsHtml: elements['log-supplements'].innerHTML,
             }));
         })().catch(err => {
@@ -128,7 +144,15 @@ def run_log_js_scenario(
         """
     )
     result = subprocess.run(
-        ["node", "-e", script, initial_hash, action or "", json.dumps(supplement_config or {"slots": []})],
+        [
+            "node",
+            "-e",
+            script,
+            initial_hash,
+            action or "",
+            json.dumps(supplement_config or {"slots": []}),
+            json.dumps(daily_response) if daily_response is not None else "null",
+        ],
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,
@@ -167,3 +191,39 @@ def test_log_only_renders_configured_supplement_slots():
     assert 'data-slot="morning"' in html
     assert 'data-slot="midday"' not in html
     assert 'data-slot="evening"' not in html
+
+
+def test_log_context_panel_defaults_collapsed_with_saved_context():
+    result = run_log_js_scenario(
+        "#2026-05-04",
+        daily_response=[{
+            "date": "2026-05-04",
+            "habits": [],
+            "supplements": [],
+            "baseline_excluded": True,
+            "contexts": [{
+                "id": 1,
+                "title": "Conference abroad",
+                "start_date": "2026-05-01",
+                "end_date": "2026-05-07",
+                "category": "conference",
+                "tags": ["hotel"],
+                "intensity": "high",
+                "exclude_from_baseline": True,
+                "notes": "Saved range",
+            }],
+        }],
+    )
+
+    html = result["contextHtml"]
+    assert '<details class="context-panel">' in html
+    assert '<details class="context-panel" open' not in html
+    assert '1 context: Conference abroad' in html
+    assert 'Saved for this date range' in html
+    assert 'Excluded from baseline' in html
+
+
+def test_log_preserves_scroll_after_habit_counter_update():
+    result = run_log_js_scenario("#2026-05-04", "habitChange")
+
+    assert result["scrollCalls"] == [[0, 480]]
