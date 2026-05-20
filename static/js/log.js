@@ -30,6 +30,10 @@
     const dayCache = {};  // { 'YYYY-MM-DD': {date, habits: [{name, value, type}]} }
     let supplementSlots = [];
 
+    function clearDayCache() {
+        Object.keys(dayCache).forEach(key => delete dayCache[key]);
+    }
+
     function todayLocal() {
         const d = new Date();
         return formatLocalDate(d);
@@ -375,7 +379,7 @@
                 console.error('Failed to create context event:', detail);
                 return;
             }
-            delete dayCache[currentDate];
+            clearDayCache();
             render(currentDate);
         } finally {
             submit.disabled = false;
@@ -393,7 +397,7 @@
                 console.error('Failed to delete context event:', detail);
                 return;
             }
-            delete dayCache[currentDate];
+            clearDayCache();
             render(currentDate);
         } finally {
             button.disabled = false;

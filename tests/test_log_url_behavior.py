@@ -26,6 +26,7 @@ def run_log_js_scenario(
         const elements = {};
         let habitBindOptions = null;
         const scrollCalls = [];
+        const dailyUrls = [];
 
         function makeElement(id) {
             return {
@@ -65,6 +66,14 @@ def run_log_js_scenario(
             RegExp,
             console: { warn() {} },
             setTimeout,
+            FormData: class FormData {
+                constructor(form) {
+                    this.fields = form.fields || {};
+                }
+                get(name) {
+                    return this.fields[name] ?? null;
+                }
+            },
             window: {
                 location: { hash: initialHash },
                 _activeHabits: [],
@@ -91,14 +100,18 @@ def run_log_js_scenario(
                     this[type] = handler;
                 },
             },
-            fetch: async (url) => ({
-                ok: true,
-                json: async () => {
-                    if (url === '/api/habits/list') return [];
-                    if (url === '/api/supplements/config') return supplementConfig;
-                    return dailyResponse || [{ date: '2026-05-04', habits: [], supplements: [], contexts: [] }];
-                },
-            }),
+            fetch: async (url, options) => {
+                if (String(url).startsWith('/api/daily')) dailyUrls.push(url);
+                return {
+                    ok: true,
+                    text: async () => '',
+                    json: async () => {
+                        if (url === '/api/habits/list') return [];
+                        if (url === '/api/supplements/config') return supplementConfig;
+                        return dailyResponse || [{ date: '2026-05-04', habits: [], supplements: [], contexts: [] }];
+                    },
+                };
+            },
             loadHabitConfig: async () => {},
             loadHabitsList: async () => [],
             HabitPanel: {
@@ -128,12 +141,29 @@ def run_log_js_scenario(
             } else if (action === 'habitChange') {
                 await habitBindOptions.onValueChange('2026-05-04', 'coffee', 'counter', 2);
                 await flushAsyncWork();
+            } else if (action === 'contextSubmit') {
+                await elements['log-context'].listeners.submit({
+                    preventDefault() {},
+                    target: {
+                        id: 'context-form',
+                        fields: {
+                            title: 'Conference in Germany',
+                            start_date: '2026-05-19',
+                            end_date: '2026-05-23',
+                            category: 'conference',
+                            exclude_from_baseline: 'on',
+                        },
+                        querySelector() { return { disabled: false }; },
+                    },
+                });
+                await flushAsyncWork();
             }
             console.log(JSON.stringify({
                 hash: context.window.location.hash,
                 replaceCalls,
                 dateText: elements['log-date'].textContent,
                 contextHtml: elements['log-context'].innerHTML,
+                dailyUrls,
                 scrollCalls,
                 supplementsHtml: elements['log-supplements'].innerHTML,
             }));
@@ -227,3 +257,9 @@ def test_log_preserves_scroll_after_habit_counter_update():
     result = run_log_js_scenario("#2026-05-04", "habitChange")
 
     assert result["scrollCalls"] == [[0, 480]]
+
+
+def test_log_refetches_current_day_after_context_submit():
+    result = run_log_js_scenario("#2026-05-04", "contextSubmit")
+
+    assert result["dailyUrls"].count("/api/daily?start=2026-05-04&end=2026-05-04") == 2
