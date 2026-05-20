@@ -73,6 +73,38 @@ def render_activity_card(day: dict) -> str:
     return render_daily_card("renderActivityCard", day)
 
 
+def render_context_summary(day: dict) -> str:
+    return render_daily_card("renderContextSummary", day)
+
+
+def test_daily_context_summary_renders_baseline_exclusion():
+    html = render_context_summary({
+        "baseline_excluded": True,
+        "contexts": [{
+            "id": 1,
+            "title": "Conference abroad",
+            "start_date": "2026-05-19",
+            "end_date": "2026-05-24",
+            "category": "conference",
+            "tags": ["flight", "hotel"],
+            "intensity": "high",
+            "exclude_from_baseline": True,
+            "notes": "Long travel day.",
+        }],
+    })
+
+    assert "Context" in html
+    assert "Conference Abroad" in html
+    assert "Conference" in html
+    assert "Excluded from baseline" in html
+    assert "flight" in html
+    assert "hotel" in html
+
+
+def test_daily_context_summary_empty_without_contexts():
+    assert render_context_summary({"contexts": []}) == ""
+
+
 def test_daily_light_card_renders_daylight_and_sun_times():
     html = render_light_card({
         "daylight_minutes": 984,

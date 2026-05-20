@@ -106,6 +106,22 @@ function formatBool(value) {
     return value ? 'Yes' : 'No';
 }
 
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, ch => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#39;',
+        '"': '&quot;',
+    }[ch]));
+}
+
+function titleCase(value) {
+    return String(value || 'other')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, ch => ch.toUpperCase());
+}
+
 function getScoreClass(value, lowThresh, highThresh) {
     if (value === null || value === undefined) return '';
     if (value >= highThresh) return 'good';
@@ -244,18 +260,26 @@ function renderCalendarCell(day, index) {
         `;
     }).join('');
 
-    const hasData = day.sleep_score !== null || (day.habits && day.habits.length > 0);
+    const contexts = day.contexts || [];
+    const contextLabel = contexts.map(context => context.title).filter(Boolean).join(', ');
+    const contextMarker = contexts.length
+        ? `<span class="context-cell-marker" title="Context: ${escapeHtml(contextLabel)}">C</span>`
+        : '';
+    const hasData = day.sleep_score !== null
+        || (day.habits && day.habits.length > 0)
+        || contexts.length > 0;
     const noDataClass = hasData ? '' : 'no-data';
     const selectedClass = selectedDate === day.date ? 'selected' : '';
 
     return `
         <div class="calendar-cell ${noDataClass} ${selectedClass}"
              onclick="selectDay('${day.date}', ${index})"
-             title="${formatShortDate(day.date)}">
+             title="${formatShortDate(day.date)}${contextLabel ? ` - Context: ${escapeHtml(contextLabel)}` : ''}">
             <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                 <span class="date-num">${dateNum}</span>
                 ${day.sleep_score ? `<span class="sleep-score">${day.sleep_score}</span>` : ''}
             </div>
+            ${contextMarker}
             <div class="habit-strip">${habitDots}</div>
         </div>
     `;
@@ -644,6 +668,42 @@ function renderSupplementSnapshot(day) {
     `;
 }
 
+function renderContextSummary(day) {
+    const contexts = day.contexts || [];
+    if (!contexts.length) return '';
+
+    const contextRows = contexts.map(context => {
+        const range = context.start_date === context.end_date
+            ? context.start_date
+            : `${context.start_date} to ${context.end_date}`;
+        const tags = (context.tags || []).map(tag => (
+            `<span class="daily-context-tag">${escapeHtml(tag)}</span>`
+        )).join('');
+        return `
+            <div class="daily-context-item ${context.exclude_from_baseline ? 'daily-context-item--excluded' : ''}">
+                <div class="daily-context-item-header">
+                    <span class="daily-context-category">${titleCase(context.category)}</span>
+                    ${context.exclude_from_baseline ? '<span class="daily-context-baseline">Excluded from baseline</span>' : ''}
+                </div>
+                <div class="daily-context-title">${titleCase(context.title)}</div>
+                <div class="daily-context-meta">${escapeHtml(range)}${context.intensity ? ` · ${titleCase(context.intensity)} intensity` : ''}</div>
+                ${context.notes ? `<div class="daily-context-notes">${escapeHtml(context.notes)}</div>` : ''}
+                ${tags ? `<div class="daily-context-tags">${tags}</div>` : ''}
+            </div>
+        `;
+    }).join('');
+
+    return `
+        <div class="daily-context-summary">
+            <div class="daily-context-header">
+                <h3>Context</h3>
+                <a href="/log#${day.date || ''}" title="Edit context on Log">Edit&nbsp;&rarr;</a>
+            </div>
+            ${contextRows}
+        </div>
+    `;
+}
+
 function _patchDayCache(dateStr, habitName, habitType, newValue) {
     const [year, month] = dateStr.split('-').map(Number);
     const key = monthKey(year, month);
@@ -1019,6 +1079,7 @@ function renderDayDetail(day) {
 
     requestAnimationFrame(() => {
         metricsGrid.innerHTML = `
+            ${renderContextSummary(day)}
             ${renderSleepCard(day)}
             ${renderHrvCard(day)}
             ${renderSpo2Card(day)}
