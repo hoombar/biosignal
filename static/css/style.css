@@ -1194,6 +1194,34 @@ main > h1 {
     color: var(--text-secondary);
 }
 
+.metric-details {
+    border-top: 1px solid var(--border-subtle);
+    padding-top: var(--space-xs);
+}
+
+.metric-details-summary {
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 600;
+    list-style-position: inside;
+    user-select: none;
+}
+
+.metric-details-summary:hover,
+.metric-details-summary:focus-visible {
+    color: var(--text-primary);
+}
+
+.metric-details-summary:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 3px;
+}
+
+.metric-details[open] .metric-details-summary {
+    margin-bottom: var(--space-xs);
+}
+
 /* Color coded metric values */
 .metric-value.good { color: var(--color-positive); }
 .metric-value.warning { color: var(--color-warning); }

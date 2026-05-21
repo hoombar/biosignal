@@ -73,6 +73,10 @@ def render_activity_card(day: dict) -> str:
     return render_daily_card("renderActivityCard", day)
 
 
+def render_sleep_card(day: dict) -> str:
+    return render_daily_card("renderSleepCard", day)
+
+
 def render_context_summary(day: dict) -> str:
     return render_daily_card("renderContextSummary", day)
 
@@ -144,6 +148,21 @@ def test_daily_activity_card_renders_likely_walk_metrics():
     assert "Step-only 30m blocks" in html
     assert "Walk HR lift" in html
     assert "+33 bpm" in html
+
+
+def test_daily_metric_details_are_collapsed_by_default():
+    html = render_sleep_card({
+        "sleep_score": 81,
+        "sleep_hours": 7.5,
+        "deep_sleep_pct": 18,
+        "rem_sleep_pct": 22,
+        "sleep_efficiency": 91,
+    })
+
+    assert '<details class="metric-details">' in html
+    assert '<summary class="metric-details-summary">Details</summary>' in html
+    assert '<details class="metric-details" open>' not in html
+    assert "Duration" in html
 
 
 def test_daily_light_card_renders_empty_values_when_location_unset():

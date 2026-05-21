@@ -725,6 +725,17 @@ function _rerenderSelectedDay() {
     renderDayDetail(currentMonthData[selectedIndex]);
 }
 
+function renderMetricDetails(rows) {
+    return `
+            <details class="metric-details">
+                <summary class="metric-details-summary">Details</summary>
+                <div class="secondary-metrics">
+                    ${rows}
+                </div>
+            </details>
+    `;
+}
+
 function renderSleepCard(day) {
     const scoreClass = getScoreClass(day.sleep_score, 60, 75);
 
@@ -738,7 +749,7 @@ function renderSleepCard(day) {
                 <span class="metric-value ${scoreClass}">${day.sleep_score ?? '-'}</span>
                 <span class="metric-unit">score</span>
             </div>
-            <div class="secondary-metrics">
+            ${renderMetricDetails(`
                 <div class="metric-row">
                     <span class="metric-label">Duration</span>
                     <span class="metric-value">${formatHours(day.sleep_hours)}</span>
@@ -755,7 +766,7 @@ function renderSleepCard(day) {
                     <span class="metric-label">Efficiency</span>
                     <span class="metric-value">${formatPct(day.sleep_efficiency)}</span>
                 </div>
-            </div>
+            `)}
         </div>
     `;
 }
@@ -773,7 +784,7 @@ function renderHrvCard(day) {
                 <span class="metric-value ${hrvClass}">${formatNum(day.hrv_overnight_avg, 0)}</span>
                 <span class="metric-unit">ms avg</span>
             </div>
-            <div class="secondary-metrics">
+            ${renderMetricDetails(`
                 <div class="metric-row">
                     <span class="metric-label">Minimum</span>
                     <span class="metric-value">${formatNum(day.hrv_overnight_min, 0)} ms</span>
@@ -782,7 +793,7 @@ function renderHrvCard(day) {
                     <span class="metric-label">Slope</span>
                     <span class="metric-value">${day.hrv_rmssd_slope !== null ? (day.hrv_rmssd_slope > 0 ? '+' : '') + day.hrv_rmssd_slope.toFixed(2) : '-'}</span>
                 </div>
-            </div>
+            `)}
         </div>
     `;
 }
@@ -802,7 +813,7 @@ function renderSpo2Card(day) {
                 <span class="metric-value ${spo2Class}">${formatNum(day.spo2_overnight_avg, 1)}</span>
                 <span class="metric-unit">% avg</span>
             </div>
-            <div class="secondary-metrics">
+            ${renderMetricDetails(`
                 <div class="metric-row">
                     <span class="metric-label">Minimum</span>
                     <span class="metric-value">${formatNum(day.spo2_overnight_min)}%</span>
@@ -815,7 +826,7 @@ function renderSpo2Card(day) {
                     <span class="metric-label">Dips &lt;94%</span>
                     <span class="metric-value ${dipsClass}">${day.spo2_dips_below_94 ?? '-'}</span>
                 </div>
-            </div>
+            `)}
         </div>
     `;
 }
@@ -831,7 +842,7 @@ function renderHeartRateCard(day) {
                 <span class="metric-value">${formatNum(day.resting_hr)}</span>
                 <span class="metric-unit">bpm resting</span>
             </div>
-            <div class="secondary-metrics">
+            ${renderMetricDetails(`
                 <div class="metric-row">
                     <span class="metric-label">Morning Avg</span>
                     <span class="metric-value">${formatNum(day.hr_morning_avg, 0)} bpm</span>
@@ -848,7 +859,7 @@ function renderHeartRateCard(day) {
                     <span class="metric-label">Max 24h</span>
                     <span class="metric-value">${formatNum(day.hr_max_24h)} bpm</span>
                 </div>
-            </div>
+            `)}
         </div>
     `;
 }
@@ -873,13 +884,13 @@ function renderBodyBatteryCard(day) {
                 <span class="metric-value">${formatNum(day.bb_wakeup)}</span>
                 <span class="metric-unit">at wake</span>
             </div>
-            <div class="secondary-metrics">
+            ${renderMetricDetails(`
                 ${sampleRows}
                 <div class="metric-row">
                     <span class="metric-label">Daily Min</span>
                     <span class="metric-value">${formatNum(day.bb_daily_min)}</span>
                 </div>
-            </div>
+            `)}
         </div>
     `;
 }
@@ -897,7 +908,7 @@ function renderStressCard(day) {
                 <span class="metric-value ${stressClass}">${formatNum(day.stress_afternoon_avg, 0)}</span>
                 <span class="metric-unit">afternoon avg</span>
             </div>
-            <div class="secondary-metrics">
+            ${renderMetricDetails(`
                 <div class="metric-row">
                     <span class="metric-label">Morning Avg</span>
                     <span class="metric-value">${formatNum(day.stress_morning_avg, 0)}</span>
@@ -914,7 +925,7 @@ function renderStressCard(day) {
                     <span class="metric-label">High Stress</span>
                     <span class="metric-value">${day.high_stress_minutes ?? '-'} min</span>
                 </div>
-            </div>
+            `)}
         </div>
     `;
 }
@@ -937,7 +948,7 @@ function renderActivityCard(day) {
                 <span class="metric-value">${formatNum(day.steps_total)}</span>
                 <span class="metric-unit">steps</span>
             </div>
-            <div class="secondary-metrics">
+            ${renderMetricDetails(`
                 <div class="metric-row">
                     <span class="metric-label">Morning Steps</span>
                     <span class="metric-value">${formatNum(day.steps_morning)}</span>
@@ -979,7 +990,7 @@ function renderActivityCard(day) {
                     <span class="metric-value">None</span>
                 </div>
                 `}
-            </div>
+            `)}
         </div>
     `;
 }
@@ -995,7 +1006,7 @@ function renderLightCard(day) {
                 <span class="metric-value">${formatDaylightMinutes(day.daylight_minutes)}</span>
                 <span class="metric-unit">daylight</span>
             </div>
-            <div class="secondary-metrics">
+            ${renderMetricDetails(`
                 <div class="metric-row">
                     <span class="metric-label">Sunrise</span>
                     <span class="metric-value">${formatClockMinutes(day.sunrise_minutes_after_midnight)}</span>
@@ -1008,7 +1019,7 @@ function renderLightCard(day) {
                     <span class="metric-label">Solar Noon</span>
                     <span class="metric-value">${formatClockMinutes(day.solar_noon_minutes_after_midnight)}</span>
                 </div>
-            </div>
+            `)}
         </div>
     `;
 }
@@ -1050,13 +1061,13 @@ function renderPollenCard(day) {
                 <span class="metric-value">${peak ? formatPollenValue(peak.max) : '-'}</span>
                 <span class="metric-unit">${peak ? `${peak.label} peak` : 'peak grains/m3'}</span>
             </div>
-            <div class="secondary-metrics">
+            ${renderMetricDetails(`
                 <div class="metric-row">
                     <span class="metric-label">Avg / Max</span>
                     <span class="metric-value">grains/m3</span>
                 </div>
                 ${rows}
-            </div>
+            `)}
         </div>
     `;
 }
