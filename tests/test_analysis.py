@@ -8,7 +8,7 @@ import pytest
 from datetime import date, timedelta
 
 import app.services.analysis as analysis_service
-from app.models.database import SleepSession, DailyHabit, HabitDisplayConfig
+from app.models.database import ContextEvent, SleepSession, DailyHabit, HabitDisplayConfig
 from app.services.analysis import (
     _compute_bucketed_correlation_signals,
     compute_correlation_snapshot,
@@ -410,6 +410,45 @@ class TestComputeCorrelationSnapshot:
         assert sleep_slump["coefficient"] < -0.7
 
     @pytest.mark.asyncio
+    async def test_snapshot_excludes_context_marked_non_baseline(self, async_session):
+        excluded_start = _make_date(0)
+        excluded_end = _make_date(15)
+        async_session.add(ContextEvent(
+            title="Conference travel",
+            start_date=excluded_start,
+            end_date=excluded_end,
+            category="conference",
+            tags=["travel"],
+            intensity="high",
+            exclude_from_baseline=True,
+        ))
+
+        for i in range(16):
+            slump = i % 2 == 0
+            prev_slump = i > 0 and (i - 1) % 2 == 0
+            d = _make_date(i)
+            async_session.add(SleepSession(
+                date=d,
+                total_sleep_seconds=int((5.0 if prev_slump else 9.0) * 3600),
+                sleep_score=45 if prev_slump else 90,
+            ))
+            await log_habit(async_session, "pm_slump", d, 1 if slump else 0, habit_type="binary")
+
+        for i in range(16, 28):
+            d = _make_date(i)
+            async_session.add(SleepSession(
+                date=d,
+                total_sleep_seconds=int(8.0 * 3600),
+                sleep_score=80,
+            ))
+            await log_habit(async_session, "pm_slump", d, 0, habit_type="binary")
+        await async_session.commit()
+
+        result = await compute_correlation_snapshot(async_session, min_days=5, min_abs=0.7)
+
+        assert all(r["metric"] != "habit_pm_slump_prev_day" for r in result)
+
+    @pytest.mark.asyncio
     async def test_bucketed_snapshot_does_not_repeat_exact_signal(self, async_session):
         for i in range(16):
             slump = i % 2 == 0
@@ -594,6 +633,43 @@ class TestComputePatterns:
         auto = await compute_patterns(async_session)
         explicit = await compute_patterns(async_session, target_habit="morning_fatigue")
         assert auto == explicit
+
+    @pytest.mark.asyncio
+    async def test_compute_patterns_excludes_context_marked_non_baseline(self, async_session):
+        excluded_start = _make_date(0)
+        excluded_end = _make_date(7)
+        async_session.add(ContextEvent(
+            title="Illness",
+            start_date=excluded_start,
+            end_date=excluded_end,
+            category="illness",
+            tags=["flu"],
+            intensity="high",
+            exclude_from_baseline=True,
+        ))
+
+        for i in range(8):
+            d = _make_date(i)
+            async_session.add(SleepSession(
+                date=d,
+                total_sleep_seconds=int(4.5 * 3600),
+                sleep_score=45,
+            ))
+            await log_habit(async_session, "pm_slump", d, 1, habit_type="binary")
+
+        for i in range(8, 18):
+            d = _make_date(i)
+            async_session.add(SleepSession(
+                date=d,
+                total_sleep_seconds=int(8.0 * 3600),
+                sleep_score=82,
+            ))
+            await log_habit(async_session, "pm_slump", d, 0, habit_type="binary")
+        await async_session.commit()
+
+        result = await compute_patterns(async_session, target_habit="pm_slump")
+
+        assert result == []
 
 
 class TestGenerateInsights:

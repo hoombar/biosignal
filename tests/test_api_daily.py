@@ -372,6 +372,36 @@ class TestNotableDaysEndpoint:
         assert "2025-03-10" in dates  # worst sleep score day
 
     @pytest.mark.asyncio
+    async def test_context_excluded_days_are_not_notable_baseline_extremes(self, async_session):
+        async_session.add(ContextEvent(
+            title="Travel week",
+            start_date=date(2025, 3, 10),
+            end_date=date(2025, 3, 10),
+            category="travel",
+            tags=["hotel"],
+            intensity="high",
+            exclude_from_baseline=True,
+        ))
+        for day_num, score in [(1, 70), (5, 82), (10, 20), (15, 78), (20, 80)]:
+            async_session.add(SleepSession(
+                date=date(2025, 3, day_num),
+                total_sleep_seconds=7 * 3600,
+                sleep_score=score,
+            ))
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get(
+                "/api/daily/notable",
+                params={"year": 2025, "month": 3},
+            )
+
+        assert resp.status_code == 200
+        dates = [d["date"] for d in resp.json()]
+        assert "2025-03-10" not in dates
+
+    @pytest.mark.asyncio
     async def test_empty_month_returns_empty_list(self, async_session):
         """A month with no data should return an empty list."""
         app = _make_test_app(async_session)

@@ -170,6 +170,8 @@ def _compute_notable_days(features_list: list[dict]) -> list[NotableDay]:
     Finds extremes (best/worst) across key metrics. Returns up to 5 items
     sorted by significance.
     """
+    features_list = [f for f in features_list if not f.get("baseline_excluded")]
+
     if not features_list:
         return []
 

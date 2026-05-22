@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.database import (
     BodyBatterySample,
+    ContextEvent,
     DailyHabit,
     EnvironmentalMetric,
     Habit,
@@ -283,6 +284,11 @@ def _feature_value(features: dict, key: str) -> float | None:
     return _to_numeric(features.get(key))
 
 
+def _is_baseline_day(features: dict) -> bool:
+    """Return False for days explicitly marked as non-baseline context."""
+    return not bool(features.get("baseline_excluded"))
+
+
 def _available_signal_keys(features_list: list[dict]) -> dict[str, set[str]]:
     keys: dict[str, set[str]] = {
         "habits": set(),
@@ -499,6 +505,20 @@ async def _load_bucketed_signal_features(
         for offset in range((end_date - start_date).days + 1)
     }
 
+    excluded_context_rows = (await session.execute(
+        select(ContextEvent)
+        .where(ContextEvent.exclude_from_baseline.is_(True))
+        .where(ContextEvent.start_date <= end_date)
+        .where(ContextEvent.end_date >= start_date)
+    )).scalars().all()
+    excluded_dates: set[date] = set()
+    for row in excluded_context_rows:
+        current = max(row.start_date, start_date)
+        last = min(row.end_date, end_date)
+        while current <= last:
+            excluded_dates.add(current)
+            current += timedelta(days=1)
+
     sleep_rows = (await session.execute(
         select(SleepSession).where(SleepSession.date >= start_date, SleepSession.date <= end_date)
     )).scalars().all()
@@ -621,7 +641,7 @@ async def _load_bucketed_signal_features(
             if hours > 0:
                 features["bb_morning_drain_rate"] = (last.body_battery - first.body_battery) / hours
 
-    return [features_by_date[key] for key in sorted(features_by_date)]
+    return [features_by_date[key] for key in sorted(features_by_date) if key not in excluded_dates]
 
 
 async def _load_habit_thresholds(session: AsyncSession) -> dict[str, Habit]:
@@ -706,6 +726,7 @@ async def compute_correlations(
 
     if features_list is None:
         features_list = await compute_features_range(session, start_date, end_date, timezone)
+    features_list = [features for features in features_list if _is_baseline_day(features)]
 
     # Filter to days with target habit data
     target_data = [
@@ -747,7 +768,15 @@ async def compute_correlations(
     all_supplement_names = set()
     for f in target_features:
         for k in f.keys():
-            if k not in ["date", "habits", "supplements", "supplement_items"]:
+            if k not in [
+                "date",
+                "habits",
+                "supplements",
+                "supplement_items",
+                "contexts",
+                "baseline_excluded",
+                "context_categories",
+            ]:
                 all_feature_names.add(k)
         for h in f.get("habits", []):
             if not (target_kind == "habit" and h["name"] == target_name):
@@ -908,7 +937,10 @@ async def compute_patterns(
     features_list = await compute_features_range(session, start_date, end_date, timezone)
 
     # Filter to days with target habit data
-    target_data = [f for f in features_list if _get_habit_value(f, target_habit) is not None]
+    target_data = [
+        f for f in features_list
+        if _is_baseline_day(f) and _get_habit_value(f, target_habit) is not None
+    ]
 
     if len(target_data) < 7:
         return []
@@ -938,7 +970,15 @@ async def compute_patterns(
     feature_pairs: dict[str, list[tuple[dict, float]]] = {}
     for day in target_data:
         for key, value in day.items():
-            if key in {"date", "habits"}:
+            if key in {
+                "date",
+                "habits",
+                "supplements",
+                "supplement_items",
+                "contexts",
+                "baseline_excluded",
+                "context_categories",
+            }:
                 continue
             numeric = _to_numeric(value)
             if numeric is None:
