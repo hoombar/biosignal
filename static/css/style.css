@@ -1189,6 +1189,11 @@ main > h1 {
     line-height: 1;
 }
 
+.primary-metric .training-summary-value {
+    font-size: 1.25rem;
+    line-height: 1.15;
+}
+
 .primary-metric .metric-unit {
     font-size: 0.75rem;
     color: var(--text-secondary);

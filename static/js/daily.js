@@ -982,7 +982,7 @@ function renderActivityCard(day) {
                 <span class="card-title">Training Sessions</span>
             </div>
             <div class="primary-metric">
-                <span class="metric-value">${trainingSummary}</span>
+                <span class="metric-value training-summary-value">${trainingSummary}</span>
                 <span class="metric-unit">${sessions.length} session${sessions.length === 1 ? '' : 's'}</span>
             </div>
             ${renderMetricDetails(sessionsHtml)}

@@ -203,7 +203,7 @@ def test_daily_activity_card_collapsed_training_summary_shows_session_type():
     })
 
     assert '<span class="card-title">Training Sessions</span>' in html
-    assert '<span class="metric-value">Lap Swimming</span>' in html
+    assert '<span class="metric-value training-summary-value">Lap Swimming</span>' in html
     assert '<span class="metric-unit">1 session</span>' in html
 
 
