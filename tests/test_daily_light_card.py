@@ -183,6 +183,30 @@ def test_daily_activity_card_renders_training_metrics_separately_from_steps():
     assert "168 bpm" in html
 
 
+def test_daily_activity_card_collapsed_training_summary_shows_session_type():
+    html = render_activity_card({
+        "steps_total": 5200,
+        "had_training": True,
+        "activity_sessions": [{
+            "activity_type": "lap_swimming",
+            "start_time": "7:00 AM",
+            "duration_min": 45,
+            "distance_meters": 2000,
+            "laps": 80,
+            "pool_length_meters": 25,
+            "avg_hr": 132,
+            "max_hr": 168,
+            "calories": 420,
+            "training_effect_aerobic": None,
+            "training_effect_anaerobic": None,
+        }],
+    })
+
+    assert '<span class="card-title">Training Sessions</span>' in html
+    assert '<span class="metric-value">Lap Swimming</span>' in html
+    assert '<span class="metric-unit">1 session</span>' in html
+
+
 def test_daily_metric_details_are_collapsed_by_default():
     html = render_sleep_card({
         "sleep_score": 81,

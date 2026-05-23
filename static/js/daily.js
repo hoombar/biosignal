@@ -940,6 +940,11 @@ function renderActivityCard(day) {
     const walkBadge = day.had_likely_brisk_walk ?
         `<span style="background: var(--color-positive); color: var(--bg-primary); padding: 2px 8px; border-radius: 4px; font-size: 0.625rem; font-weight: 600; text-transform: uppercase;">Likely brisk walk</span>` : '';
     const sessions = day.activity_sessions || [];
+    const trainingSummary = sessions.length === 1
+        ? titleCase(sessions[0].activity_type)
+        : sessions.length === 2
+            ? sessions.map(session => titleCase(session.activity_type)).join(' + ')
+            : `${sessions.length} sessions`;
     const sessionsHtml = sessions.map(session => `
         <div class="metric-row">
             <span class="metric-label">${titleCase(session.activity_type)}${session.start_time ? ` · ${session.start_time}` : ''}</span>
@@ -977,8 +982,8 @@ function renderActivityCard(day) {
                 <span class="card-title">Training Sessions</span>
             </div>
             <div class="primary-metric">
-                <span class="metric-value">${sessions.length}</span>
-                <span class="metric-unit">session${sessions.length === 1 ? '' : 's'}</span>
+                <span class="metric-value">${trainingSummary}</span>
+                <span class="metric-unit">${sessions.length} session${sessions.length === 1 ? '' : 's'}</span>
             </div>
             ${renderMetricDetails(sessionsHtml)}
         </div>
