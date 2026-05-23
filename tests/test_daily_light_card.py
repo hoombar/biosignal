@@ -150,6 +150,39 @@ def test_daily_activity_card_renders_likely_walk_metrics():
     assert "+33 bpm" in html
 
 
+def test_daily_activity_card_renders_training_metrics_separately_from_steps():
+    html = render_activity_card({
+        "steps_total": 5200,
+        "steps_morning": 1200,
+        "steps_peak_45min": 900,
+        "steps_walking_30min_blocks": 0,
+        "had_training": True,
+        "training_type": "lap_swimming",
+        "activity_sessions": [{
+            "activity_type": "lap_swimming",
+            "start_time": "7:00 AM",
+            "duration_min": 45,
+            "distance_meters": 2000,
+            "laps": 80,
+            "pool_length_meters": 25,
+            "avg_hr": 132,
+            "max_hr": 168,
+            "calories": 420,
+            "training_effect_aerobic": None,
+            "training_effect_anaerobic": None,
+        }],
+    })
+
+    assert "Steps" in html
+    assert "Training Sessions" in html
+    assert "Lap Swimming" in html
+    assert "45 min" in html
+    assert "2.0 km" in html
+    assert "80 laps" in html
+    assert "Max HR" in html
+    assert "168 bpm" in html
+
+
 def test_daily_metric_details_are_collapsed_by_default():
     html = render_sleep_card({
         "sleep_score": 81,

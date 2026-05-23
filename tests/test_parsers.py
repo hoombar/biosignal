@@ -107,4 +107,28 @@ def test_parse_activities():
     assert len(activities) == 2
     assert activities[0].activity_type == "brazilian_jiu_jitsu"
     assert activities[0].avg_hr > 0
+    assert activities[0].max_hr == 172
+    assert activities[0].raw_data["hrTimeInZones"]["zone4"] == 1200
     assert activities[1].activity_type == "running"
+
+
+def test_parse_activities_preserves_swimming_lap_details_in_raw_data():
+    activities = parse_activities([{
+        "activityId": 987654321,
+        "activityType": {"typeKey": "lap_swimming"},
+        "startTimeGMT": "2025-05-17T07:00:00.0",
+        "duration": 2700,
+        "distance": 2000,
+        "averageHR": 132,
+        "maxHR": 168,
+        "numberOfActiveLengths": 80,
+        "poolLength": 25,
+        "poolLengthUnit": "meter",
+    }])
+
+    assert len(activities) == 1
+    assert activities[0].activity_type == "lap_swimming"
+    assert activities[0].max_hr == 168
+    assert activities[0].raw_data["distance"] == 2000
+    assert activities[0].raw_data["numberOfActiveLengths"] == 80
+    assert activities[0].raw_data["poolLength"] == 25

@@ -558,6 +558,42 @@ class TestActivityFeatures:
         result = await compute_activity_features(async_session, TEST_DATE, TZ)
         assert result["training_intensity"] == "high"
 
+    @pytest.mark.asyncio
+    async def test_includes_activity_sessions_with_useful_metrics(self, async_session):
+        async_session.add(Activity(
+            garmin_activity_id="swim-1",
+            activity_type="lap_swimming",
+            start_time=utc_dt(2025, 1, 28, 7, 0),
+            end_time=utc_dt(2025, 1, 28, 7, 45),
+            duration_seconds=2700,
+            avg_hr=132,
+            max_hr=168,
+            calories=420,
+            raw_data={
+                "distance": 2000,
+                "numberOfActiveLengths": 80,
+                "poolLength": 25,
+                "poolLengthUnit": "meter",
+            },
+        ))
+        await async_session.commit()
+
+        result = await compute_activity_features(async_session, TEST_DATE, TZ)
+
+        assert result["activity_sessions"] == [{
+            "activity_type": "lap_swimming",
+            "start_time": "7:00 AM",
+            "duration_min": 45.0,
+            "distance_meters": 2000.0,
+            "laps": 80,
+            "pool_length_meters": 25.0,
+            "avg_hr": 132,
+            "max_hr": 168,
+            "calories": 420,
+            "training_effect_aerobic": None,
+            "training_effect_anaerobic": None,
+        }]
+
 
 class TestHabitFeatures:
 

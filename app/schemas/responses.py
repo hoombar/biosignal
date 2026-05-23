@@ -63,6 +63,21 @@ class BodyBatterySample(BaseModel):
     value: int
 
 
+class ActivitySessionSummary(BaseModel):
+    """Single activity session with the useful source metrics preserved."""
+    activity_type: str
+    start_time: str
+    duration_min: float | None = None
+    distance_meters: float | None = None
+    laps: int | None = None
+    pool_length_meters: float | None = None
+    avg_hr: int | None = None
+    max_hr: int | None = None
+    calories: int | None = None
+    training_effect_aerobic: float | None = None
+    training_effect_anaerobic: float | None = None
+
+
 class Habit(BaseModel):
     """Single habit entry."""
     name: str
@@ -168,6 +183,7 @@ class DailySummary(BaseModel):
     training_avg_hr: int | None = None
     training_intensity: str | None = None
     hours_since_training: float | None = None
+    activity_sessions: list[ActivitySessionSummary] = []
     # Environmental features
     daylight_minutes: float | None = None
     sunrise_minutes_after_midnight: float | None = None

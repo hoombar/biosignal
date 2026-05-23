@@ -266,6 +266,41 @@ def _format_time_local(dt: datetime, tz: ZoneInfo) -> str:
     return local_dt.strftime("%-I:%M %p").lstrip("0")
 
 
+def _first_present(data: dict, keys: list[str]):
+    for key in keys:
+        value = data.get(key)
+        if value is not None:
+            return value
+    return None
+
+
+def _activity_session_summary(activity: Activity, tz: ZoneInfo) -> dict:
+    raw = activity.raw_data or {}
+    distance = _first_present(raw, ["distance", "distanceMeters", "sumDistance"])
+    laps = _first_present(raw, [
+        "numberOfActiveLengths",
+        "activeLengths",
+        "lengths",
+        "laps",
+        "numberOfLaps",
+    ])
+    pool_length = _first_present(raw, ["poolLength", "pool_length"])
+
+    return {
+        "activity_type": activity.activity_type,
+        "start_time": _format_time_local(activity.start_time, tz),
+        "duration_min": (activity.duration_seconds or 0) / 60,
+        "distance_meters": float(distance) if distance is not None else None,
+        "laps": int(laps) if laps is not None else None,
+        "pool_length_meters": float(pool_length) if pool_length is not None else None,
+        "avg_hr": activity.avg_hr,
+        "max_hr": activity.max_hr,
+        "calories": activity.calories,
+        "training_effect_aerobic": activity.training_effect_aerobic,
+        "training_effect_anaerobic": activity.training_effect_anaerobic,
+    }
+
+
 async def compute_body_battery_features(
     session: AsyncSession,
     target_date: date,
@@ -557,6 +592,11 @@ async def compute_activity_features(
     activities = result.scalars().all()
 
     if activities:
+        features["activity_sessions"] = [
+            _activity_session_summary(activity, tz)
+            for activity in activities
+        ]
+
         # Take the main activity of the day (or most intense)
         main_activity = max(activities, key=lambda a: a.avg_hr or 0)
 

@@ -95,6 +95,12 @@ function formatNum(value, decimals = 0) {
     return decimals > 0 ? value.toFixed(decimals) : Math.round(value).toLocaleString();
 }
 
+function formatDistanceMeters(meters) {
+    if (meters === null || meters === undefined) return '-';
+    if (meters >= 1000) return `${(meters / 1000).toFixed(1)} km`;
+    return `${formatNum(meters)} m`;
+}
+
 function formatPollenValue(value) {
     if (value === null || value === undefined) return '-';
     const rounded = Math.round(value * 10) / 10;
@@ -931,17 +937,79 @@ function renderStressCard(day) {
 }
 
 function renderActivityCard(day) {
-    const trainingBadge = day.had_training ?
-        `<span style="background: var(--color-activity); color: var(--bg-primary); padding: 2px 8px; border-radius: 4px; font-size: 0.625rem; font-weight: 600; text-transform: uppercase;">${day.training_type || 'Training'}</span>` : '';
     const walkBadge = day.had_likely_brisk_walk ?
         `<span style="background: var(--color-positive); color: var(--bg-primary); padding: 2px 8px; border-radius: 4px; font-size: 0.625rem; font-weight: 600; text-transform: uppercase;">Likely brisk walk</span>` : '';
+    const sessions = day.activity_sessions || [];
+    const sessionsHtml = sessions.map(session => `
+        <div class="metric-row">
+            <span class="metric-label">${titleCase(session.activity_type)}${session.start_time ? ` · ${session.start_time}` : ''}</span>
+            <span class="metric-value">${formatNum(session.duration_min)} min</span>
+        </div>
+        ${session.distance_meters !== null && session.distance_meters !== undefined ? `
+        <div class="metric-row">
+            <span class="metric-label">Distance</span>
+            <span class="metric-value">${formatDistanceMeters(session.distance_meters)}</span>
+        </div>
+        ` : ''}
+        ${session.laps !== null && session.laps !== undefined ? `
+        <div class="metric-row">
+            <span class="metric-label">Laps</span>
+            <span class="metric-value">${formatNum(session.laps)} laps</span>
+        </div>
+        ` : ''}
+        ${session.max_hr !== null && session.max_hr !== undefined ? `
+        <div class="metric-row">
+            <span class="metric-label">Max HR</span>
+            <span class="metric-value">${formatNum(session.max_hr)} bpm</span>
+        </div>
+        ` : ''}
+        ${session.avg_hr !== null && session.avg_hr !== undefined ? `
+        <div class="metric-row">
+            <span class="metric-label">Avg HR</span>
+            <span class="metric-value">${formatNum(session.avg_hr)} bpm</span>
+        </div>
+        ` : ''}
+    `).join('');
+    const trainingCard = sessions.length ? `
+        <div class="metric-card">
+            <div class="card-header activity">
+                <span class="card-icon">&#127947;</span>
+                <span class="card-title">Training Sessions</span>
+            </div>
+            <div class="primary-metric">
+                <span class="metric-value">${sessions.length}</span>
+                <span class="metric-unit">session${sessions.length === 1 ? '' : 's'}</span>
+            </div>
+            ${renderMetricDetails(sessionsHtml)}
+        </div>
+    ` : day.had_training ? `
+        <div class="metric-card">
+            <div class="card-header activity">
+                <span class="card-icon">&#127947;</span>
+                <span class="card-title">Training Sessions</span>
+            </div>
+            <div class="primary-metric">
+                <span class="metric-value">${titleCase(day.training_type || 'Training')}</span>
+                <span class="metric-unit">${day.training_intensity || 'training'}</span>
+            </div>
+            ${renderMetricDetails(`
+                <div class="metric-row">
+                    <span class="metric-label">Duration</span>
+                    <span class="metric-value">${formatNum(day.training_duration_min, 0)} min</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Avg HR</span>
+                    <span class="metric-value">${formatNum(day.training_avg_hr)} bpm</span>
+                </div>
+            `)}
+        </div>
+    ` : '';
 
     return `
         <div class="metric-card">
             <div class="card-header activity">
                 <span class="card-icon">&#127939;</span>
-                <span class="card-title">Activity</span>
-                ${trainingBadge}
+                <span class="card-title">Steps</span>
                 ${walkBadge}
             </div>
             <div class="primary-metric">
@@ -949,6 +1017,10 @@ function renderActivityCard(day) {
                 <span class="metric-unit">steps</span>
             </div>
             ${renderMetricDetails(`
+                <div class="metric-row">
+                    <span class="metric-label"><strong>Steps</strong></span>
+                    <span class="metric-value"></span>
+                </div>
                 <div class="metric-row">
                     <span class="metric-label">Morning Steps</span>
                     <span class="metric-value">${formatNum(day.steps_morning)}</span>
@@ -971,27 +1043,9 @@ function renderActivityCard(day) {
                     <span class="metric-value">+${formatNum(day.walk_peak_45min_hr_delta)} bpm</span>
                 </div>
                 ` : ''}
-                ${day.had_training ? `
-                <div class="metric-row">
-                    <span class="metric-label">Training Duration</span>
-                    <span class="metric-value">${formatNum(day.training_duration_min, 0)} min</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label">Training Avg HR</span>
-                    <span class="metric-value">${formatNum(day.training_avg_hr)} bpm</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label">Intensity</span>
-                    <span class="metric-value">${day.training_intensity || '-'}</span>
-                </div>
-                ` : `
-                <div class="metric-row">
-                    <span class="metric-label">Training</span>
-                    <span class="metric-value">None</span>
-                </div>
-                `}
             `)}
         </div>
+        ${trainingCard}
     `;
 }
 
