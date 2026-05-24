@@ -274,6 +274,23 @@ def _first_present(data: dict, keys: list[str]):
     return None
 
 
+def _normalize_pool_length_meters(raw: dict, pool_length) -> float | None:
+    if pool_length is None:
+        return None
+
+    value = float(pool_length)
+    unit = raw.get("unitOfPoolLength") or {}
+    factor = unit.get("factor")
+    unit_key = unit.get("unitKey")
+
+    if factor:
+        value = value / float(factor)
+    if unit_key in {"yard", "yards"}:
+        value = value * 0.9144
+
+    return value
+
+
 def _activity_session_summary(activity: Activity, tz: ZoneInfo) -> dict:
     raw = activity.raw_data or {}
     distance = _first_present(raw, ["distance", "distanceMeters", "sumDistance"])
@@ -292,7 +309,7 @@ def _activity_session_summary(activity: Activity, tz: ZoneInfo) -> dict:
         "duration_min": (activity.duration_seconds or 0) / 60,
         "distance_meters": float(distance) if distance is not None else None,
         "laps": int(laps) if laps is not None else None,
-        "pool_length_meters": float(pool_length) if pool_length is not None else None,
+        "pool_length_meters": _normalize_pool_length_meters(raw, pool_length),
         "avg_hr": activity.avg_hr,
         "max_hr": activity.max_hr,
         "calories": activity.calories,

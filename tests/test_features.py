@@ -594,6 +594,34 @@ class TestActivityFeatures:
             "training_effect_anaerobic": None,
         }]
 
+    @pytest.mark.asyncio
+    async def test_normalizes_garmin_pool_length_factor(self, async_session):
+        async_session.add(Activity(
+            garmin_activity_id="swim-2",
+            activity_type="lap_swimming",
+            start_time=utc_dt(2025, 1, 28, 7, 0),
+            end_time=utc_dt(2025, 1, 28, 7, 45),
+            duration_seconds=2700,
+            avg_hr=132,
+            max_hr=168,
+            calories=420,
+            raw_data={
+                "distance": 1520,
+                "activeLengths": 76,
+                "poolLength": 2000,
+                "unitOfPoolLength": {
+                    "unitKey": "meter",
+                    "factor": 100.0,
+                },
+            },
+        ))
+        await async_session.commit()
+
+        result = await compute_activity_features(async_session, TEST_DATE, TZ)
+
+        assert result["activity_sessions"][0]["laps"] == 76
+        assert result["activity_sessions"][0]["pool_length_meters"] == pytest.approx(20.0)
+
 
 class TestHabitFeatures:
 

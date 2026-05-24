@@ -23,6 +23,34 @@ const POLLEN_TYPES = [
     { key: 'ragweed', label: 'Ragweed' },
 ];
 
+const HR_FIRST_ACTIVITY_TYPES = new Set([
+    'boxing',
+    'mixed_martial_arts',
+    'strength_training',
+    'indoor_cardio',
+    'yoga',
+    'pilates',
+    'table_tennis',
+    'platform_tennis',
+    'tennis_v2',
+]);
+
+const ACTIVITY_ICONS = {
+    boxing: '&#129354;',
+    cycling: '&#128692;',
+    gravel_cycling: '&#128692;',
+    indoor_cycling: '&#128692;',
+    lap_swimming: '&#127946;',
+    mixed_martial_arts: '&#129355;',
+    open_water_swimming: '&#127946;',
+    running: '&#127939;',
+    strength_training: '&#127947;',
+    swimming: '&#127946;',
+    table_tennis: '&#127955;',
+    tennis_v2: '&#127934;',
+    walking: '&#128694;',
+};
+
 const MONTH_NAMES = [
     '', 'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
@@ -126,6 +154,17 @@ function titleCase(value) {
     return String(value || 'other')
         .replace(/_/g, ' ')
         .replace(/\b\w/g, ch => ch.toUpperCase());
+}
+
+function getActivityIcon(activityType) {
+    return ACTIVITY_ICONS[activityType] || '&#127941;';
+}
+
+function hasMeaningfulActivityDistance(session) {
+    return session.distance_meters !== null
+        && session.distance_meters !== undefined
+        && Number(session.distance_meters) > 0
+        && !HR_FIRST_ACTIVITY_TYPES.has(session.activity_type);
 }
 
 function getScoreClass(value, lowThresh, highThresh) {
@@ -940,54 +979,7 @@ function renderActivityCard(day) {
     const walkBadge = day.had_likely_brisk_walk ?
         `<span style="background: var(--color-positive); color: var(--bg-primary); padding: 2px 8px; border-radius: 4px; font-size: 0.625rem; font-weight: 600; text-transform: uppercase;">Likely brisk walk</span>` : '';
     const sessions = day.activity_sessions || [];
-    const trainingSummary = sessions.length === 1
-        ? titleCase(sessions[0].activity_type)
-        : sessions.length === 2
-            ? sessions.map(session => titleCase(session.activity_type)).join(' + ')
-            : `${sessions.length} sessions`;
-    const sessionsHtml = sessions.map(session => `
-        <div class="metric-row">
-            <span class="metric-label">${titleCase(session.activity_type)}${session.start_time ? ` · ${session.start_time}` : ''}</span>
-            <span class="metric-value">${formatNum(session.duration_min)} min</span>
-        </div>
-        ${session.distance_meters !== null && session.distance_meters !== undefined ? `
-        <div class="metric-row">
-            <span class="metric-label">Distance</span>
-            <span class="metric-value">${formatDistanceMeters(session.distance_meters)}</span>
-        </div>
-        ` : ''}
-        ${session.laps !== null && session.laps !== undefined ? `
-        <div class="metric-row">
-            <span class="metric-label">Laps</span>
-            <span class="metric-value">${formatNum(session.laps)} laps</span>
-        </div>
-        ` : ''}
-        ${session.max_hr !== null && session.max_hr !== undefined ? `
-        <div class="metric-row">
-            <span class="metric-label">Max HR</span>
-            <span class="metric-value">${formatNum(session.max_hr)} bpm</span>
-        </div>
-        ` : ''}
-        ${session.avg_hr !== null && session.avg_hr !== undefined ? `
-        <div class="metric-row">
-            <span class="metric-label">Avg HR</span>
-            <span class="metric-value">${formatNum(session.avg_hr)} bpm</span>
-        </div>
-        ` : ''}
-    `).join('');
-    const trainingCard = sessions.length ? `
-        <div class="metric-card">
-            <div class="card-header activity">
-                <span class="card-icon">&#127947;</span>
-                <span class="card-title">Training Sessions</span>
-            </div>
-            <div class="primary-metric">
-                <span class="metric-value training-summary-value">${trainingSummary}</span>
-                <span class="metric-unit">${sessions.length} session${sessions.length === 1 ? '' : 's'}</span>
-            </div>
-            ${renderMetricDetails(sessionsHtml)}
-        </div>
-    ` : day.had_training ? `
+    const trainingCards = sessions.length ? sessions.map(session => renderActivitySessionCard(session)).join('') : day.had_training ? `
         <div class="metric-card">
             <div class="card-header activity">
                 <span class="card-icon">&#127947;</span>
@@ -1050,7 +1042,80 @@ function renderActivityCard(day) {
                 ` : ''}
             `)}
         </div>
-        ${trainingCard}
+        ${trainingCards}
+    `;
+}
+
+function renderActivitySessionCard(session) {
+    const hasDistance = hasMeaningfulActivityDistance(session);
+    const hasLaps = session.laps !== null && session.laps !== undefined;
+    const hasMaxHr = session.max_hr !== null && session.max_hr !== undefined;
+    const hasAvgHr = session.avg_hr !== null && session.avg_hr !== undefined;
+    const durationText = `${formatNum(session.duration_min)} min`;
+    const primaryValue = hasDistance
+        ? (session.distance_meters / 1000).toFixed(1)
+        : hasMaxHr
+            ? formatNum(session.max_hr)
+            : formatNum(session.duration_min);
+    const primaryUnit = hasDistance
+        ? `km${hasLaps ? ` · ${formatNum(session.laps)} laps` : ''}`
+        : hasMaxHr
+            ? 'bpm max'
+            : 'min';
+
+    return `
+        <div class="metric-card">
+            <div class="card-header activity">
+                <span class="card-icon">${getActivityIcon(session.activity_type)}</span>
+                <span class="card-title">${titleCase(session.activity_type)}</span>
+            </div>
+            <div class="primary-metric">
+                <span class="metric-value">${primaryValue}</span>
+                <span class="metric-unit">${primaryUnit}</span>
+            </div>
+            ${renderMetricDetails(`
+                ${session.start_time ? `
+                <div class="metric-row">
+                    <span class="metric-label">Start</span>
+                    <span class="metric-value">${session.start_time}</span>
+                </div>
+                ` : ''}
+                <div class="metric-row">
+                    <span class="metric-label">Duration</span>
+                    <span class="metric-value">${durationText}</span>
+                </div>
+                ${hasDistance ? `
+                <div class="metric-row">
+                    <span class="metric-label">Distance</span>
+                    <span class="metric-value">${formatDistanceMeters(session.distance_meters)}</span>
+                </div>
+                ` : ''}
+                ${hasLaps ? `
+                <div class="metric-row">
+                    <span class="metric-label">Laps</span>
+                    <span class="metric-value">${formatNum(session.laps)} laps</span>
+                </div>
+                ` : ''}
+                ${hasAvgHr ? `
+                <div class="metric-row">
+                    <span class="metric-label">Avg HR</span>
+                    <span class="metric-value">${formatNum(session.avg_hr)} bpm</span>
+                </div>
+                ` : ''}
+                ${hasMaxHr ? `
+                <div class="metric-row">
+                    <span class="metric-label">Max HR</span>
+                    <span class="metric-value">${formatNum(session.max_hr)} bpm</span>
+                </div>
+                ` : ''}
+                ${session.calories !== null && session.calories !== undefined ? `
+                <div class="metric-row">
+                    <span class="metric-label">Calories</span>
+                    <span class="metric-value">${formatNum(session.calories)}</span>
+                </div>
+                ` : ''}
+            `)}
+        </div>
     `;
 }
 

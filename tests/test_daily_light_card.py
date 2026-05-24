@@ -150,7 +150,7 @@ def test_daily_activity_card_renders_likely_walk_metrics():
     assert "+33 bpm" in html
 
 
-def test_daily_activity_card_renders_training_metrics_separately_from_steps():
+def test_daily_activity_card_renders_training_activity_as_own_card():
     html = render_activity_card({
         "steps_total": 5200,
         "steps_morning": 1200,
@@ -174,37 +174,99 @@ def test_daily_activity_card_renders_training_metrics_separately_from_steps():
     })
 
     assert "Steps" in html
-    assert "Training Sessions" in html
+    assert '<span class="card-title">Lap Swimming</span>' in html
+    assert '<span class="metric-value">2.0</span>' in html
+    assert '<span class="metric-unit">km · 80 laps</span>' in html
     assert "Lap Swimming" in html
     assert "45 min" in html
-    assert "2.0 km" in html
     assert "80 laps" in html
     assert "Max HR" in html
     assert "168 bpm" in html
+    assert "Training Sessions" not in html
 
 
-def test_daily_activity_card_collapsed_training_summary_shows_session_type():
+def test_daily_activity_card_renders_multiple_training_activity_cards():
     html = render_activity_card({
         "steps_total": 5200,
         "had_training": True,
-        "activity_sessions": [{
-            "activity_type": "lap_swimming",
-            "start_time": "7:00 AM",
-            "duration_min": 45,
-            "distance_meters": 2000,
-            "laps": 80,
-            "pool_length_meters": 25,
-            "avg_hr": 132,
-            "max_hr": 168,
-            "calories": 420,
-            "training_effect_aerobic": None,
-            "training_effect_anaerobic": None,
-        }],
+        "activity_sessions": [
+            {
+                "activity_type": "lap_swimming",
+                "start_time": "7:00 AM",
+                "duration_min": 45,
+                "distance_meters": 2000,
+                "laps": 80,
+                "pool_length_meters": 25,
+                "avg_hr": 132,
+                "max_hr": 168,
+                "calories": 420,
+                "training_effect_aerobic": None,
+                "training_effect_anaerobic": None,
+            },
+            {
+                "activity_type": "mixed_martial_arts",
+                "start_time": "6:30 PM",
+                "duration_min": 60,
+                "distance_meters": None,
+                "laps": None,
+                "pool_length_meters": None,
+                "avg_hr": 142,
+                "max_hr": 172,
+                "calories": 485,
+                "training_effect_aerobic": 3.2,
+                "training_effect_anaerobic": 2.8,
+            },
+        ],
     })
 
-    assert '<span class="card-title">Training Sessions</span>' in html
-    assert '<span class="metric-value training-summary-value">Lap Swimming</span>' in html
-    assert '<span class="metric-unit">1 session</span>' in html
+    assert '<span class="card-title">Lap Swimming</span>' in html
+    assert '<span class="card-title">Mixed Martial Arts</span>' in html
+    assert '<span class="metric-value">172</span>' in html
+    assert '<span class="metric-unit">bpm max</span>' in html
+    assert "Training Sessions" not in html
+
+
+def test_daily_activity_card_uses_hr_for_zero_distance_combat_and_strength():
+    html = render_activity_card({
+        "steps_total": 5200,
+        "had_training": True,
+        "activity_sessions": [
+            {
+                "activity_type": "mixed_martial_arts",
+                "start_time": "12:05 PM",
+                "duration_min": 60,
+                "distance_meters": 0,
+                "laps": None,
+                "pool_length_meters": None,
+                "avg_hr": 126,
+                "max_hr": 172,
+                "calories": 509,
+                "training_effect_aerobic": None,
+                "training_effect_anaerobic": None,
+            },
+            {
+                "activity_type": "strength_training",
+                "start_time": "12:17 PM",
+                "duration_min": 57,
+                "distance_meters": 0,
+                "laps": None,
+                "pool_length_meters": None,
+                "avg_hr": 124,
+                "max_hr": 154,
+                "calories": 467,
+                "training_effect_aerobic": None,
+                "training_effect_anaerobic": None,
+            },
+        ],
+    })
+
+    assert "&#129355;" in html
+    assert "&#127947;" in html
+    assert '<span class="metric-value">172</span>' in html
+    assert '<span class="metric-value">154</span>' in html
+    assert '<span class="metric-unit">bpm max</span>' in html
+    assert "0.0" not in html
+    assert "Distance" not in html
 
 
 def test_daily_metric_details_are_collapsed_by_default():
