@@ -41,10 +41,24 @@ def test_settings_page_groups_sections_in_tabs():
     assert 'role="tablist"' in html
     assert 'for="settings-tab-sync"' in html
     assert 'for="settings-tab-supplements"' in html
+    assert 'for="settings-tab-preferences"' in html
     assert 'for="settings-tab-habits"' in html
     assert 'id="settings-panel-sync"' in html
     assert 'id="settings-panel-supplements"' in html
+    assert 'id="settings-panel-preferences"' in html
     assert 'id="settings-panel-habits"' in html
+
+
+def test_settings_page_renders_weather_unit_preferences():
+    with TestClient(app) as client:
+        resp = client.get("/settings")
+
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'id="weather-temperature-unit"' in html
+    assert 'id="weather-wind-speed-unit"' in html
+    assert "Fahrenheit" in html
+    assert "mph" in html
 
 
 def test_overview_page_no_longer_renders_manual_sync_controls():

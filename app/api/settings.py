@@ -2,17 +2,62 @@
 
 import logging
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Literal
 
 from app.core.database import get_db
-from app.models.database import HabitDisplayConfig
+from app.models.database import AppSetting, HabitDisplayConfig
 from app.schemas.responses import HabitDisplayConfigResponse, HabitDisplayConfigUpdate
 from app.services.habit_config import list_habit_display_entries
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
+
+PREFERENCES_KEY = "preferences"
+
+
+class UserPreferences(BaseModel):
+    """User display preferences."""
+
+    weather_temperature_unit: Literal["celsius", "fahrenheit"] = "celsius"
+    weather_wind_speed_unit: Literal["kmh", "mph"] = "kmh"
+
+
+def _preferences_from_value(value: dict | None) -> UserPreferences:
+    if not isinstance(value, dict):
+        return UserPreferences()
+    return UserPreferences(**{**UserPreferences().model_dump(), **value})
+
+
+@router.get("/preferences", response_model=UserPreferences)
+async def get_preferences(db: AsyncSession = Depends(get_db)):
+    """Return persisted user display preferences."""
+    result = await db.execute(select(AppSetting).where(AppSetting.key == PREFERENCES_KEY))
+    setting = result.scalar_one_or_none()
+    return _preferences_from_value(setting.value if setting else None)
+
+
+@router.put("/preferences", response_model=UserPreferences)
+async def put_preferences(
+    body: UserPreferences,
+    db: AsyncSession = Depends(get_db),
+):
+    """Persist user display preferences."""
+    result = await db.execute(select(AppSetting).where(AppSetting.key == PREFERENCES_KEY))
+    setting = result.scalar_one_or_none()
+    value = body.model_dump()
+
+    if setting is None:
+        setting = AppSetting(key=PREFERENCES_KEY, value=value)
+        db.add(setting)
+    else:
+        setting.value = value
+
+    await db.commit()
+    return body
 
 
 @router.get("/habits", response_model=list[HabitDisplayConfigResponse])

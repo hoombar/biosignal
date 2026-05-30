@@ -12,6 +12,16 @@ let selectedDate = null;
 let selectedIndex = -1;
 let currentMonthData = [];  // data for the displayed month
 let calendarHabitNames = [];
+let weatherPreferences = {
+    weather_temperature_unit: 'celsius',
+    weather_wind_speed_unit: 'kmh',
+};
+if (typeof globalThis !== 'undefined' && globalThis.__weatherPreferences) {
+    weatherPreferences = {
+        ...weatherPreferences,
+        ...globalThis.__weatherPreferences,
+    };
+}
 
 const CALENDAR_DOT_LIMIT = 3;
 const POLLEN_TYPES = [
@@ -139,6 +149,26 @@ function formatWeatherValue(value, unit = '', decimals = 0) {
     if (value === null || value === undefined) return '-';
     const rounded = decimals > 0 ? Number(value).toFixed(decimals) : Math.round(value).toLocaleString();
     return `${rounded}${unit}`;
+}
+
+function convertWeatherTemperature(celsius) {
+    if (celsius === null || celsius === undefined) return null;
+    return weatherPreferences.weather_temperature_unit === 'fahrenheit'
+        ? (celsius * 9 / 5) + 32
+        : celsius;
+}
+
+function weatherTemperatureUnitLabel() {
+    return weatherPreferences.weather_temperature_unit === 'fahrenheit' ? '°F' : '°C';
+}
+
+function convertWeatherWindSpeed(kmh) {
+    if (kmh === null || kmh === undefined) return null;
+    return weatherPreferences.weather_wind_speed_unit === 'mph' ? kmh * 0.621371 : kmh;
+}
+
+function weatherWindSpeedUnitLabel() {
+    return weatherPreferences.weather_wind_speed_unit === 'mph' ? ' mph' : ' km/h';
 }
 
 function formatBool(value) {
@@ -1221,10 +1251,11 @@ function hasWeatherData(day) {
 
 function renderWeatherCard(day) {
     const hasData = hasWeatherData(day);
+    const tempUnit = weatherTemperatureUnitLabel();
     const tempRange = day.temperature_2m_min !== null && day.temperature_2m_min !== undefined
         && day.temperature_2m_max !== null && day.temperature_2m_max !== undefined
-        ? `${Math.round(day.temperature_2m_min)}-${Math.round(day.temperature_2m_max)}°C`
-        : formatWeatherValue(day.temperature_2m_avg, '°C');
+        ? `${Math.round(convertWeatherTemperature(day.temperature_2m_min))}-${Math.round(convertWeatherTemperature(day.temperature_2m_max))}${tempUnit}`
+        : formatWeatherValue(convertWeatherTemperature(day.temperature_2m_avg), tempUnit);
 
     return `
         <div class="metric-card">
@@ -1234,12 +1265,12 @@ function renderWeatherCard(day) {
             </div>
             <div class="primary-metric">
                 <span class="metric-value">${hasData ? tempRange : '-'}</span>
-                <span class="metric-unit">${hasData ? 'home weather' : 'No data'}</span>
+                <span class="metric-unit">${hasData ? '' : 'No data'}</span>
             </div>
             ${renderMetricDetails(`
                 <div class="metric-row">
                     <span class="metric-label">Feels max</span>
-                    <span class="metric-value">${formatWeatherValue(day.apparent_temperature_max, '°C')}</span>
+                    <span class="metric-value">${formatWeatherValue(convertWeatherTemperature(day.apparent_temperature_max), tempUnit)}</span>
                 </div>
                 <div class="metric-row">
                     <span class="metric-label">Humidity</span>
@@ -1251,7 +1282,7 @@ function renderWeatherCard(day) {
                 </div>
                 <div class="metric-row">
                     <span class="metric-label">Wind max</span>
-                    <span class="metric-value">${formatWeatherValue(day.wind_speed_10m_max, ' km/h')}</span>
+                    <span class="metric-value">${formatWeatherValue(convertWeatherWindSpeed(day.wind_speed_10m_max), weatherWindSpeedUnitLabel())}</span>
                 </div>
                 <div class="metric-row">
                     <span class="metric-label">Cloud cover</span>
@@ -1299,6 +1330,21 @@ function renderDayDetail(day) {
 // INITIALIZATION
 // ============================================
 
+async function loadWeatherPreferences() {
+    try {
+        const resp = await fetch('/api/settings/preferences');
+        const data = await resp.json();
+        if (data && !Array.isArray(data)) {
+            weatherPreferences = {
+                ...weatherPreferences,
+                ...data,
+            };
+        }
+    } catch (error) {
+        console.warn('Failed to load weather preferences:', error);
+    }
+}
+
 async function init() {
     // Check URL hash for a specific date
     const hashDate = readHash();
@@ -1311,7 +1357,7 @@ async function init() {
     }
 
     // Load habit config + habit definitions first so the panel can render.
-    await Promise.all([loadHabitConfig(), loadHabitsList()]);
+    await Promise.all([loadHabitConfig(), loadHabitsList(), loadWeatherPreferences()]);
     window._activeHabits = await loadHabitsList();
 
     // Delegate click handling for the habits panel (one listener for the page).

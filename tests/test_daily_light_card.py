@@ -7,7 +7,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def render_daily_card(function_name: str, day: dict) -> str:
+def render_daily_card(function_name: str, day: dict, preferences: dict | None = None) -> str:
     script = textwrap.dedent(
         """
         const fs = require('fs');
@@ -16,6 +16,7 @@ def render_daily_card(function_name: str, day: dict) -> str:
         const source = fs.readFileSync('static/js/daily.js', 'utf8');
         const functionName = process.argv[1];
         const day = JSON.parse(process.argv[2]);
+        const preferences = JSON.parse(process.argv[3] || '{}');
 
         const context = {
             console,
@@ -39,6 +40,7 @@ def render_daily_card(function_name: str, day: dict) -> str:
                 renderHabitsPanel: () => '',
                 bindHabitsPanel: () => {},
             },
+            __weatherPreferences: preferences,
         };
 
         vm.createContext(context);
@@ -52,7 +54,7 @@ def render_daily_card(function_name: str, day: dict) -> str:
         """
     )
     result = subprocess.run(
-        ["node", "-e", script, function_name, json.dumps(day)],
+        ["node", "-e", script, function_name, json.dumps(day), json.dumps(preferences or {})],
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,
@@ -71,6 +73,10 @@ def render_pollen_card(day: dict) -> str:
 
 def render_weather_card(day: dict) -> str:
     return render_daily_card("renderWeatherCard", day)
+
+
+def render_weather_card_with_preferences(day: dict, preferences: dict) -> str:
+    return render_daily_card("renderWeatherCard", day, preferences)
 
 
 def render_activity_card(day: dict) -> str:
@@ -352,6 +358,7 @@ def test_daily_weather_card_renders_temperature_humidity_and_rain():
 
     assert "Weather" in html
     assert "12-25°C" in html
+    assert "home weather" not in html
     assert "Feels max" in html
     assert "28°C" in html
     assert "Humidity" in html
@@ -360,6 +367,28 @@ def test_daily_weather_card_renders_temperature_humidity_and_rain():
     assert "3.4 mm" in html
     assert "Wind max" in html
     assert "31 km/h" in html
+
+
+def test_daily_weather_card_uses_unit_preferences():
+    html = render_weather_card_with_preferences({
+        "temperature_2m_min": 12.2,
+        "temperature_2m_max": 24.8,
+        "apparent_temperature_max": 28.1,
+        "relative_humidity_2m_avg": 72,
+        "relative_humidity_2m_max": 91,
+        "precipitation_sum": 3.4,
+        "precipitation_hours": 2,
+        "wind_speed_10m_max": 31,
+        "cloud_cover_avg": 65,
+    }, {
+        "weather_temperature_unit": "fahrenheit",
+        "weather_wind_speed_unit": "mph",
+    })
+
+    assert "54-77°F" in html
+    assert "83°F" in html
+    assert "19 mph" in html
+    assert "31 km/h" not in html
 
 
 def test_daily_weather_card_renders_empty_state_without_synced_data():

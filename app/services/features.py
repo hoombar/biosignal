@@ -655,17 +655,20 @@ async def compute_environmental_features(
 ) -> dict:
     """Compute configured environmental features for a day."""
     if latitude is None or longitude is None:
-        return {}
+        existing = await session.execute(
+            select(EnvironmentalMetric).where(EnvironmentalMetric.date == target_date)
+        )
+        return {row.metric_key: row.value for row in existing.scalars().all()}
 
     loc_key = location_key(latitude, longitude)
     existing = await session.execute(
         select(EnvironmentalMetric)
         .where(EnvironmentalMetric.date == target_date)
-        .where(EnvironmentalMetric.location_key == loc_key)
     )
     rows = existing.scalars().all()
     features = {row.metric_key: row.value for row in rows}
-    has_astronomy = any(row.source == AstronomyProvider.source for row in rows)
+    location_rows = [row for row in rows if row.location_key == loc_key]
+    has_astronomy = any(row.source == AstronomyProvider.source for row in location_rows)
     if has_astronomy:
         return features
 

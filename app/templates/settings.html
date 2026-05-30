@@ -6,11 +6,13 @@
 <div class="settings-tabs">
     <input class="settings-tab-input" type="radio" name="settings-tab" id="settings-tab-sync" checked>
     <input class="settings-tab-input" type="radio" name="settings-tab" id="settings-tab-supplements">
+    <input class="settings-tab-input" type="radio" name="settings-tab" id="settings-tab-preferences">
     <input class="settings-tab-input" type="radio" name="settings-tab" id="settings-tab-habits">
 
     <div class="settings-tab-list" role="tablist" aria-label="Settings sections">
         <label class="settings-tab-label" id="settings-tab-label-sync" for="settings-tab-sync" role="tab" aria-controls="settings-panel-sync">Sync</label>
         <label class="settings-tab-label" id="settings-tab-label-supplements" for="settings-tab-supplements" role="tab" aria-controls="settings-panel-supplements">Supplements</label>
+        <label class="settings-tab-label" id="settings-tab-label-preferences" for="settings-tab-preferences" role="tab" aria-controls="settings-panel-preferences">Preferences</label>
         <label class="settings-tab-label" id="settings-tab-label-habits" for="settings-tab-habits" role="tab" aria-controls="settings-panel-habits">Habits</label>
     </div>
 
@@ -74,6 +76,34 @@
             <span id="supplements-save-status" class="save-status"></span>
         </div>
     </div>
+</section>
+
+<section class="settings-section settings-tab-panel" id="settings-panel-preferences" role="tabpanel" aria-labelledby="settings-tab-label-preferences">
+    <div class="settings-header">
+        <h2>Preferences</h2>
+        <p class="settings-desc">Choose display units for weather. Stored metrics and exports keep their source units for analysis consistency.</p>
+    </div>
+
+    <form id="preferences-form" class="preferences-form">
+        <label class="supplement-field">
+            <span>Temperature</span>
+            <select id="weather-temperature-unit" name="weather_temperature_unit" class="settings-input">
+                <option value="celsius">Celsius (°C)</option>
+                <option value="fahrenheit">Fahrenheit (°F)</option>
+            </select>
+        </label>
+        <label class="supplement-field">
+            <span>Wind speed</span>
+            <select id="weather-wind-speed-unit" name="weather_wind_speed_unit" class="settings-input">
+                <option value="kmh">km/h</option>
+                <option value="mph">mph</option>
+            </select>
+        </label>
+        <div class="settings-actions">
+            <button type="submit" class="btn-primary" id="preferences-save-btn">Save preferences</button>
+            <span id="preferences-save-status" class="save-status"></span>
+        </div>
+    </form>
 </section>
 
 <section class="settings-section settings-tab-panel" id="settings-panel-habits" role="tabpanel" aria-labelledby="settings-tab-label-habits">
@@ -446,6 +476,60 @@
         });
         backfillBtn.addEventListener('click', startBackfill);
         backfillCancelBtn.addEventListener('click', cancelBackfill);
+    });
+})();
+</script>
+
+<script>
+(() => {
+    const form = document.getElementById('preferences-form');
+    const temperatureUnit = document.getElementById('weather-temperature-unit');
+    const windSpeedUnit = document.getElementById('weather-wind-speed-unit');
+    const saveBtn = document.getElementById('preferences-save-btn');
+    const status = document.getElementById('preferences-save-status');
+
+    function setStatus(message, kind = '') {
+        status.textContent = message;
+        status.className = kind ? `save-status save-status--${kind}` : 'save-status';
+    }
+
+    async function loadPreferences() {
+        try {
+            const resp = await fetch('/api/settings/preferences');
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const prefs = await resp.json();
+            temperatureUnit.value = prefs.weather_temperature_unit || 'celsius';
+            windSpeedUnit.value = prefs.weather_wind_speed_unit || 'kmh';
+        } catch (error) {
+            setStatus(`Failed to load preferences: ${error.message}`, 'error');
+        }
+    }
+
+    async function savePreferences(event) {
+        event.preventDefault();
+        saveBtn.disabled = true;
+        setStatus('Saving...', '');
+        try {
+            const resp = await fetch('/api/settings/preferences', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    weather_temperature_unit: temperatureUnit.value,
+                    weather_wind_speed_unit: windSpeedUnit.value,
+                }),
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            setStatus('Saved', 'success');
+        } catch (error) {
+            setStatus(`Failed to save: ${error.message}`, 'error');
+        } finally {
+            saveBtn.disabled = false;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadPreferences();
+        form.addEventListener('submit', savePreferences);
     });
 })();
 </script>

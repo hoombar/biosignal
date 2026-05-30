@@ -13,6 +13,7 @@ from app.models.database import (
     Habit,
     DailyHabit,
     HabitDisplayConfig,
+    AppSetting,
     DailySummaryCache,
 )
 from app.models.sync_log import SyncLog
@@ -31,6 +32,7 @@ __all__ = [
     "Habit",
     "DailyHabit",
     "HabitDisplayConfig",
+    "AppSetting",
     "DailySummaryCache",
     "SyncLog",
 ]

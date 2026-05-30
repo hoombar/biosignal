@@ -2174,6 +2174,7 @@ input:focus {
 
 #settings-tab-sync:checked ~ .settings-tab-list label[for="settings-tab-sync"],
 #settings-tab-supplements:checked ~ .settings-tab-list label[for="settings-tab-supplements"],
+#settings-tab-preferences:checked ~ .settings-tab-list label[for="settings-tab-preferences"],
 #settings-tab-habits:checked ~ .settings-tab-list label[for="settings-tab-habits"] {
     color: var(--text-primary);
     background: var(--primary-color);
@@ -2181,6 +2182,7 @@ input:focus {
 
 #settings-tab-sync:focus-visible ~ .settings-tab-list label[for="settings-tab-sync"],
 #settings-tab-supplements:focus-visible ~ .settings-tab-list label[for="settings-tab-supplements"],
+#settings-tab-preferences:focus-visible ~ .settings-tab-list label[for="settings-tab-preferences"],
 #settings-tab-habits:focus-visible ~ .settings-tab-list label[for="settings-tab-habits"] {
     outline: 2px solid var(--primary-color);
     outline-offset: 3px;
@@ -2188,6 +2190,7 @@ input:focus {
 
 #settings-tab-sync:checked ~ #settings-panel-sync,
 #settings-tab-supplements:checked ~ #settings-panel-supplements,
+#settings-tab-preferences:checked ~ #settings-panel-preferences,
 #settings-tab-habits:checked ~ #settings-panel-habits {
     display: block;
 }

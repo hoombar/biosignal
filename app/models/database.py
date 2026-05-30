@@ -217,6 +217,18 @@ class HabitDisplayConfig(Base):
     sort_order = Column(Integer, default=0, nullable=False)
 
 
+class AppSetting(Base):
+    """Generic persisted application setting."""
+
+    __tablename__ = "app_settings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    key = Column(String, nullable=False, unique=True, index=True)
+    value = Column(JSON, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class ContextEvent(Base):
     """Date-range context that explains non-baseline days."""
 

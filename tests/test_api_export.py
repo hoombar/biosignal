@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 
 from app.api.export import router
 from app.core.database import get_db
-from app.models.database import SleepSession, DailyHabit, HabitDisplayConfig, SupplementLog, SupplementPlanVersion
+from app.models.database import EnvironmentalMetric, SleepSession, DailyHabit, HabitDisplayConfig, SupplementLog, SupplementPlanVersion
 
 
 def _make_test_app(session):
@@ -196,6 +196,54 @@ class TestExportFeatures:
         row = resp.json()["data"][0]
         assert row["habit_coffee"] == 4
         assert row["habits"] == [{"name": "coffee", "value": 4, "type": "counter"}]
+
+    @pytest.mark.asyncio
+    async def test_json_export_includes_weather_metrics(self, async_session):
+        async_session.add(EnvironmentalMetric(
+            date=date(2025, 1, 28),
+            source="open_meteo_weather",
+            metric_key="temperature_2m_avg",
+            location_key="51.5074,-0.1278",
+            value=18.5,
+            unit="degC",
+            category="Weather",
+        ))
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get(
+                "/api/export",
+                params={"format": "json", "start": "2025-01-28", "end": "2025-01-28"}
+            )
+
+        assert resp.status_code == 200
+        row = resp.json()["data"][0]
+        assert row["temperature_2m_avg"] == 18.5
+
+    @pytest.mark.asyncio
+    async def test_csv_export_includes_weather_metrics(self, async_session):
+        async_session.add(EnvironmentalMetric(
+            date=date(2025, 1, 28),
+            source="open_meteo_weather",
+            metric_key="wind_speed_10m_max",
+            location_key="51.5074,-0.1278",
+            value=31.0,
+            unit="km/h",
+            category="Weather",
+        ))
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get(
+                "/api/export",
+                params={"format": "csv", "start": "2025-01-28", "end": "2025-01-28"}
+            )
+
+        reader = csv.DictReader(io.StringIO(resp.text))
+        row = list(reader)[0]
+        assert row["wind_speed_10m_max"] == "31.0"
 
 
 class TestExportMetadata:

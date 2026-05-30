@@ -9,9 +9,10 @@ import pytest
 from datetime import date
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.core.database import get_db
-from app.models.database import HabitDisplayConfig
+from app.models.database import AppSetting, HabitDisplayConfig
 from tests.conftest import ensure_habit, log_habit
 
 
@@ -238,5 +239,52 @@ class TestPutHabitSettings:
                 "/api/settings/habits/afternoon_slump",
                 json={"display_name": "PM slump", "emoji": "😩", "color": "red", "sort_order": 0},
             )
+
+        assert resp.status_code == 422
+
+
+class TestWeatherUnitPreferences:
+    @pytest.mark.asyncio
+    async def test_get_preferences_returns_defaults(self, async_session):
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get("/api/settings/preferences")
+
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "weather_temperature_unit": "celsius",
+            "weather_wind_speed_unit": "kmh",
+        }
+
+    @pytest.mark.asyncio
+    async def test_put_preferences_persists_weather_units(self, async_session):
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            put_resp = client.put("/api/settings/preferences", json={
+                "weather_temperature_unit": "fahrenheit",
+                "weather_wind_speed_unit": "mph",
+            })
+            get_resp = client.get("/api/settings/preferences")
+
+        assert put_resp.status_code == 200
+        assert get_resp.json() == {
+            "weather_temperature_unit": "fahrenheit",
+            "weather_wind_speed_unit": "mph",
+        }
+
+        row = (await async_session.execute(
+            select(AppSetting).where(AppSetting.key == "preferences")
+        )).scalar_one()
+        assert row.value["weather_temperature_unit"] == "fahrenheit"
+        assert row.value["weather_wind_speed_unit"] == "mph"
+
+    @pytest.mark.asyncio
+    async def test_put_preferences_rejects_invalid_units(self, async_session):
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.put("/api/settings/preferences", json={
+                "weather_temperature_unit": "kelvin",
+                "weather_wind_speed_unit": "knots",
+            })
 
         assert resp.status_code == 422
