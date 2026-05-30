@@ -17,7 +17,7 @@
 <section class="settings-section settings-tab-panel" id="settings-panel-sync" role="tabpanel" aria-labelledby="settings-tab-label-sync">
     <div class="settings-header">
         <h2>Service Sync</h2>
-        <p class="settings-desc">Run and monitor external service ingestion. Environment sync includes daylight and Open-Meteo pollen for the selected date.</p>
+        <p class="settings-desc">Run and monitor external service ingestion. Environment sync includes daylight plus Open-Meteo pollen and weather for the selected date.</p>
     </div>
 
     <div id="sync-status" class="service-sync-grid">
@@ -30,7 +30,7 @@
             <input type="date" id="manual-sync-date" class="settings-input">
         </label>
         <button type="button" class="btn-primary service-sync-btn" data-sync-service="garmin">Sync Garmin</button>
-        <button type="button" class="btn-primary service-sync-btn" data-sync-service="environment">Sync Environment / Pollen</button>
+        <button type="button" class="btn-primary service-sync-btn" data-sync-service="environment">Sync Environment / Weather</button>
         <span id="manual-sync-status" class="save-status"></span>
     </div>
 

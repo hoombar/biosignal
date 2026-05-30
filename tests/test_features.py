@@ -110,6 +110,30 @@ class TestEnvironmentalFeatures:
         assert result["grass_pollen_avg"] == 12.5
         assert "daylight_minutes" in result
 
+    @pytest.mark.asyncio
+    async def test_returns_stored_weather_metrics(self, async_session):
+        async_session.add(EnvironmentalMetric(
+            date=date(2025, 6, 21),
+            source="open_meteo_weather",
+            metric_key="temperature_2m_avg",
+            location_key="51.5074,-0.1278",
+            value=18.5,
+            unit="degC",
+            category="Weather",
+        ))
+        await async_session.commit()
+
+        result = await compute_environmental_features(
+            async_session,
+            date(2025, 6, 21),
+            TZ,
+            latitude=51.5074,
+            longitude=-0.1278,
+        )
+
+        assert result["temperature_2m_avg"] == 18.5
+        assert "daylight_minutes" in result
+
 
 def naive_utc(dt: datetime) -> datetime:
     """Strip tzinfo, keeping the UTC value, for storage in SQLite."""

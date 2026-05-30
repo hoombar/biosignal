@@ -15,6 +15,7 @@ from app.services.environmental import (
     AstronomyProvider,
     EnvironmentalMetricValue,
     OpenMeteoPollenProvider,
+    OpenMeteoWeatherProvider,
     location_key,
 )
 from app.models.database import (
@@ -189,8 +190,8 @@ class SyncService:
         """
         Compute and upsert environmental metrics for a specific day.
 
-        Local astronomy metrics are deterministic. Pollen metrics are fetched
-        from Open-Meteo and failures are reported without dropping light rows.
+        Local astronomy metrics are deterministic. Pollen and weather metrics
+        are fetched from Open-Meteo and failures are isolated by provider.
         """
         date_str = target_date.strftime("%Y-%m-%d")
         logger.info(f"Syncing environmental metrics for {date_str}")
@@ -225,6 +226,13 @@ class SyncService:
                 logger.error(f"Open-Meteo pollen sync failed for {date_str}: {e}")
                 status["success"] = False
                 status["errors"].append(f"pollen: {e}")
+
+            try:
+                metrics.extend(await OpenMeteoWeatherProvider().daily_metrics(target_date, tz, latitude, longitude))
+            except Exception as e:
+                logger.error(f"Open-Meteo weather sync failed for {date_str}: {e}")
+                status["success"] = False
+                status["errors"].append(f"weather: {e}")
 
             loc_key = location_key(latitude, longitude)
             fetched_at = datetime.utcnow()

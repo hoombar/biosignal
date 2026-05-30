@@ -108,6 +108,21 @@ FEATURE_METADATA = {
     "ragweed_pollen_avg": {"description": "Daily average ragweed pollen", "unit": "grains/m3", "category": "Pollen"},
     "ragweed_pollen_max": {"description": "Daily maximum ragweed pollen", "unit": "grains/m3", "category": "Pollen"},
 
+    # Weather features
+    "temperature_2m_avg": {"description": "Daily average outdoor temperature at 2m", "unit": "degC", "category": "Weather"},
+    "temperature_2m_min": {"description": "Daily minimum outdoor temperature at 2m", "unit": "degC", "category": "Weather"},
+    "temperature_2m_max": {"description": "Daily maximum outdoor temperature at 2m", "unit": "degC", "category": "Weather"},
+    "apparent_temperature_avg": {"description": "Daily average apparent temperature", "unit": "degC", "category": "Weather"},
+    "apparent_temperature_max": {"description": "Daily maximum apparent temperature", "unit": "degC", "category": "Weather"},
+    "relative_humidity_2m_avg": {"description": "Daily average relative humidity at 2m", "unit": "%", "category": "Weather"},
+    "relative_humidity_2m_max": {"description": "Daily maximum relative humidity at 2m", "unit": "%", "category": "Weather"},
+    "dew_point_2m_avg": {"description": "Daily average dew point at 2m", "unit": "degC", "category": "Weather"},
+    "precipitation_sum": {"description": "Daily total precipitation", "unit": "mm", "category": "Weather"},
+    "precipitation_hours": {"description": "Hours with measurable precipitation", "unit": "hours", "category": "Weather"},
+    "rain_sum": {"description": "Daily total rain", "unit": "mm", "category": "Weather"},
+    "wind_speed_10m_max": {"description": "Daily maximum wind speed at 10m", "unit": "km/h", "category": "Weather"},
+    "cloud_cover_avg": {"description": "Daily average cloud cover", "unit": "%", "category": "Weather"},
+
 }
 
 
@@ -231,7 +246,7 @@ async def export_features(
     ordered_columns = ["date"]
 
     # Add known columns by category
-    for category in ["Sleep", "HRV", "SpO2", "Heart Rate", "Body Battery", "Stress", "Activity", "Light", "Pollen", "Habits", "Supplements"]:
+    for category in ["Sleep", "HRV", "SpO2", "Heart Rate", "Body Battery", "Stress", "Activity", "Light", "Pollen", "Weather", "Habits", "Supplements"]:
         for col, meta in metadata.items():
             if meta["category"] == category and col in all_columns:
                 ordered_columns.append(col)

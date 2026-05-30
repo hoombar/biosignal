@@ -67,7 +67,7 @@ async def run_scheduled_sync():
 
 
 async def run_scheduled_environment_sync():
-    """Run the daily deterministic environmental sync job."""
+    """Run the daily environmental sync job."""
     settings = get_settings()
     logger.info("Starting scheduled environment sync job")
 

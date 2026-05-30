@@ -104,7 +104,8 @@ class TestFeatureMetadataFieldsExistInDailySummary:
 
         assert "'Light':        '#facc15'" in source
         assert "'Pollen':       '#84cc16'" in source
-        assert "'Activity', 'Light', 'Pollen', 'Habits', 'Supplements'" in source
+        assert "'Weather':      '#38bdf8'" in source
+        assert "'Activity', 'Light', 'Pollen', 'Weather', 'Habits', 'Supplements'" in source
 
 
 class TestCorrelationsReturnsValidMetricKeys:

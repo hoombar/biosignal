@@ -135,6 +135,12 @@ function formatPollenValue(value) {
     return Number.isInteger(rounded) ? rounded.toLocaleString() : rounded.toFixed(1);
 }
 
+function formatWeatherValue(value, unit = '', decimals = 0) {
+    if (value === null || value === undefined) return '-';
+    const rounded = decimals > 0 ? Number(value).toFixed(decimals) : Math.round(value).toLocaleString();
+    return `${rounded}${unit}`;
+}
+
 function formatBool(value) {
     if (value === null || value === undefined) return '-';
     return value ? 'Yes' : 'No';
@@ -1196,6 +1202,66 @@ function renderPollenCard(day) {
     `;
 }
 
+function hasWeatherData(day) {
+    return [
+        day.temperature_2m_avg,
+        day.temperature_2m_min,
+        day.temperature_2m_max,
+        day.apparent_temperature_avg,
+        day.apparent_temperature_max,
+        day.relative_humidity_2m_avg,
+        day.relative_humidity_2m_max,
+        day.dew_point_2m_avg,
+        day.precipitation_sum,
+        day.rain_sum,
+        day.wind_speed_10m_max,
+        day.cloud_cover_avg,
+    ].some(value => value !== null && value !== undefined);
+}
+
+function renderWeatherCard(day) {
+    const hasData = hasWeatherData(day);
+    const tempRange = day.temperature_2m_min !== null && day.temperature_2m_min !== undefined
+        && day.temperature_2m_max !== null && day.temperature_2m_max !== undefined
+        ? `${Math.round(day.temperature_2m_min)}-${Math.round(day.temperature_2m_max)}°C`
+        : formatWeatherValue(day.temperature_2m_avg, '°C');
+
+    return `
+        <div class="metric-card">
+            <div class="card-header weather">
+                <span class="card-icon">&#127782;</span>
+                <span class="card-title">Weather</span>
+            </div>
+            <div class="primary-metric">
+                <span class="metric-value">${hasData ? tempRange : '-'}</span>
+                <span class="metric-unit">${hasData ? 'home weather' : 'No data'}</span>
+            </div>
+            ${renderMetricDetails(`
+                <div class="metric-row">
+                    <span class="metric-label">Feels max</span>
+                    <span class="metric-value">${formatWeatherValue(day.apparent_temperature_max, '°C')}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Humidity</span>
+                    <span class="metric-value">${formatWeatherValue(day.relative_humidity_2m_avg, '%')} / ${formatWeatherValue(day.relative_humidity_2m_max, '%')}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Precipitation</span>
+                    <span class="metric-value">${formatWeatherValue(day.precipitation_sum, ' mm', 1)}${day.precipitation_hours !== null && day.precipitation_hours !== undefined ? ` over ${formatWeatherValue(day.precipitation_hours, 'h')}` : ''}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Wind max</span>
+                    <span class="metric-value">${formatWeatherValue(day.wind_speed_10m_max, ' km/h')}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Cloud cover</span>
+                    <span class="metric-value">${formatWeatherValue(day.cloud_cover_avg, '%')}</span>
+                </div>
+            `)}
+        </div>
+    `;
+}
+
 function renderDayDetail(day) {
     if (!day) return;
 
@@ -1224,6 +1290,7 @@ function renderDayDetail(day) {
             ${renderActivityCard(day)}
             ${renderLightCard(day)}
             ${renderPollenCard(day)}
+            ${renderWeatherCard(day)}
         `;
     });
 }

@@ -150,6 +150,16 @@ def _snapshot_category(feature_name: str) -> str:
         return "light"
     if "pollen" in name:
         return "pollen"
+    if any(token in name for token in (
+        "temperature",
+        "humidity",
+        "dew_point",
+        "precipitation",
+        "rain",
+        "wind_speed",
+        "cloud_cover",
+    )):
+        return "weather"
     if is_habit:
         return "habit"
     return "metric"
@@ -209,6 +219,7 @@ def _is_obvious_snapshot_pair(target_feature: str, metric: str) -> bool:
         "hrv",
         "light",
         "pollen",
+        "weather",
         "sleep",
         "spo2",
         "stress",
@@ -218,7 +229,7 @@ def _is_obvious_snapshot_pair(target_feature: str, metric: str) -> bool:
 
     target_tokens = _snapshot_tokens(target_feature)
     metric_tokens = _snapshot_tokens(metric)
-    if target_tokens & metric_tokens & {"steps", "walk", "walking", "peak", "daylight", "sunrise", "sunset", "pollen"}:
+    if target_tokens & metric_tokens & {"steps", "walk", "walking", "peak", "daylight", "sunrise", "sunset", "pollen", "temperature", "humidity", "rain"}:
         return True
 
     if {target_category, metric_category} == {"heart_rate", "stress"}:
@@ -295,7 +306,7 @@ def _available_signal_keys(features_list: list[dict]) -> dict[str, set[str]]:
         "supplement_slots": set(),
         "supplements": set(),
         "pollen": set(),
-        "temperature": set(),
+        "weather": set(),
     }
     for features in features_list:
         for habit in features.get("habits", []):
@@ -312,8 +323,8 @@ def _available_signal_keys(features_list: list[dict]) -> dict[str, set[str]]:
                 continue
             if key.endswith("_pollen_avg"):
                 keys["pollen"].add(key)
-            if "temp" in key or "temperature" in key:
-                keys["temperature"].add(key)
+            if _snapshot_category(key) == "weather":
+                keys["weather"].add(key)
     if keys["pollen"]:
         keys["pollen"].add("overall_pollen_avg")
     return keys
@@ -337,7 +348,7 @@ def _signal_summary(bucket: str, target: str, predictor: str, coefficient: float
         return f"Your {target_label} is {higher_lower} after you log {predictor_label} the day before"
     if bucket == "pollen_sleep":
         return f"Your {target_label} is {higher_lower} when {predictor_label} is higher"
-    if bucket == "temperature_sleep":
+    if bucket == "weather_sleep":
         return f"Your {target_label} is {higher_lower} when {predictor_label} is higher"
     if bucket == "sunrise_wake":
         return f"Your wake time tracks {predictor_label}"
@@ -432,9 +443,9 @@ def _compute_bucketed_correlation_signals(
         for target in sleep_targets:
             candidates.append(("pollen_sleep", target, pollen, 0))
 
-    for temperature in sorted(keys["temperature"]):
+    for weather in sorted(keys["weather"]):
         for target in sleep_targets:
-            candidates.append(("temperature_sleep", target, temperature, 0))
+            candidates.append(("weather_sleep", target, weather, 0))
 
     signals = []
     for bucket, target, predictor, lag_days in candidates:
@@ -447,7 +458,7 @@ def _compute_bucketed_correlation_signals(
         "supplement_sleep": 7,
         "prior_day_habit_body_battery": 6,
         "pollen_sleep": 6,
-        "temperature_sleep": 6,
+        "weather_sleep": 6,
         "habit_stress": 5,
         "pollen_habit": 5,
     }
@@ -577,7 +588,7 @@ async def _load_bucketed_signal_features(
     )).scalars().all()
     for row in environmental_rows:
         key = row.metric_key
-        if key.endswith("_pollen_avg") or "temp" in key or "temperature" in key:
+        if key.endswith("_pollen_avg") or row.category == "Weather":
             features_by_date.setdefault(row.date, {"date": row.date.isoformat()})[key] = row.value
 
     start_dt = _day_boundary(start_date, tz)

@@ -172,6 +172,120 @@ class OpenMeteoPollenProvider:
         return metrics
 
 
+class OpenMeteoWeatherProvider:
+    """Hourly home weather metrics from Open-Meteo Forecast API."""
+
+    source = "open_meteo_weather"
+    base_url = "https://api.open-meteo.com/v1/forecast"
+    weather_variables = (
+        "temperature_2m",
+        "apparent_temperature",
+        "relative_humidity_2m",
+        "dew_point_2m",
+        "precipitation",
+        "rain",
+        "wind_speed_10m",
+        "cloud_cover",
+    )
+
+    def __init__(self, client_factory=None):
+        self.client_factory = client_factory or (lambda: httpx.AsyncClient(timeout=20.0))
+
+    async def daily_metrics(
+        self,
+        target_date: date,
+        tz: ZoneInfo,
+        latitude: float,
+        longitude: float,
+    ) -> list[EnvironmentalMetricValue]:
+        params = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "hourly": ",".join(self.weather_variables),
+            "timezone": tz.key,
+            "start_date": target_date.isoformat(),
+            "end_date": target_date.isoformat(),
+        }
+
+        async with self.client_factory() as client:
+            response = await client.get(self.base_url, params=params)
+            response.raise_for_status()
+            payload = response.json()
+
+        hourly = payload.get("hourly") or {}
+        hourly_units = payload.get("hourly_units") or {}
+        metrics: list[EnvironmentalMetricValue] = []
+
+        def values_for(variable: str) -> list[float]:
+            return [float(value) for value in hourly.get(variable, []) if value is not None]
+
+        metadata_base = {
+            "provider_url": self.base_url,
+            "provider_params": params,
+            "grid_latitude": payload.get("latitude"),
+            "grid_longitude": payload.get("longitude"),
+            "timezone": payload.get("timezone"),
+        }
+
+        def add_metric(metric_key: str, value: float, unit: str, variable: str) -> None:
+            metadata = {
+                **metadata_base,
+                "hourly_unit": hourly_units.get(variable, unit),
+            }
+            metrics.append(EnvironmentalMetricValue(
+                source=self.source,
+                metric_key=metric_key,
+                value=round(value, 4),
+                unit=unit,
+                category="Weather",
+                raw_metadata=metadata,
+            ))
+
+        temperature = values_for("temperature_2m")
+        if temperature:
+            add_metric("temperature_2m_avg", sum(temperature) / len(temperature), "degC", "temperature_2m")
+            add_metric("temperature_2m_min", min(temperature), "degC", "temperature_2m")
+            add_metric("temperature_2m_max", max(temperature), "degC", "temperature_2m")
+
+        apparent_temperature = values_for("apparent_temperature")
+        if apparent_temperature:
+            add_metric(
+                "apparent_temperature_avg",
+                sum(apparent_temperature) / len(apparent_temperature),
+                "degC",
+                "apparent_temperature",
+            )
+            add_metric("apparent_temperature_max", max(apparent_temperature), "degC", "apparent_temperature")
+
+        humidity = values_for("relative_humidity_2m")
+        if humidity:
+            add_metric("relative_humidity_2m_avg", sum(humidity) / len(humidity), "%", "relative_humidity_2m")
+            add_metric("relative_humidity_2m_max", max(humidity), "%", "relative_humidity_2m")
+
+        dew_point = values_for("dew_point_2m")
+        if dew_point:
+            add_metric("dew_point_2m_avg", sum(dew_point) / len(dew_point), "degC", "dew_point_2m")
+
+        precipitation = values_for("precipitation")
+        if precipitation:
+            add_metric("precipitation_sum", sum(precipitation), "mm", "precipitation")
+            add_metric("precipitation_hours", float(sum(1 for value in precipitation if value > 0)), "hours", "precipitation")
+
+        rain = values_for("rain")
+        if rain:
+            add_metric("rain_sum", sum(rain), "mm", "rain")
+
+        wind_speed = values_for("wind_speed_10m")
+        if wind_speed:
+            add_metric("wind_speed_10m_max", max(wind_speed), "km/h", "wind_speed_10m")
+
+        cloud_cover = values_for("cloud_cover")
+        if cloud_cover:
+            add_metric("cloud_cover_avg", sum(cloud_cover) / len(cloud_cover), "%", "cloud_cover")
+
+        return metrics
+
+
 def _minutes_after_midnight(dt: datetime) -> float:
     midnight = datetime.combine(dt.date(), time.min, tzinfo=dt.tzinfo)
     return (dt - midnight).total_seconds() / 60

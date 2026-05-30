@@ -90,7 +90,7 @@ class TestSyncStatus:
         assert data["environment_error"] == "pollen: timeout"
         services = {service["service"]: service for service in data["services"]}
         assert services["garmin"]["label"] == "Garmin"
-        assert services["environment"]["label"] == "Environment / Pollen"
+        assert services["environment"]["label"] == "Environment / Weather"
 
 
 class TestSyncPostEndpoints:

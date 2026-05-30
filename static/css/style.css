@@ -47,6 +47,7 @@
     --color-activity: #60a5fa;
     --color-light: #facc15;
     --color-pollen: #84cc16;
+    --color-weather: #38bdf8;
     --color-habits: #e879f9;
 
     /* Correlation lollipop palette */
@@ -1173,6 +1174,7 @@ main > h1 {
 .card-header.activity .card-icon { color: var(--color-activity); }
 .card-header.light .card-icon { color: var(--color-light); }
 .card-header.pollen .card-icon { color: var(--color-pollen); }
+.card-header.weather .card-icon { color: var(--color-weather); }
 
 /* Primary metric (hero number) */
 .primary-metric {

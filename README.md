@@ -64,14 +64,14 @@ TZ=Europe/London          # Your timezone
 SYNC_HOUR=6               # Daily sync time (24h format)
 SYNC_MINUTE_GARMIN=0      # Garmin sync minute
 SYNC_MINUTE_ENVIRONMENT=5 # Environment sync minute
-ENVIRONMENT_LATITUDE=51.5074   # Optional: enables daylight/environment metrics
-ENVIRONMENT_LONGITUDE=-0.1278  # Optional: enables daylight/environment metrics
+ENVIRONMENT_LATITUDE=51.5074   # Optional: home latitude for environment/weather metrics
+ENVIRONMENT_LONGITUDE=-0.1278  # Optional: home longitude for environment/weather metrics
 DEBUG=false               # Enable debug logging
 ```
 
-Environmental sync is local and deterministic: daylight metrics are computed
-from the configured latitude/longitude and timezone, without calling an
-external environment or weather API.
+Environmental sync uses the configured latitude/longitude as the user's home
+location. Daylight metrics are computed locally; pollen and weather metrics are
+fetched from Open-Meteo.
 
 ## Habit Tracking
 

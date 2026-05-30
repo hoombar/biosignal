@@ -314,7 +314,7 @@ async def sync_status(db: AsyncSession = Depends(get_db)):
         ),
         ServiceSyncStatus(
             service="environment",
-            label="Environment / Pollen",
+            label="Environment / Weather",
             last_sync=environment_log.completed_at if environment_log else None,
             status=environment_log.status if environment_log else "never_synced",
             last_sync_date=environment_log.date_synced.isoformat() if environment_log else None,

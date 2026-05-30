@@ -69,6 +69,10 @@ def render_pollen_card(day: dict) -> str:
     return render_daily_card("renderPollenCard", day)
 
 
+def render_weather_card(day: dict) -> str:
+    return render_daily_card("renderWeatherCard", day)
+
+
 def render_activity_card(day: dict) -> str:
     return render_daily_card("renderActivityCard", day)
 
@@ -328,6 +332,46 @@ def test_daily_pollen_card_renders_empty_state_without_synced_data():
     })
 
     assert "Pollen" in html
+    assert "No data" in html
+    assert "NaN" not in html
+    assert '<span class="metric-value">-</span>' in html
+
+
+def test_daily_weather_card_renders_temperature_humidity_and_rain():
+    html = render_weather_card({
+        "temperature_2m_min": 12.2,
+        "temperature_2m_max": 24.8,
+        "apparent_temperature_max": 28.1,
+        "relative_humidity_2m_avg": 72,
+        "relative_humidity_2m_max": 91,
+        "precipitation_sum": 3.4,
+        "precipitation_hours": 2,
+        "wind_speed_10m_max": 31,
+        "cloud_cover_avg": 65,
+    })
+
+    assert "Weather" in html
+    assert "12-25°C" in html
+    assert "Feels max" in html
+    assert "28°C" in html
+    assert "Humidity" in html
+    assert "72% / 91%" in html
+    assert "Precipitation" in html
+    assert "3.4 mm" in html
+    assert "Wind max" in html
+    assert "31 km/h" in html
+
+
+def test_daily_weather_card_renders_empty_state_without_synced_data():
+    html = render_weather_card({
+        "temperature_2m_min": None,
+        "temperature_2m_max": None,
+        "apparent_temperature_max": None,
+        "relative_humidity_2m_avg": None,
+        "precipitation_sum": None,
+    })
+
+    assert "Weather" in html
     assert "No data" in html
     assert "NaN" not in html
     assert '<span class="metric-value">-</span>' in html

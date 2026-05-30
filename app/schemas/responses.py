@@ -201,6 +201,19 @@ class DailySummary(BaseModel):
     olive_pollen_max: float | None = None
     ragweed_pollen_avg: float | None = None
     ragweed_pollen_max: float | None = None
+    temperature_2m_avg: float | None = None
+    temperature_2m_min: float | None = None
+    temperature_2m_max: float | None = None
+    apparent_temperature_avg: float | None = None
+    apparent_temperature_max: float | None = None
+    relative_humidity_2m_avg: float | None = None
+    relative_humidity_2m_max: float | None = None
+    dew_point_2m_avg: float | None = None
+    precipitation_sum: float | None = None
+    precipitation_hours: float | None = None
+    rain_sum: float | None = None
+    wind_speed_10m_max: float | None = None
+    cloud_cover_avg: float | None = None
     # Habit features (dynamic list)
     habits: list[Habit] = []
     supplements: list[SupplementDailyEntry] = []
