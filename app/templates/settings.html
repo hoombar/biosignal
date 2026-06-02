@@ -7,12 +7,14 @@
     <input class="settings-tab-input" type="radio" name="settings-tab" id="settings-tab-sync" checked>
     <input class="settings-tab-input" type="radio" name="settings-tab" id="settings-tab-supplements">
     <input class="settings-tab-input" type="radio" name="settings-tab" id="settings-tab-preferences">
+    <input class="settings-tab-input" type="radio" name="settings-tab" id="settings-tab-gym">
     <input class="settings-tab-input" type="radio" name="settings-tab" id="settings-tab-habits">
 
     <div class="settings-tab-list" role="tablist" aria-label="Settings sections">
         <label class="settings-tab-label" id="settings-tab-label-sync" for="settings-tab-sync" role="tab" aria-controls="settings-panel-sync">Sync</label>
         <label class="settings-tab-label" id="settings-tab-label-supplements" for="settings-tab-supplements" role="tab" aria-controls="settings-panel-supplements">Supplements</label>
         <label class="settings-tab-label" id="settings-tab-label-preferences" for="settings-tab-preferences" role="tab" aria-controls="settings-panel-preferences">Preferences</label>
+        <label class="settings-tab-label" id="settings-tab-label-gym" for="settings-tab-gym" role="tab" aria-controls="settings-panel-gym">Gym</label>
         <label class="settings-tab-label" id="settings-tab-label-habits" for="settings-tab-habits" role="tab" aria-controls="settings-panel-habits">Habits</label>
     </div>
 
@@ -104,6 +106,45 @@
             <span id="preferences-save-status" class="save-status"></span>
         </div>
     </form>
+</section>
+
+<section class="settings-section settings-tab-panel" id="settings-panel-gym" role="tabpanel" aria-labelledby="settings-tab-label-gym">
+    <div class="settings-header">
+        <h2>Gym Templates</h2>
+        <p class="settings-desc">Manage current gym plans. Logged sessions keep a snapshot of the plan used on the day.</p>
+    </div>
+
+    <div class="gym-settings-layout">
+        <form id="gym-template-form" class="gym-template-form">
+            <input type="hidden" id="gym-template-id">
+            <label class="supplement-field">
+                <span>Template name</span>
+                <input type="text" id="gym-template-name" class="settings-input" placeholder="Standard upper/back/arms" required>
+            </label>
+            <label class="supplement-field">
+                <span>Description</span>
+                <input type="text" id="gym-template-description" class="settings-input" placeholder="Optional">
+            </label>
+            <div class="gym-template-form-header">
+                <h3>Activities</h3>
+                <button type="button" class="btn-secondary" id="gym-add-activity">Add activity</button>
+            </div>
+            <div id="gym-template-activities" class="gym-template-activities"></div>
+            <div class="settings-actions">
+                <button type="submit" class="btn-primary" id="gym-template-save">Save template</button>
+                <button type="button" class="btn-secondary" id="gym-template-reset">New template</button>
+                <span id="gym-template-status" class="save-status"></span>
+            </div>
+        </form>
+
+        <div class="gym-template-list-panel">
+            <div class="gym-template-form-header">
+                <h3>Current plans</h3>
+                <button type="button" class="btn-secondary" id="gym-template-refresh">Refresh</button>
+            </div>
+            <div id="gym-template-list" class="gym-settings-list"></div>
+        </div>
+    </div>
 </section>
 
 <section class="settings-section settings-tab-panel" id="settings-panel-habits" role="tabpanel" aria-labelledby="settings-tab-label-habits">
@@ -1077,4 +1118,5 @@
     await load();
 })();
 </script>
+<script src="/static/js/gym-settings.js"></script>
 {% endblock %}

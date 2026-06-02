@@ -42,10 +42,12 @@ def test_settings_page_groups_sections_in_tabs():
     assert 'for="settings-tab-sync"' in html
     assert 'for="settings-tab-supplements"' in html
     assert 'for="settings-tab-preferences"' in html
+    assert 'for="settings-tab-gym"' in html
     assert 'for="settings-tab-habits"' in html
     assert 'id="settings-panel-sync"' in html
     assert 'id="settings-panel-supplements"' in html
     assert 'id="settings-panel-preferences"' in html
+    assert 'id="settings-panel-gym"' in html
     assert 'id="settings-panel-habits"' in html
 
 
@@ -59,6 +61,18 @@ def test_settings_page_renders_weather_unit_preferences():
     assert 'id="weather-wind-speed-unit"' in html
     assert "Fahrenheit" in html
     assert "mph" in html
+
+
+def test_settings_page_renders_gym_template_editor():
+    with TestClient(app) as client:
+        resp = client.get("/settings")
+
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'id="gym-template-form"' in html
+    assert 'id="gym-template-list"' in html
+    assert 'id="gym-add-activity"' in html
+    assert "/static/js/gym-settings.js" in html
 
 
 def test_overview_page_no_longer_renders_manual_sync_controls():

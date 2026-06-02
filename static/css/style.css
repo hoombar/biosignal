@@ -2175,6 +2175,7 @@ input:focus {
 #settings-tab-sync:checked ~ .settings-tab-list label[for="settings-tab-sync"],
 #settings-tab-supplements:checked ~ .settings-tab-list label[for="settings-tab-supplements"],
 #settings-tab-preferences:checked ~ .settings-tab-list label[for="settings-tab-preferences"],
+#settings-tab-gym:checked ~ .settings-tab-list label[for="settings-tab-gym"],
 #settings-tab-habits:checked ~ .settings-tab-list label[for="settings-tab-habits"] {
     color: var(--text-primary);
     background: var(--primary-color);
@@ -2183,6 +2184,7 @@ input:focus {
 #settings-tab-sync:focus-visible ~ .settings-tab-list label[for="settings-tab-sync"],
 #settings-tab-supplements:focus-visible ~ .settings-tab-list label[for="settings-tab-supplements"],
 #settings-tab-preferences:focus-visible ~ .settings-tab-list label[for="settings-tab-preferences"],
+#settings-tab-gym:focus-visible ~ .settings-tab-list label[for="settings-tab-gym"],
 #settings-tab-habits:focus-visible ~ .settings-tab-list label[for="settings-tab-habits"] {
     outline: 2px solid var(--primary-color);
     outline-offset: 3px;
@@ -2191,6 +2193,7 @@ input:focus {
 #settings-tab-sync:checked ~ #settings-panel-sync,
 #settings-tab-supplements:checked ~ #settings-panel-supplements,
 #settings-tab-preferences:checked ~ #settings-panel-preferences,
+#settings-tab-gym:checked ~ #settings-panel-gym,
 #settings-tab-habits:checked ~ #settings-panel-habits {
     display: block;
 }
@@ -2286,6 +2289,89 @@ input:focus {
 
 .supplement-remove-btn {
     white-space: nowrap;
+}
+
+.gym-settings-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.9fr);
+    gap: var(--space-lg);
+}
+
+.gym-template-form,
+.gym-template-list-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.gym-template-form-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+}
+
+.gym-template-form-header h3 {
+    margin: 0;
+}
+
+.gym-template-activities,
+.gym-settings-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.gym-settings-activity {
+    display: grid;
+    grid-template-columns: 8rem minmax(12rem, 1.5fr) repeat(3, minmax(5rem, 0.6fr)) 5rem minmax(8rem, 0.9fr) minmax(8rem, 0.9fr) minmax(7rem, 0.8fr) minmax(9rem, 1fr) auto;
+    gap: var(--space-sm);
+    align-items: center;
+    padding: var(--space-sm);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-tertiary);
+    overflow-x: auto;
+}
+
+.gym-settings-template {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-tertiary);
+}
+
+.gym-settings-template h4,
+.gym-settings-template p {
+    margin: 0;
+}
+
+.gym-settings-template p {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.gym-settings-template--archived {
+    opacity: 0.65;
+}
+
+.gym-settings-template-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+@media (max-width: 960px) {
+    .gym-settings-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .gym-settings-template {
+        flex-direction: column;
+    }
 }
 
 @media (max-width: 760px) {
