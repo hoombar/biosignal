@@ -13,6 +13,7 @@ from app.api import (
     daily,
     export,
     garmin_auth,
+    gym,
     habits,
     raw,
     settings,
@@ -63,6 +64,7 @@ app.include_router(daily.router)
 app.include_router(analysis.router)
 app.include_router(export.router)
 app.include_router(garmin_auth.router)
+app.include_router(gym.router)
 app.include_router(habits.router)
 app.include_router(settings.router)
 app.include_router(supplements.router)

@@ -217,6 +217,88 @@ class HabitDisplayConfig(Base):
     sort_order = Column(Integer, default=0, nullable=False)
 
 
+class GymSessionTemplate(Base):
+    """Current gym session plan definition."""
+
+    __tablename__ = "gym_session_templates"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False, unique=True, index=True)
+    description = Column(Text, nullable=True)
+    archived_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class GymTemplateActivity(Base):
+    """Ordered activity row within a current gym session template."""
+
+    __tablename__ = "gym_template_activities"
+
+    __table_args__ = (UniqueConstraint("template_id", "sort_order", name="uix_gym_template_activity_order"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    template_id = Column(Integer, ForeignKey("gym_session_templates.id"), nullable=False, index=True)
+    sort_order = Column(Integer, nullable=False)
+    activity_type = Column(String, nullable=False)
+    name = Column(String, nullable=False)
+    target_sets = Column(Integer, nullable=True)
+    target_reps = Column(Integer, nullable=True)
+    target_weight = Column(Float, nullable=True)
+    target_weight_unit = Column(String, nullable=True)
+    target_duration_minutes = Column(Float, nullable=True)
+    target_intensity = Column(String, nullable=True)
+    target_speed = Column(Float, nullable=True)
+    notes = Column(Text, nullable=True)
+
+
+class GymSessionLog(Base):
+    """One logged gym session for a date."""
+
+    __tablename__ = "gym_session_logs"
+
+    __table_args__ = (UniqueConstraint("date", name="uix_gym_session_date"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    template_id = Column(Integer, ForeignKey("gym_session_templates.id"), nullable=True, index=True)
+    template_name_snapshot = Column(String, nullable=False)
+    date = Column(Date, nullable=False, index=True)
+    started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+    notes = Column(Text, nullable=True)
+
+
+class GymSessionActivityLog(Base):
+    """Snapshot and actual values for one activity in a logged gym session."""
+
+    __tablename__ = "gym_session_activity_logs"
+    __table_args__ = (UniqueConstraint("session_log_id", "sort_order", name="uix_gym_session_activity_order"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_log_id = Column(Integer, ForeignKey("gym_session_logs.id"), nullable=False, index=True)
+    sort_order = Column(Integer, nullable=False)
+    activity_type = Column(String, nullable=False)
+    name_snapshot = Column(String, nullable=False)
+    planned_sets = Column(Integer, nullable=True)
+    planned_reps = Column(Integer, nullable=True)
+    planned_weight = Column(Float, nullable=True)
+    planned_weight_unit = Column(String, nullable=True)
+    planned_duration_minutes = Column(Float, nullable=True)
+    planned_intensity = Column(String, nullable=True)
+    planned_speed = Column(Float, nullable=True)
+    planned_notes = Column(Text, nullable=True)
+    actual_sets = Column(Integer, nullable=True)
+    actual_reps = Column(Integer, nullable=True)
+    actual_weight = Column(Float, nullable=True)
+    actual_weight_unit = Column(String, nullable=True)
+    actual_duration_minutes = Column(Float, nullable=True)
+    actual_intensity = Column(String, nullable=True)
+    actual_speed = Column(Float, nullable=True)
+    completed = Column(Boolean, nullable=False, server_default=text("0"), default=False)
+    rating = Column(String, nullable=True)
+    notes = Column(Text, nullable=True)
+
+
 class AppSetting(Base):
     """Generic persisted application setting."""
 

@@ -112,6 +112,107 @@ class ContextDailyEntry(BaseModel):
     notes: str | None = None
 
 
+ActivityType = Literal["strength", "cardio", "freeform"]
+ActivityRating = Literal["easy", "normal", "hard"]
+
+
+class GymTemplateActivityInput(BaseModel):
+    activity_type: ActivityType
+    name: str = Field(min_length=1)
+    target_sets: int | None = Field(default=None, ge=0)
+    target_reps: int | None = Field(default=None, ge=0)
+    target_weight: float | None = Field(default=None, ge=0)
+    target_weight_unit: str | None = None
+    target_duration_minutes: float | None = Field(default=None, ge=0)
+    target_intensity: str | None = None
+    target_speed: float | None = Field(default=None, ge=0)
+    notes: str | None = None
+
+
+class GymTemplateCreateRequest(BaseModel):
+    name: str = Field(min_length=1)
+    description: str | None = None
+    activities: list[GymTemplateActivityInput] = []
+
+
+class GymTemplateUpdateRequest(GymTemplateCreateRequest):
+    pass
+
+
+class GymTemplateActivityResponse(GymTemplateActivityInput):
+    id: int
+    sort_order: int
+
+
+class GymTemplateResponse(BaseModel):
+    id: int
+    name: str
+    description: str | None = None
+    archived: bool
+    created_at: datetime
+    updated_at: datetime
+    activities: list[GymTemplateActivityResponse] = []
+
+
+class GymSessionCreateRequest(BaseModel):
+    date: date
+    template_id: int
+
+
+class GymSessionUpdateRequest(BaseModel):
+    completed: bool | None = None
+    notes: str | None = None
+
+
+class GymSessionActivityUpdateRequest(BaseModel):
+    completed: bool | None = None
+    rating: ActivityRating | None = None
+    actual_sets: int | None = Field(default=None, ge=0)
+    actual_reps: int | None = Field(default=None, ge=0)
+    actual_weight: float | None = Field(default=None, ge=0)
+    actual_weight_unit: str | None = None
+    actual_duration_minutes: float | None = Field(default=None, ge=0)
+    actual_intensity: str | None = None
+    actual_speed: float | None = Field(default=None, ge=0)
+    notes: str | None = None
+
+
+class GymSessionActivityResponse(BaseModel):
+    id: int
+    sort_order: int
+    activity_type: ActivityType
+    name_snapshot: str
+    planned_sets: int | None = None
+    planned_reps: int | None = None
+    planned_weight: float | None = None
+    planned_weight_unit: str | None = None
+    planned_duration_minutes: float | None = None
+    planned_intensity: str | None = None
+    planned_speed: float | None = None
+    planned_notes: str | None = None
+    actual_sets: int | None = None
+    actual_reps: int | None = None
+    actual_weight: float | None = None
+    actual_weight_unit: str | None = None
+    actual_duration_minutes: float | None = None
+    actual_intensity: str | None = None
+    actual_speed: float | None = None
+    completed: bool
+    rating: ActivityRating | None = None
+    notes: str | None = None
+
+
+class GymSessionResponse(BaseModel):
+    id: int
+    template_id: int | None = None
+    template_name_snapshot: str
+    date: date
+    started_at: datetime
+    completed_at: datetime | None = None
+    notes: str | None = None
+    activities: list[GymSessionActivityResponse] = []
+
+
 class HabitResponse(BaseModel):
     """Daily habits response."""
     date: str
