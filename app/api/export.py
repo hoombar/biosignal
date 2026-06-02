@@ -123,6 +123,18 @@ FEATURE_METADATA = {
     "wind_speed_10m_max": {"description": "Daily maximum wind speed at 10m", "unit": "km/h", "category": "Weather"},
     "cloud_cover_avg": {"description": "Daily average cloud cover", "unit": "%", "category": "Weather"},
 
+    # Gym features
+    "gym_had_session": {"description": "Gym session logged", "unit": "boolean", "category": "Gym"},
+    "gym_session_completed": {"description": "Gym session marked finished", "unit": "boolean", "category": "Gym"},
+    "gym_completed_activity_count": {"description": "Completed gym activities", "unit": "count", "category": "Gym"},
+    "gym_planned_activity_count": {"description": "Planned gym activities", "unit": "count", "category": "Gym"},
+    "gym_completion_ratio": {"description": "Completed / planned gym activities", "unit": "ratio", "category": "Gym"},
+    "gym_strength_volume_kg": {"description": "Completed strength volume", "unit": "kg-reps", "category": "Gym"},
+    "gym_easy_activity_count": {"description": "Gym activities rated easy", "unit": "count", "category": "Gym"},
+    "gym_normal_activity_count": {"description": "Gym activities rated normal", "unit": "count", "category": "Gym"},
+    "gym_hard_activity_count": {"description": "Gym activities rated hard", "unit": "count", "category": "Gym"},
+    "gym_template_name": {"description": "Gym template used", "unit": "text", "category": "Gym"},
+
 }
 
 
@@ -246,7 +258,7 @@ async def export_features(
     ordered_columns = ["date"]
 
     # Add known columns by category
-    for category in ["Sleep", "HRV", "SpO2", "Heart Rate", "Body Battery", "Stress", "Activity", "Light", "Pollen", "Weather", "Habits", "Supplements"]:
+    for category in ["Sleep", "HRV", "SpO2", "Heart Rate", "Body Battery", "Stress", "Activity", "Gym", "Light", "Pollen", "Weather", "Habits", "Supplements"]:
         for col, meta in metadata.items():
             if meta["category"] == category and col in all_columns:
                 ordered_columns.append(col)

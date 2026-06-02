@@ -266,9 +266,11 @@ class TestExportMetadata:
         assert "grass_pollen_avg" in features
         assert "temperature_2m_avg" in features
         assert "relative_humidity_2m_avg" in features
+        assert "gym_had_session" in features
         assert features["daylight_minutes"]["category"] == "Light"
         assert features["grass_pollen_avg"]["category"] == "Pollen"
         assert features["temperature_2m_avg"]["category"] == "Weather"
+        assert features["gym_had_session"]["category"] == "Gym"
 
     @pytest.mark.asyncio
     async def test_metadata_feature_has_required_fields(self, async_session):

@@ -319,6 +319,17 @@ class DailySummary(BaseModel):
     habits: list[Habit] = []
     supplements: list[SupplementDailyEntry] = []
     supplement_items: list[SupplementItemEntry] = []
+    # Gym features
+    gym_had_session: bool = False
+    gym_session_completed: bool = False
+    gym_completed_activity_count: int = 0
+    gym_planned_activity_count: int = 0
+    gym_completion_ratio: float | None = None
+    gym_strength_volume_kg: float = 0
+    gym_easy_activity_count: int = 0
+    gym_normal_activity_count: int = 0
+    gym_hard_activity_count: int = 0
+    gym_template_name: str | None = None
     contexts: list[ContextDailyEntry] = []
     baseline_excluded: bool = False
     context_categories: list[str] = []

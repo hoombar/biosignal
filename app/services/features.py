@@ -23,6 +23,8 @@ from app.models.database import (
     DailyHabit,
     EnvironmentalMetric,
     Habit,
+    GymSessionActivityLog,
+    GymSessionLog,
     SupplementLog,
 )
 from app.services.supplements import supplement_key
@@ -762,6 +764,65 @@ async def compute_supplement_features(
     }
 
 
+def _empty_gym_features() -> dict:
+    return {
+        "gym_had_session": False,
+        "gym_session_completed": False,
+        "gym_completed_activity_count": 0,
+        "gym_planned_activity_count": 0,
+        "gym_completion_ratio": None,
+        "gym_strength_volume_kg": 0,
+        "gym_easy_activity_count": 0,
+        "gym_normal_activity_count": 0,
+        "gym_hard_activity_count": 0,
+        "gym_template_name": None,
+    }
+
+
+async def compute_gym_features(
+    session: AsyncSession,
+    target_date: date,
+) -> dict:
+    """Return gym-session signals for correlation without conflating habits."""
+    gym_session = (await session.execute(
+        select(GymSessionLog).where(GymSessionLog.date == target_date)
+    )).scalar_one_or_none()
+    if gym_session is None:
+        return _empty_gym_features()
+
+    activities = list((await session.execute(
+        select(GymSessionActivityLog)
+        .where(GymSessionActivityLog.session_log_id == gym_session.id)
+        .order_by(GymSessionActivityLog.sort_order)
+    )).scalars().all())
+    planned_count = len(activities)
+    completed_count = sum(1 for activity in activities if activity.completed)
+    strength_volume = 0.0
+    rating_counts = {"easy": 0, "normal": 0, "hard": 0}
+
+    for activity in activities:
+        if activity.rating in rating_counts:
+            rating_counts[activity.rating] += 1
+        if not activity.completed or activity.activity_type != "strength":
+            continue
+        if activity.actual_sets is None or activity.actual_reps is None or activity.actual_weight is None:
+            continue
+        strength_volume += activity.actual_sets * activity.actual_reps * activity.actual_weight
+
+    return {
+        "gym_had_session": True,
+        "gym_session_completed": gym_session.completed_at is not None,
+        "gym_completed_activity_count": completed_count,
+        "gym_planned_activity_count": planned_count,
+        "gym_completion_ratio": None if planned_count == 0 else completed_count / planned_count,
+        "gym_strength_volume_kg": strength_volume,
+        "gym_easy_activity_count": rating_counts["easy"],
+        "gym_normal_activity_count": rating_counts["normal"],
+        "gym_hard_activity_count": rating_counts["hard"],
+        "gym_template_name": gym_session.template_name_snapshot,
+    }
+
+
 async def compute_context_features(
     session: AsyncSession,
     target_date: date
@@ -851,6 +912,9 @@ async def compute_daily_features(
     features.update(habit_features)
     supplement_features = await compute_supplement_features(session, target_date)
     features.update(supplement_features)
+
+    gym_features = await compute_gym_features(session, target_date)
+    features.update(gym_features)
 
     context_features = await compute_context_features(session, target_date)
     features.update(context_features)

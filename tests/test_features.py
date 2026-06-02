@@ -20,6 +20,8 @@ from app.models.database import (
     Activity,
     DailyHabit,
     EnvironmentalMetric,
+    GymSessionActivityLog,
+    GymSessionLog,
 )
 from app.services.features import (
     compute_environmental_features,
@@ -29,6 +31,7 @@ from app.services.features import (
     compute_body_battery_features,
     compute_stress_features,
     compute_activity_features,
+    compute_gym_features,
     compute_habit_features,
     compute_daily_features,
 )
@@ -682,6 +685,70 @@ class TestHabitFeatures:
         assert habit["type"] == "counter"
 
 
+class TestGymFeatures:
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_gym_signal_when_no_session(self, async_session):
+        result = await compute_gym_features(async_session, TEST_DATE)
+
+        assert result == {
+            "gym_had_session": False,
+            "gym_session_completed": False,
+            "gym_completed_activity_count": 0,
+            "gym_planned_activity_count": 0,
+            "gym_completion_ratio": None,
+            "gym_strength_volume_kg": 0,
+            "gym_easy_activity_count": 0,
+            "gym_normal_activity_count": 0,
+            "gym_hard_activity_count": 0,
+            "gym_template_name": None,
+        }
+
+    @pytest.mark.asyncio
+    async def test_computes_session_counts_volume_and_ratings(self, async_session):
+        session = GymSessionLog(
+            template_name_snapshot="Standard upper/back/arms",
+            date=TEST_DATE,
+            completed_at=utc_dt(2025, 1, 28, 12),
+        )
+        async_session.add(session)
+        await async_session.flush()
+        async_session.add_all([
+            GymSessionActivityLog(
+                session_log_id=session.id,
+                sort_order=0,
+                activity_type="strength",
+                name_snapshot="Low row",
+                actual_sets=3,
+                actual_reps=12,
+                actual_weight=50,
+                completed=True,
+                rating="hard",
+            ),
+            GymSessionActivityLog(
+                session_log_id=session.id,
+                sort_order=1,
+                activity_type="cardio",
+                name_snapshot="Elliptical",
+                completed=False,
+                rating="easy",
+            ),
+        ])
+        await async_session.commit()
+
+        result = await compute_gym_features(async_session, TEST_DATE)
+
+        assert result["gym_had_session"] is True
+        assert result["gym_session_completed"] is True
+        assert result["gym_completed_activity_count"] == 1
+        assert result["gym_planned_activity_count"] == 2
+        assert result["gym_completion_ratio"] == pytest.approx(0.5)
+        assert result["gym_strength_volume_kg"] == pytest.approx(1800)
+        assert result["gym_easy_activity_count"] == 1
+        assert result["gym_hard_activity_count"] == 1
+        assert result["gym_template_name"] == "Standard upper/back/arms"
+
+
 class TestComputeDailyFeatures:
 
     @pytest.mark.asyncio
@@ -716,3 +783,4 @@ class TestComputeDailyFeatures:
         assert "stress_morning_avg" in result
         assert result["had_training"] is False
         assert "habits" in result
+        assert "gym_had_session" in result
