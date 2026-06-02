@@ -78,8 +78,15 @@ class ContextEventUpdate(BaseModel):
     exclude_from_baseline: bool | None = None
     notes: str | None = None
 
-    _clean_text = field_validator("title", "notes", mode="before")(ContextEventCreate.clean_optional_text)
-    _clean_tags = field_validator("tags", mode="before")(ContextEventCreate.clean_tags)
+    @field_validator("title", "notes", mode="before")
+    @classmethod
+    def clean_optional_text(cls, value):
+        return ContextEventCreate.clean_optional_text(value)
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def clean_tags(cls, value):
+        return ContextEventCreate.clean_tags(value)
 
 
 class ContextEventResponse(BaseModel):
