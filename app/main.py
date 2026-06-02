@@ -84,6 +84,12 @@ async def log_page(request: Request):
     return templates.TemplateResponse(request, "log.html", {"active_page": "log"})
 
 
+@app.get("/gym")
+async def gym_page(request: Request):
+    """Lean gym session logging page."""
+    return templates.TemplateResponse(request, "gym.html", {"active_page": "gym"})
+
+
 @app.get("/overview")
 async def overview_page(request: Request):
     """Overview page."""

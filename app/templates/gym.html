@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Gym - Biosignal{% endblock %}
+
+{% block content %}
+<div class="gym-page">
+    <header class="gym-header">
+        <div>
+            <p class="gym-kicker">Gym session</p>
+            <h1>Today&apos;s training</h1>
+        </div>
+        <label class="gym-date-label" for="gym-date">
+            <span>Date</span>
+            <input id="gym-date" type="date">
+        </label>
+    </header>
+
+    <div id="gym-status" class="gym-status" role="status">Loading gym session…</div>
+    <section id="gym-session" class="gym-session" style="display:none;"></section>
+    <section id="gym-start" class="gym-start" style="display:none;">
+        <div class="gym-section-heading">
+            <h2>Start a session</h2>
+            <p>Pick a current plan. You can adjust each activity after starting.</p>
+        </div>
+        <div id="gym-template-list" class="gym-template-list"></div>
+    </section>
+</div>
+
+<script src="/static/js/gym.js"></script>
+{% endblock %}

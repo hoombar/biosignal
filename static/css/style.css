@@ -3142,6 +3142,247 @@ input:focus {
     text-align: center;
 }
 
+/* ============================================
+   /GYM PAGE
+   ============================================ */
+
+.gym-page {
+    max-width: 620px;
+    margin: 0 auto;
+}
+
+.gym-header,
+.gym-session-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-md);
+    margin-bottom: var(--space-lg);
+}
+
+.gym-header h1,
+.gym-session-header h2 {
+    margin: 0;
+    line-height: 1.15;
+}
+
+.gym-kicker {
+    margin: 0 0 4px;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.gym-date-label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 142px;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.gym-date-label input,
+.gym-adjust input,
+.gym-adjust textarea {
+    width: 100%;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    padding: 10px 12px;
+    font: inherit;
+}
+
+.gym-status {
+    margin-bottom: var(--space-md);
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.gym-status--error {
+    color: var(--color-negative);
+}
+
+.gym-section-heading {
+    margin-bottom: var(--space-md);
+}
+
+.gym-section-heading h2,
+.gym-section-heading p,
+.gym-session-header p {
+    margin: 0;
+}
+
+.gym-section-heading p,
+.gym-session-header p {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.gym-template-list,
+.gym-activity-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.gym-template-card,
+.gym-empty,
+.gym-activity {
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.gym-template-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    min-height: 72px;
+    padding: var(--space-md);
+    text-align: left;
+    cursor: pointer;
+}
+
+.gym-template-card:hover {
+    border-color: var(--primary-color);
+}
+
+.gym-template-title,
+.gym-activity-name {
+    font-weight: 800;
+}
+
+.gym-template-meta,
+.gym-activity-plan {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.gym-empty {
+    padding: var(--space-lg);
+}
+
+.gym-empty h3,
+.gym-empty p {
+    margin: 0;
+}
+
+.gym-empty p {
+    margin-top: 4px;
+    color: var(--text-secondary);
+}
+
+.gym-activity {
+    padding: var(--space-md);
+}
+
+.gym-activity--done {
+    border-left: 4px solid var(--color-positive);
+    background: color-mix(in srgb, var(--color-positive) 8%, var(--bg-secondary));
+}
+
+.gym-activity-main {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-sm);
+    align-items: center;
+    cursor: pointer;
+}
+
+.gym-activity-main input {
+    width: 24px;
+    height: 24px;
+    accent-color: var(--color-positive);
+}
+
+.gym-activity-name,
+.gym-activity-plan {
+    display: block;
+}
+
+.gym-rating {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-top: var(--space-md);
+}
+
+.gym-rating-btn,
+.gym-finish-btn,
+.gym-save-adjust {
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    padding: 9px 10px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.gym-rating-btn--active {
+    border-color: var(--primary-color);
+    background: color-mix(in srgb, var(--primary-color) 18%, var(--bg-tertiary));
+}
+
+.gym-finish-btn {
+    min-width: 96px;
+}
+
+.gym-adjust {
+    margin-top: var(--space-sm);
+}
+
+.gym-adjust summary {
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.gym-adjust-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-sm);
+    margin-top: var(--space-sm);
+}
+
+.gym-adjust label,
+.gym-note-label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.gym-note-label {
+    margin-top: var(--space-sm);
+}
+
+.gym-save-adjust {
+    margin-top: var(--space-sm);
+}
+
+@media (max-width: 520px) {
+    .gym-header,
+    .gym-session-header {
+        flex-direction: column;
+    }
+
+    .gym-date-label,
+    .gym-finish-btn {
+        width: 100%;
+    }
+}
+
 @media (max-width: 640px) {
     .context-panel-summary,
     .context-event {

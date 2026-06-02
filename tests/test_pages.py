@@ -95,6 +95,30 @@ def test_log_page_renders_context_panel_shell():
     assert 'class="log-context"' in html
 
 
+def test_gym_page_renders_lean_session_shell():
+    with TestClient(app) as client:
+        resp = client.get("/gym")
+
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'class="gym-page"' in html
+    assert 'id="gym-date"' in html
+    assert 'id="gym-session"' in html
+    assert 'id="gym-template-list"' in html
+    assert "/static/js/gym.js" in html
+
+
+def test_navigation_includes_gym_page():
+    with TestClient(app) as client:
+        resp = client.get("/gym")
+
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'href="/gym"' in html
+    assert '>Gym<' in html
+    assert 'active_page == \'gym\'' in Path("app/templates/base.html").read_text()
+
+
 def test_log_page_renders_responsive_navigation_shell():
     with TestClient(app) as client:
         resp = client.get("/log")
