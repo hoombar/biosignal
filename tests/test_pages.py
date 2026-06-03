@@ -75,6 +75,20 @@ def test_settings_page_renders_gym_template_editor():
     assert "/static/js/gym-settings.js" in html
 
 
+def test_gym_settings_activity_editor_avoids_horizontal_scroller():
+    with TestClient(app) as client:
+        css_resp = client.get("/static/css/style.css")
+        js_resp = client.get("/static/js/gym-settings.js")
+
+    assert css_resp.status_code == 200
+    assert js_resp.status_code == 200
+    activity_block = re.search(r"\.gym-settings-activity\s*\{(?P<body>[^}]+)\}", css_resp.text)
+    assert activity_block is not None
+    assert "flex-direction: column;" in activity_block.group("body")
+    assert "overflow-x" not in activity_block.group("body")
+    assert "gym-settings-activity-details" in js_resp.text
+
+
 def test_overview_page_no_longer_renders_manual_sync_controls():
     with TestClient(app) as client:
         resp = client.get("/")

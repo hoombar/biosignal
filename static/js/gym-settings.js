@@ -47,22 +47,44 @@
         const type = activity.activity_type || 'strength';
         return `
             <div class="gym-settings-activity" data-activity-row>
-                <select class="settings-input" data-field="activity_type" aria-label="Activity type">
-                    <option value="strength" ${type === 'strength' ? 'selected' : ''}>Strength</option>
-                    <option value="cardio" ${type === 'cardio' ? 'selected' : ''}>Cardio</option>
-                    <option value="freeform" ${type === 'freeform' ? 'selected' : ''}>Freeform</option>
-                </select>
-                <input type="text" class="settings-input gym-settings-name" data-field="name" placeholder="Activity name" value="${escapeHtml(activity.name)}" required>
-                <input type="number" class="settings-input" data-field="target_sets" min="0" step="1" placeholder="Sets" value="${escapeHtml(activity.target_sets ?? '')}">
-                <input type="number" class="settings-input" data-field="target_reps" min="0" step="1" placeholder="Reps" value="${escapeHtml(activity.target_reps ?? '')}">
-                <input type="number" class="settings-input" data-field="target_weight" min="0" step="0.5" placeholder="Weight" value="${escapeHtml(activity.target_weight ?? '')}">
-                <input type="text" class="settings-input" data-field="target_weight_unit" placeholder="Unit" value="${escapeHtml(activity.target_weight_unit ?? '')}">
-                <input type="number" class="settings-input" data-field="target_duration_minutes" min="0" step="0.5" placeholder="Minutes" value="${escapeHtml(activity.target_duration_minutes ?? '')}">
-                <input type="text" class="settings-input" data-field="target_intensity" placeholder="Level / intensity" value="${escapeHtml(activity.target_intensity ?? '')}">
-                <input type="number" class="settings-input" data-field="target_speed" min="0" step="0.5" placeholder="Speed/RPM" value="${escapeHtml(activity.target_speed ?? '')}">
-                <input type="text" class="settings-input gym-settings-notes" data-field="notes" placeholder="Notes" value="${escapeHtml(activity.notes ?? '')}">
-                <button type="button" class="btn-secondary" data-action="remove-activity">Remove</button>
+                <div class="gym-settings-activity-main">
+                    <label class="gym-settings-field gym-settings-field--type">
+                        <span>Type</span>
+                        <select class="settings-input" data-field="activity_type" aria-label="Activity type">
+                            <option value="strength" ${type === 'strength' ? 'selected' : ''}>Strength</option>
+                            <option value="cardio" ${type === 'cardio' ? 'selected' : ''}>Cardio</option>
+                            <option value="freeform" ${type === 'freeform' ? 'selected' : ''}>Freeform</option>
+                        </select>
+                    </label>
+                    <label class="gym-settings-field gym-settings-field--name">
+                        <span>Name</span>
+                        <input type="text" class="settings-input gym-settings-name" data-field="name" placeholder="Activity name" value="${escapeHtml(activity.name)}" required>
+                    </label>
+                    <button type="button" class="btn-secondary gym-settings-remove" data-action="remove-activity">Remove</button>
+                </div>
+                <div class="gym-settings-activity-details">
+                    ${fieldHtml('target_sets', 'Sets', 'number', activity.target_sets, {step: '1'})}
+                    ${fieldHtml('target_reps', 'Reps', 'number', activity.target_reps, {step: '1'})}
+                    ${fieldHtml('target_weight', 'Weight', 'number', activity.target_weight, {step: '0.5'})}
+                    ${fieldHtml('target_weight_unit', 'Unit', 'text', activity.target_weight_unit)}
+                    ${fieldHtml('target_duration_minutes', 'Minutes', 'number', activity.target_duration_minutes, {step: '0.5'})}
+                    ${fieldHtml('target_intensity', 'Intensity', 'text', activity.target_intensity)}
+                    ${fieldHtml('target_speed', 'Speed/RPM', 'number', activity.target_speed, {step: '0.5'})}
+                    ${fieldHtml('notes', 'Notes', 'text', activity.notes, {wide: true})}
+                </div>
             </div>
+        `;
+    }
+
+    function fieldHtml(field, label, type, value, options = {}) {
+        const step = options.step ? ` step="${options.step}"` : '';
+        const min = type === 'number' ? ' min="0"' : '';
+        const wideClass = options.wide ? ' gym-settings-field--wide' : '';
+        return `
+            <label class="gym-settings-field${wideClass}">
+                <span>${label}</span>
+                <input type="${type}" class="settings-input" data-field="${field}"${min}${step} value="${escapeHtml(value ?? '')}">
+            </label>
         `;
     }
 
