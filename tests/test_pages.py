@@ -89,6 +89,18 @@ def test_gym_settings_activity_editor_avoids_horizontal_scroller():
     assert "gym-settings-activity-details" in js_resp.text
 
 
+def test_gym_settings_activity_editor_supports_reordering():
+    with TestClient(app) as client:
+        resp = client.get("/static/js/gym-settings.js")
+
+    assert resp.status_code == 200
+    script = resp.text
+    assert 'data-action="move-activity-up"' in script
+    assert 'data-action="move-activity-down"' in script
+    assert "insertBefore(row, previous)" in script
+    assert "insertBefore(next, row)" in script
+
+
 def test_overview_page_no_longer_renders_manual_sync_controls():
     with TestClient(app) as client:
         resp = client.get("/")

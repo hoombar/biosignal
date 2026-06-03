@@ -2339,6 +2339,18 @@ input:focus {
     align-items: end;
 }
 
+.gym-settings-activity-actions {
+    display: flex;
+    gap: var(--space-xs, 6px);
+    align-items: center;
+    justify-content: flex-end;
+    white-space: nowrap;
+}
+
+.gym-settings-activity-actions .btn-secondary {
+    padding-inline: 10px;
+}
+
 .gym-settings-activity-details {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
@@ -2413,8 +2425,17 @@ input:focus {
         grid-template-columns: 1fr;
     }
 
+    .gym-settings-activity-actions,
     .gym-settings-remove {
         width: 100%;
+    }
+
+    .gym-settings-activity-actions {
+        justify-content: stretch;
+    }
+
+    .gym-settings-activity-actions .btn-secondary {
+        flex: 1 1 0;
     }
 
     .gym-settings-field--wide {

@@ -60,7 +60,11 @@
                         <span>Name</span>
                         <input type="text" class="settings-input gym-settings-name" data-field="name" placeholder="Activity name" value="${escapeHtml(activity.name)}" required>
                     </label>
-                    <button type="button" class="btn-secondary gym-settings-remove" data-action="remove-activity">Remove</button>
+                    <div class="gym-settings-activity-actions" aria-label="Activity actions">
+                        <button type="button" class="btn-secondary" data-action="move-activity-up" aria-label="Move activity up">Up</button>
+                        <button type="button" class="btn-secondary" data-action="move-activity-down" aria-label="Move activity down">Down</button>
+                        <button type="button" class="btn-secondary gym-settings-remove" data-action="remove-activity">Remove</button>
+                    </div>
                 </div>
                 <div class="gym-settings-activity-details">
                     ${fieldHtml('target_sets', 'Sets', 'number', activity.target_sets, {step: '1'})}
@@ -219,9 +223,22 @@
             els.activities.insertAdjacentHTML('beforeend', renderActivityRow());
         });
         els.activities.addEventListener('click', (event) => {
-            const button = event.target.closest('[data-action="remove-activity"]');
+            const button = event.target.closest('[data-action]');
             if (!button) return;
-            button.closest('[data-activity-row]').remove();
+            const row = button.closest('[data-activity-row]');
+            if (!row) return;
+            if (button.dataset.action === 'move-activity-up') {
+                const previous = row.previousElementSibling;
+                if (previous) els.activities.insertBefore(row, previous);
+                return;
+            }
+            if (button.dataset.action === 'move-activity-down') {
+                const next = row.nextElementSibling;
+                if (next) els.activities.insertBefore(next, row);
+                return;
+            }
+            if (button.dataset.action !== 'remove-activity') return;
+            row.remove();
             if (!els.activities.querySelector('[data-activity-row]')) {
                 els.activities.insertAdjacentHTML('beforeend', renderActivityRow());
             }
