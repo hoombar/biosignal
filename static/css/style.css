@@ -3351,6 +3351,7 @@ input:focus {
 
 .gym-date-label input,
 .gym-adjust input,
+.gym-adjust select,
 .gym-adjust textarea {
     width: 100%;
     border: 1px solid var(--border-subtle);

@@ -46,8 +46,17 @@
             const parts = [];
             if (activity.planned_duration_minutes != null) parts.push(`${compactNumber(activity.planned_duration_minutes)} min`);
             if (activity.planned_intensity) parts.push(activity.planned_intensity);
-            if (activity.planned_speed != null) parts.push(`${compactNumber(activity.planned_speed)} speed`);
+            if (activity.planned_speed != null) {
+                const unit = activity.planned_weight_unit ? ` ${activity.planned_weight_unit}` : '';
+                parts.push(`${compactNumber(activity.planned_speed)}${unit}`);
+            }
             return parts.join(' · ') || 'Cardio';
+        }
+        if (activity.activity_type === 'mobility') {
+            const parts = [];
+            if (activity.planned_duration_minutes != null) parts.push(`${compactNumber(activity.planned_duration_minutes)} min`);
+            if (activity.planned_intensity) parts.push(activity.planned_intensity);
+            return parts.join(' · ') || 'Mobility';
         }
         return activity.planned_notes || 'Freeform activity';
     }
@@ -187,7 +196,7 @@
             return `
                 <div class="gym-adjust-grid">
                     ${numberField('actual_weight', 'Weight', activity.actual_weight)}
-                    ${textField('actual_weight_unit', 'Unit', activity.actual_weight_unit || activity.planned_weight_unit || 'kg')}
+                    ${selectField('actual_weight_unit', 'Unit', activity.actual_weight_unit || activity.planned_weight_unit || 'kg', ['kg', 'lbs'])}
                     ${numberField('actual_sets', 'Sets', activity.actual_sets)}
                     ${numberField('actual_reps', 'Reps', activity.actual_reps)}
                 </div>
@@ -199,6 +208,15 @@
                     ${numberField('actual_duration_minutes', 'Minutes', activity.actual_duration_minutes)}
                     ${textField('actual_intensity', 'Intensity', activity.actual_intensity)}
                     ${numberField('actual_speed', 'Speed/RPM', activity.actual_speed)}
+                    ${selectField('actual_weight_unit', 'Unit', activity.actual_weight_unit || activity.planned_weight_unit || 'kph', ['kph', 'mph'])}
+                </div>
+            `;
+        }
+        if (activity.activity_type === 'mobility') {
+            return `
+                <div class="gym-adjust-grid">
+                    ${numberField('actual_duration_minutes', 'Minutes', activity.actual_duration_minutes)}
+                    ${textField('actual_intensity', 'Intensity', activity.actual_intensity)}
                 </div>
             `;
         }
@@ -219,6 +237,17 @@
             <label>
                 ${label}
                 <input type="text" data-field="${field}" value="${escapeHtml(value ?? '')}">
+            </label>
+        `;
+    }
+
+    function selectField(field, label, value, options) {
+        return `
+            <label>
+                ${label}
+                <select data-field="${field}">
+                    ${options.map(option => `<option value="${option}" ${value === option ? 'selected' : ''}>${option}</option>`).join('')}
+                </select>
             </label>
         `;
     }

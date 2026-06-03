@@ -35,7 +35,7 @@
             target_sets: type === 'strength' ? 3 : null,
             target_reps: type === 'strength' ? 12 : null,
             target_weight: null,
-            target_weight_unit: type === 'strength' ? 'kg' : null,
+            target_weight_unit: type === 'strength' ? 'kg' : (type === 'cardio' ? 'kph' : null),
             target_duration_minutes: type === 'cardio' ? 8 : null,
             target_intensity: '',
             target_speed: null,
@@ -58,7 +58,7 @@
                         <select class="settings-input" data-field="activity_type" aria-label="Activity type">
                             <option value="strength" ${type === 'strength' ? 'selected' : ''}>Strength</option>
                             <option value="cardio" ${type === 'cardio' ? 'selected' : ''}>Cardio</option>
-                            <option value="freeform" ${type === 'freeform' ? 'selected' : ''}>Freeform</option>
+                            <option value="mobility" ${type === 'mobility' ? 'selected' : ''}>Mobility</option>
                         </select>
                     </label>
                     <label class="gym-settings-field gym-settings-field--name">
@@ -67,16 +67,33 @@
                     </label>
                 </div>
                 <div class="gym-settings-activity-details">
-                    ${fieldHtml('target_sets', 'Sets', 'number', activity.target_sets, {step: '1'})}
-                    ${fieldHtml('target_reps', 'Reps', 'number', activity.target_reps, {step: '1'})}
-                    ${fieldHtml('target_weight', 'Weight', 'number', activity.target_weight, {step: '0.5'})}
-                    ${fieldHtml('target_weight_unit', 'Unit', 'text', activity.target_weight_unit)}
-                    ${fieldHtml('target_duration_minutes', 'Minutes', 'number', activity.target_duration_minutes, {step: '0.5'})}
-                    ${fieldHtml('target_intensity', 'Intensity', 'text', activity.target_intensity)}
-                    ${fieldHtml('target_speed', 'Speed/RPM', 'number', activity.target_speed, {step: '0.5'})}
-                    ${fieldHtml('notes', 'Notes', 'text', activity.notes, {wide: true})}
+                    ${activityFieldsHtml(activity, type)}
                 </div>
             </div>
+        `;
+    }
+
+    function activityFieldsHtml(activity, type) {
+        if (type === 'strength') {
+            return `
+                ${fieldHtml('target_sets', 'Sets', 'number', activity.target_sets, {step: '1'})}
+                ${fieldHtml('target_reps', 'Reps', 'number', activity.target_reps, {step: '1'})}
+                ${fieldHtml('target_weight', 'Weight', 'number', activity.target_weight, {step: '0.5'})}
+                ${unitSelectHtml('target_weight_unit', 'Unit', activity.target_weight_unit, ['kg', 'lbs'])}
+            `;
+        }
+        if (type === 'cardio') {
+            return `
+                ${fieldHtml('target_duration_minutes', 'Minutes', 'number', activity.target_duration_minutes, {step: '0.5'})}
+                ${fieldHtml('target_intensity', 'Intensity', 'text', activity.target_intensity)}
+                ${fieldHtml('target_speed', 'Speed', 'number', activity.target_speed, {step: '0.5'})}
+                ${unitSelectHtml('target_weight_unit', 'Unit', activity.target_weight_unit, ['kph', 'mph'])}
+            `;
+        }
+        return `
+            ${fieldHtml('target_duration_minutes', 'Minutes', 'number', activity.target_duration_minutes, {step: '0.5'})}
+            ${fieldHtml('target_intensity', 'Intensity', 'text', activity.target_intensity)}
+            ${fieldHtml('notes', 'Notes', 'text', activity.notes, {wide: true})}
         `;
     }
 
@@ -88,6 +105,18 @@
             <label class="gym-settings-field${wideClass}">
                 <span>${label}</span>
                 <input type="${type}" class="settings-input" data-field="${field}"${min}${step} value="${escapeHtml(value ?? '')}">
+            </label>
+        `;
+    }
+
+    function unitSelectHtml(field, label, value, units) {
+        const selected = value || units[0];
+        return `
+            <label class="gym-settings-field">
+                <span>${label}</span>
+                <select class="settings-input" data-field="${field}">
+                    ${units.map(unit => `<option value="${unit}" ${selected === unit ? 'selected' : ''}>${unit}</option>`).join('')}
+                </select>
             </label>
         `;
     }
@@ -163,6 +192,27 @@
             }
         });
         data.name = data.name || '';
+        return normalizeActivityForType(data);
+    }
+
+    function normalizeActivityForType(data) {
+        if (data.activity_type === 'strength') {
+            data.target_weight_unit = ['kg', 'lbs'].includes(data.target_weight_unit) ? data.target_weight_unit : 'kg';
+            data.target_duration_minutes = null;
+            data.target_intensity = null;
+            data.target_speed = null;
+        } else if (data.activity_type === 'cardio') {
+            data.target_weight_unit = ['kph', 'mph'].includes(data.target_weight_unit) ? data.target_weight_unit : 'kph';
+            data.target_sets = null;
+            data.target_reps = null;
+            data.target_weight = null;
+        } else if (data.activity_type === 'mobility') {
+            data.target_sets = null;
+            data.target_reps = null;
+            data.target_weight = null;
+            data.target_weight_unit = null;
+            data.target_speed = null;
+        }
         return data;
     }
 
@@ -242,6 +292,14 @@
             if (!els.activities.querySelector('[data-activity-row]')) {
                 els.activities.insertAdjacentHTML('beforeend', renderActivityRow());
             }
+        });
+        els.activities.addEventListener('change', (event) => {
+            if (event.target.dataset.field !== 'activity_type') return;
+            const row = event.target.closest('[data-activity-row]');
+            if (!row) return;
+            const activity = readActivity(row);
+            activity.activity_type = event.target.value;
+            row.outerHTML = renderActivityRow(normalizeActivityForType(activity));
         });
         els.list.addEventListener('click', (event) => {
             const button = event.target.closest('[data-action]');

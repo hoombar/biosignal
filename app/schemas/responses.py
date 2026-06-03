@@ -2,7 +2,7 @@
 
 from datetime import datetime, date
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Any, Literal
 
 
@@ -112,7 +112,7 @@ class ContextDailyEntry(BaseModel):
     notes: str | None = None
 
 
-ActivityType = Literal["strength", "cardio", "freeform"]
+ActivityType = Literal["strength", "cardio", "mobility"]
 ActivityRating = Literal["easy", "normal", "hard"]
 
 
@@ -127,6 +127,28 @@ class GymTemplateActivityInput(BaseModel):
     target_intensity: str | None = None
     target_speed: float | None = Field(default=None, ge=0)
     notes: str | None = None
+
+    @model_validator(mode="after")
+    def normalize_by_activity_type(self):
+        if self.activity_type == "strength":
+            if self.target_weight_unit not in (None, "kg", "lbs"):
+                raise ValueError("strength unit must be kg or lbs")
+            self.target_duration_minutes = None
+            self.target_intensity = None
+            self.target_speed = None
+        elif self.activity_type == "cardio":
+            if self.target_weight_unit not in (None, "kph", "mph"):
+                raise ValueError("cardio unit must be kph or mph")
+            self.target_sets = None
+            self.target_reps = None
+            self.target_weight = None
+        elif self.activity_type == "mobility":
+            self.target_sets = None
+            self.target_reps = None
+            self.target_weight = None
+            self.target_weight_unit = None
+            self.target_speed = None
+        return self
 
 
 class GymTemplateCreateRequest(BaseModel):

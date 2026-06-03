@@ -94,6 +94,76 @@ class TestGymTemplates:
         assert [a["name"] for a in body["activities"]] == ["Shrugs"]
 
     @pytest.mark.asyncio
+    async def test_template_activity_fields_are_normalized_by_type(self, async_session):
+        app = _make_app(async_session)
+
+        with TestClient(app) as client:
+            resp = client.post("/api/gym/templates", json={
+                "name": "Mixed plan",
+                "activities": [
+                    {
+                        "activity_type": "strength",
+                        "name": "Low row",
+                        "target_sets": 3,
+                        "target_reps": 12,
+                        "target_weight": 50,
+                        "target_weight_unit": "kg",
+                        "target_duration_minutes": 8,
+                        "target_intensity": "level 5",
+                        "target_speed": 10,
+                    },
+                    {
+                        "activity_type": "cardio",
+                        "name": "Elliptical",
+                        "target_sets": 3,
+                        "target_reps": 12,
+                        "target_weight": 50,
+                        "target_weight_unit": "mph",
+                        "target_duration_minutes": 8,
+                        "target_intensity": "level 5",
+                        "target_speed": 5,
+                    },
+                    {
+                        "activity_type": "mobility",
+                        "name": "Stretch",
+                        "target_sets": 3,
+                        "target_reps": 12,
+                        "target_weight": 50,
+                        "target_weight_unit": "kg",
+                        "target_duration_minutes": 5,
+                        "target_intensity": "easy",
+                        "target_speed": 5,
+                    },
+                ],
+            })
+
+        assert resp.status_code == 201
+        strength, cardio, mobility = resp.json()["activities"]
+        assert strength["target_duration_minutes"] is None
+        assert strength["target_intensity"] is None
+        assert strength["target_speed"] is None
+        assert cardio["target_sets"] is None
+        assert cardio["target_reps"] is None
+        assert cardio["target_weight"] is None
+        assert mobility["target_sets"] is None
+        assert mobility["target_reps"] is None
+        assert mobility["target_weight"] is None
+        assert mobility["target_weight_unit"] is None
+        assert mobility["target_speed"] is None
+
+    @pytest.mark.asyncio
+    async def test_freeform_activity_type_is_rejected(self, async_session):
+        app = _make_app(async_session)
+
+        with TestClient(app) as client:
+            resp = client.post("/api/gym/templates", json={
+                "name": "Old plan",
+                "activities": [{"activity_type": "freeform", "name": "Stretch"}],
+            })
+
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
     async def test_archive_template_excludes_it_by_default(self, async_session):
         app = _make_app(async_session)
 
@@ -126,7 +196,7 @@ class TestGymSessions:
                     "name": "Changed plan",
                     "description": None,
                     "activities": [
-                        {"activity_type": "freeform", "name": "Stretch"},
+                        {"activity_type": "mobility", "name": "Stretch"},
                     ],
                 },
             )

@@ -111,6 +111,21 @@ def test_gym_settings_activity_editor_supports_reordering():
     assert "insertBefore(next, row)" in script
 
 
+def test_gym_settings_activity_editor_filters_fields_by_type():
+    with TestClient(app) as client:
+        resp = client.get("/static/js/gym-settings.js")
+
+    assert resp.status_code == 200
+    script = resp.text
+    assert "option value=\"mobility\"" in script
+    assert "option value=\"freeform\"" not in script
+    assert "unitSelectHtml('target_weight_unit', 'Unit', activity.target_weight_unit, ['kg', 'lbs'])" in script
+    assert "unitSelectHtml('target_weight_unit', 'Unit', activity.target_weight_unit, ['kph', 'mph'])" in script
+    assert "normalizeActivityForType(data)" in script
+    assert "target_duration_minutes = null" in script
+    assert "target_sets = null" in script
+
+
 def test_overview_page_no_longer_renders_manual_sync_controls():
     with TestClient(app) as client:
         resp = client.get("/")
