@@ -222,6 +222,15 @@ async def archive_template(template_id: int, db: AsyncSession = Depends(get_db))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.post("/templates/{template_id}/unarchive", response_model=GymTemplateResponse)
+async def unarchive_template(template_id: int, db: AsyncSession = Depends(get_db)):
+    template = await _load_template(db, template_id)
+    template.archived_at = None
+    template.updated_at = datetime.utcnow()
+    await db.commit()
+    return await _template_response(db, template)
+
+
 @router.get("/session", response_model=GymSessionResponse | None)
 async def get_session(date: DateType, db: AsyncSession = Depends(get_db)):
     session = (await db.execute(

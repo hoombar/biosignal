@@ -126,6 +126,17 @@ def test_gym_settings_activity_editor_filters_fields_by_type():
     assert "target_sets = null" in script
 
 
+def test_gym_settings_template_list_supports_unarchive():
+    with TestClient(app) as client:
+        resp = client.get("/static/js/gym-settings.js")
+
+    assert resp.status_code == 200
+    script = resp.text
+    assert "data-action=\"unarchive-template\"" in script
+    assert "Unarchive" in script
+    assert "/unarchive" in script
+
+
 def test_overview_page_no_longer_renders_manual_sync_controls():
     with TestClient(app) as client:
         resp = client.get("/")

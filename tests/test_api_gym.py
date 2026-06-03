@@ -177,6 +177,20 @@ class TestGymTemplates:
         assert default_resp.json() == []
         assert archived_resp.json()[0]["archived"] is True
 
+    @pytest.mark.asyncio
+    async def test_unarchive_template_restores_it_to_default_list(self, async_session):
+        app = _make_app(async_session)
+
+        with TestClient(app) as client:
+            created = client.post("/api/gym/templates", json=_template_payload()).json()
+            client.delete(f"/api/gym/templates/{created['id']}")
+            resp = client.post(f"/api/gym/templates/{created['id']}/unarchive")
+            default_resp = client.get("/api/gym/templates")
+
+        assert resp.status_code == 200
+        assert resp.json()["archived"] is False
+        assert [row["name"] for row in default_resp.json()] == ["Standard upper/back/arms"]
+
 
 class TestGymSessions:
 

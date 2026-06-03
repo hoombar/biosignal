@@ -134,7 +134,9 @@
                 </div>
                 <div class="gym-settings-template-actions">
                     <button type="button" class="btn-secondary" data-action="edit-template" data-template-id="${template.id}">Edit</button>
-                    <button type="button" class="btn-secondary" data-action="archive-template" data-template-id="${template.id}" ${template.archived ? 'disabled' : ''}>Archive</button>
+                    ${template.archived
+                        ? `<button type="button" class="btn-secondary" data-action="unarchive-template" data-template-id="${template.id}">Unarchive</button>`
+                        : `<button type="button" class="btn-secondary" data-action="archive-template" data-template-id="${template.id}">Archive</button>`}
                 </div>
             </article>
         `).join('');
@@ -265,6 +267,17 @@
         }
     }
 
+    async function unarchiveTemplate(templateId) {
+        setStatus('Unarchiving…');
+        try {
+            await fetchJson(`/api/gym/templates/${templateId}/unarchive`, {method: 'POST'});
+            await loadTemplates();
+            setStatus('Unarchived', 'ok');
+        } catch (err) {
+            setStatus(err.message, 'err');
+        }
+    }
+
     function bindEvents() {
         els.form.addEventListener('submit', saveTemplate);
         els.reset.addEventListener('click', resetForm);
@@ -306,6 +319,7 @@
             if (!button) return;
             if (button.dataset.action === 'edit-template') editTemplate(button.dataset.templateId);
             if (button.dataset.action === 'archive-template') archiveTemplate(button.dataset.templateId);
+            if (button.dataset.action === 'unarchive-template') unarchiveTemplate(button.dataset.templateId);
         });
     }
 
