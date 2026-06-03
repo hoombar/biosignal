@@ -86,9 +86,14 @@ def test_gym_settings_activity_editor_avoids_horizontal_scroller():
     assert activity_block is not None
     assert "flex-direction: column;" in activity_block.group("body")
     assert "overflow-x" not in activity_block.group("body")
+    assert "position: relative;" in activity_block.group("body")
     main_block = re.search(r"\.gym-settings-activity-main\s*\{(?P<body>[^}]+)\}", css_resp.text)
     assert main_block is not None
     assert "grid-template-columns: minmax(10rem, 0.7fr) minmax(14rem, 1.4fr);" in main_block.group("body")
+    actions_block = re.search(r"\.gym-settings-activity-actions\s*\{(?P<body>[^}]+)\}", css_resp.text)
+    assert actions_block is not None
+    assert "position: absolute;" in actions_block.group("body")
+    assert "right: var(--space-sm);" in actions_block.group("body")
     assert "gym-settings-activity-details" in js_resp.text
 
 
@@ -100,6 +105,8 @@ def test_gym_settings_activity_editor_supports_reordering():
     script = resp.text
     assert 'data-action="move-activity-up"' in script
     assert 'data-action="move-activity-down"' in script
+    assert 'data-action="remove-activity" aria-label="Remove activity">×</button>' in script
+    assert "gym-settings-icon-btn" in script
     assert "insertBefore(row, previous)" in script
     assert "insertBefore(next, row)" in script
 

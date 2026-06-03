@@ -47,6 +47,11 @@
         const type = activity.activity_type || 'strength';
         return `
             <div class="gym-settings-activity" data-activity-row>
+                <div class="gym-settings-activity-actions" aria-label="Activity actions">
+                    <button type="button" class="gym-settings-icon-btn" data-action="move-activity-up" aria-label="Move activity up">↑</button>
+                    <button type="button" class="gym-settings-icon-btn" data-action="move-activity-down" aria-label="Move activity down">↓</button>
+                    <button type="button" class="gym-settings-icon-btn gym-settings-icon-btn--danger" data-action="remove-activity" aria-label="Remove activity">×</button>
+                </div>
                 <div class="gym-settings-activity-main">
                     <label class="gym-settings-field gym-settings-field--type">
                         <span>Type</span>
@@ -60,11 +65,6 @@
                         <span>Name</span>
                         <input type="text" class="settings-input gym-settings-name" data-field="name" placeholder="Activity name" value="${escapeHtml(activity.name)}" required>
                     </label>
-                    <div class="gym-settings-activity-actions" aria-label="Activity actions">
-                        <button type="button" class="btn-secondary" data-action="move-activity-up" aria-label="Move activity up">Up</button>
-                        <button type="button" class="btn-secondary" data-action="move-activity-down" aria-label="Move activity down">Down</button>
-                        <button type="button" class="btn-secondary gym-settings-remove" data-action="remove-activity">Remove</button>
-                    </div>
                 </div>
                 <div class="gym-settings-activity-details">
                     ${fieldHtml('target_sets', 'Sets', 'number', activity.target_sets, {step: '1'})}
