@@ -2334,17 +2334,18 @@ input:focus {
 
 .gym-settings-activity-main {
     display: grid;
-    grid-template-columns: minmax(10rem, 0.7fr) minmax(14rem, 1.4fr) auto;
+    grid-template-columns: minmax(10rem, 0.7fr) minmax(14rem, 1.4fr);
     gap: var(--space-sm);
     align-items: end;
 }
 
 .gym-settings-activity-actions {
     display: flex;
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
     gap: var(--space-xs, 6px);
     align-items: center;
-    justify-content: flex-end;
-    white-space: nowrap;
+    justify-content: flex-start;
 }
 
 .gym-settings-activity-actions .btn-secondary {

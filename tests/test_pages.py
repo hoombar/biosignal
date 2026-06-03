@@ -86,6 +86,9 @@ def test_gym_settings_activity_editor_avoids_horizontal_scroller():
     assert activity_block is not None
     assert "flex-direction: column;" in activity_block.group("body")
     assert "overflow-x" not in activity_block.group("body")
+    main_block = re.search(r"\.gym-settings-activity-main\s*\{(?P<body>[^}]+)\}", css_resp.text)
+    assert main_block is not None
+    assert "grid-template-columns: minmax(10rem, 0.7fr) minmax(14rem, 1.4fr);" in main_block.group("body")
     assert "gym-settings-activity-details" in js_resp.text
 
 
