@@ -137,8 +137,8 @@ class GymTemplateActivityInput(BaseModel):
             self.target_intensity = None
             self.target_speed = None
         elif self.activity_type == "cardio":
-            if self.target_weight_unit not in (None, "kph", "mph"):
-                raise ValueError("cardio unit must be kph or mph")
+            if self.target_weight_unit not in (None, "kph", "mph", "rpm"):
+                raise ValueError("cardio unit must be kph, mph, or rpm")
             self.target_sets = None
             self.target_reps = None
             self.target_weight = None

@@ -118,7 +118,7 @@ class TestGymTemplates:
                         "target_sets": 3,
                         "target_reps": 12,
                         "target_weight": 50,
-                        "target_weight_unit": "mph",
+                        "target_weight_unit": "rpm",
                         "target_duration_minutes": 8,
                         "target_intensity": "level 5",
                         "target_speed": 5,
@@ -145,6 +145,7 @@ class TestGymTemplates:
         assert cardio["target_sets"] is None
         assert cardio["target_reps"] is None
         assert cardio["target_weight"] is None
+        assert cardio["target_weight_unit"] == "rpm"
         assert mobility["target_sets"] is None
         assert mobility["target_reps"] is None
         assert mobility["target_weight"] is None

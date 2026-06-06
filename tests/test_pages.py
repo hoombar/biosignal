@@ -131,7 +131,7 @@ def test_gym_settings_activity_editor_filters_fields_by_type():
     assert "data-field=\"activity_type\"" not in script
     assert "data-activity-type=\"freeform\"" not in script
     assert "unitSelectHtml('target_weight_unit', 'Unit', activity.target_weight_unit, ['kg', 'lbs'])" in script
-    assert "unitSelectHtml('target_weight_unit', 'Unit', activity.target_weight_unit, ['kph', 'mph'])" in script
+    assert "unitSelectHtml('target_weight_unit', 'Unit', activity.target_weight_unit, ['kph', 'mph', 'rpm'])" in script
     assert "normalizeActivityForType(data)" in script
     assert "target_duration_minutes = null" in script
     assert "target_sets = null" in script

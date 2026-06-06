@@ -105,7 +105,7 @@
                 ${fieldHtml('target_duration_minutes', 'Minutes', 'number', activity.target_duration_minutes, {step: '0.5'})}
                 ${fieldHtml('target_intensity', 'Intensity', 'text', activity.target_intensity)}
                 ${fieldHtml('target_speed', 'Speed', 'number', activity.target_speed, {step: '0.5'})}
-                ${unitSelectHtml('target_weight_unit', 'Unit', activity.target_weight_unit, ['kph', 'mph'])}
+                ${unitSelectHtml('target_weight_unit', 'Unit', activity.target_weight_unit, ['kph', 'mph', 'rpm'])}
             `;
         }
         return `
@@ -222,7 +222,7 @@
             data.target_intensity = null;
             data.target_speed = null;
         } else if (data.activity_type === 'cardio') {
-            data.target_weight_unit = ['kph', 'mph'].includes(data.target_weight_unit) ? data.target_weight_unit : 'kph';
+            data.target_weight_unit = ['kph', 'mph', 'rpm'].includes(data.target_weight_unit) ? data.target_weight_unit : 'kph';
             data.target_sets = null;
             data.target_reps = null;
             data.target_weight = null;

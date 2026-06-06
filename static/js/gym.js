@@ -208,7 +208,7 @@
                     ${numberField('actual_duration_minutes', 'Minutes', activity.actual_duration_minutes)}
                     ${textField('actual_intensity', 'Intensity', activity.actual_intensity)}
                     ${numberField('actual_speed', 'Speed/RPM', activity.actual_speed)}
-                    ${selectField('actual_weight_unit', 'Unit', activity.actual_weight_unit || activity.planned_weight_unit || 'kph', ['kph', 'mph'])}
+                    ${selectField('actual_weight_unit', 'Unit', activity.actual_weight_unit || activity.planned_weight_unit || 'kph', ['kph', 'mph', 'rpm'])}
                 </div>
             `;
         }
