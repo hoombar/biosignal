@@ -2322,12 +2322,22 @@ input:focus {
     gap: var(--space-sm);
 }
 
+.gym-activity-type-chooser {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    padding: var(--space-sm);
+    border: 1px dashed var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+}
+
 .gym-settings-activity {
     position: relative;
     display: flex;
     flex-direction: column;
-    gap: var(--space-md);
-    padding: calc(var(--space-md) + 2rem) var(--space-md) var(--space-md);
+    gap: var(--space-sm);
+    padding: 3rem var(--space-md) var(--space-md);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
     background: var(--bg-tertiary);
@@ -2335,7 +2345,7 @@ input:focus {
 
 .gym-settings-activity-main {
     display: grid;
-    grid-template-columns: minmax(10rem, 0.7fr) minmax(14rem, 1.4fr);
+    grid-template-columns: 1fr;
     gap: var(--space-sm);
     align-items: end;
 }
@@ -2347,6 +2357,17 @@ input:focus {
     display: flex;
     gap: 4px;
     align-items: center;
+}
+
+.gym-settings-activity-type {
+    position: absolute;
+    top: var(--space-sm);
+    left: var(--space-md);
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 .gym-settings-icon-btn {
@@ -2375,7 +2396,7 @@ input:focus {
 
 .gym-settings-activity-details {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
     gap: var(--space-sm);
 }
 

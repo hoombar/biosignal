@@ -44,23 +44,18 @@
     }
 
     function renderActivityRow(activity = emptyActivity()) {
-        const type = activity.activity_type || 'strength';
+        const type = ['strength', 'cardio', 'mobility'].includes(activity.activity_type)
+            ? activity.activity_type
+            : 'mobility';
         return `
-            <div class="gym-settings-activity" data-activity-row>
+            <div class="gym-settings-activity" data-activity-row data-activity-type="${type}">
                 <div class="gym-settings-activity-actions" aria-label="Activity actions">
                     <button type="button" class="gym-settings-icon-btn" data-action="move-activity-up" aria-label="Move activity up">↑</button>
                     <button type="button" class="gym-settings-icon-btn" data-action="move-activity-down" aria-label="Move activity down">↓</button>
                     <button type="button" class="gym-settings-icon-btn gym-settings-icon-btn--danger" data-action="remove-activity" aria-label="Remove activity">×</button>
                 </div>
+                <span class="gym-settings-activity-type">${typeLabel(type)}</span>
                 <div class="gym-settings-activity-main">
-                    <label class="gym-settings-field gym-settings-field--type">
-                        <span>Type</span>
-                        <select class="settings-input" data-field="activity_type" aria-label="Activity type">
-                            <option value="strength" ${type === 'strength' ? 'selected' : ''}>Strength</option>
-                            <option value="cardio" ${type === 'cardio' ? 'selected' : ''}>Cardio</option>
-                            <option value="mobility" ${type === 'mobility' ? 'selected' : ''}>Mobility</option>
-                        </select>
-                    </label>
                     <label class="gym-settings-field gym-settings-field--name">
                         <span>Name</span>
                         <input type="text" class="settings-input gym-settings-name" data-field="name" placeholder="Activity name" value="${escapeHtml(activity.name)}" required>
@@ -71,6 +66,25 @@
                 </div>
             </div>
         `;
+    }
+
+    function typeLabel(type) {
+        return type.charAt(0).toUpperCase() + type.slice(1);
+    }
+
+    function showActivityTypeChooser() {
+        const existing = els.activities.querySelector('[data-activity-type-chooser]');
+        if (existing) {
+            existing.remove();
+            return;
+        }
+        els.activities.insertAdjacentHTML('beforeend', `
+            <div class="gym-activity-type-chooser" data-activity-type-chooser>
+                <button type="button" class="btn-secondary gym-activity-type-choice" data-action="choose-activity-type" data-activity-type="strength">Add strength</button>
+                <button type="button" class="btn-secondary gym-activity-type-choice" data-action="choose-activity-type" data-activity-type="cardio">Add cardio</button>
+                <button type="button" class="btn-secondary gym-activity-type-choice" data-action="choose-activity-type" data-activity-type="mobility">Add mobility</button>
+            </div>
+        `);
     }
 
     function activityFieldsHtml(activity, type) {
@@ -151,7 +165,7 @@
         els.id.value = '';
         els.name.value = '';
         els.description.value = '';
-        els.activities.innerHTML = renderActivityRow(emptyActivity('cardio')) + renderActivityRow(emptyActivity('strength'));
+        els.activities.innerHTML = '';
         setStatus('');
     }
 
@@ -178,7 +192,7 @@
     }
 
     function readActivity(row) {
-        const data = {};
+        const data = {activity_type: row.dataset.activityType};
         row.querySelectorAll('[data-field]').forEach(input => {
             const field = input.dataset.field;
             if ([
@@ -282,12 +296,17 @@
         els.form.addEventListener('submit', saveTemplate);
         els.reset.addEventListener('click', resetForm);
         els.refresh.addEventListener('click', loadTemplates);
-        els.addActivity.addEventListener('click', () => {
-            els.activities.insertAdjacentHTML('beforeend', renderActivityRow());
-        });
+        els.addActivity.addEventListener('click', showActivityTypeChooser);
         els.activities.addEventListener('click', (event) => {
             const button = event.target.closest('[data-action]');
             if (!button) return;
+            if (button.dataset.action === 'choose-activity-type') {
+                const chooser = button.closest('[data-activity-type-chooser]');
+                const type = button.dataset.activityType;
+                chooser.insertAdjacentHTML('beforebegin', renderActivityRow(emptyActivity(type)));
+                chooser.remove();
+                return;
+            }
             const row = button.closest('[data-activity-row]');
             if (!row) return;
             if (button.dataset.action === 'move-activity-up') {
@@ -302,17 +321,6 @@
             }
             if (button.dataset.action !== 'remove-activity') return;
             row.remove();
-            if (!els.activities.querySelector('[data-activity-row]')) {
-                els.activities.insertAdjacentHTML('beforeend', renderActivityRow());
-            }
-        });
-        els.activities.addEventListener('change', (event) => {
-            if (event.target.dataset.field !== 'activity_type') return;
-            const row = event.target.closest('[data-activity-row]');
-            if (!row) return;
-            const activity = readActivity(row);
-            activity.activity_type = event.target.value;
-            row.outerHTML = renderActivityRow(normalizeActivityForType(activity));
         });
         els.list.addEventListener('click', (event) => {
             const button = event.target.closest('[data-action]');

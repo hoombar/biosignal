@@ -89,7 +89,7 @@ def test_gym_settings_activity_editor_avoids_horizontal_scroller():
     assert "position: relative;" in activity_block.group("body")
     main_block = re.search(r"\.gym-settings-activity-main\s*\{(?P<body>[^}]+)\}", css_resp.text)
     assert main_block is not None
-    assert "grid-template-columns: minmax(10rem, 0.7fr) minmax(14rem, 1.4fr);" in main_block.group("body")
+    assert "grid-template-columns: 1fr;" in main_block.group("body")
     actions_block = re.search(r"\.gym-settings-activity-actions\s*\{(?P<body>[^}]+)\}", css_resp.text)
     assert actions_block is not None
     assert "position: absolute;" in actions_block.group("body")
@@ -117,13 +117,27 @@ def test_gym_settings_activity_editor_filters_fields_by_type():
 
     assert resp.status_code == 200
     script = resp.text
-    assert "option value=\"mobility\"" in script
-    assert "option value=\"freeform\"" not in script
+    assert "data-activity-type=\"mobility\"" in script
+    assert "data-field=\"activity_type\"" not in script
+    assert "data-activity-type=\"freeform\"" not in script
     assert "unitSelectHtml('target_weight_unit', 'Unit', activity.target_weight_unit, ['kg', 'lbs'])" in script
     assert "unitSelectHtml('target_weight_unit', 'Unit', activity.target_weight_unit, ['kph', 'mph'])" in script
     assert "normalizeActivityForType(data)" in script
     assert "target_duration_minutes = null" in script
     assert "target_sets = null" in script
+
+
+def test_gym_settings_add_activity_asks_for_type():
+    with TestClient(app) as client:
+        resp = client.get("/static/js/gym-settings.js")
+
+    assert resp.status_code == 200
+    script = resp.text
+    assert "showActivityTypeChooser()" in script
+    assert "gym-activity-type-choice" in script
+    assert "Add strength" in script
+    assert "Add cardio" in script
+    assert "Add mobility" in script
 
 
 def test_gym_settings_template_list_supports_unarchive():
