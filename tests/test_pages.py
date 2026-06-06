@@ -84,16 +84,15 @@ def test_gym_settings_activity_editor_avoids_horizontal_scroller():
     assert js_resp.status_code == 200
     activity_block = re.search(r"\.gym-settings-activity\s*\{(?P<body>[^}]+)\}", css_resp.text)
     assert activity_block is not None
-    assert "flex-direction: column;" in activity_block.group("body")
     assert "overflow-x" not in activity_block.group("body")
-    assert "position: relative;" in activity_block.group("body")
-    main_block = re.search(r"\.gym-settings-activity-main\s*\{(?P<body>[^}]+)\}", css_resp.text)
-    assert main_block is not None
-    assert "grid-template-columns: 1fr;" in main_block.group("body")
+    assert "display: grid;" in activity_block.group("body")
+    assert "grid-template-columns: 6.5rem minmax(16rem, 2fr) repeat(4, minmax(5.75rem, 1fr)) auto;" in activity_block.group("body")
     actions_block = re.search(r"\.gym-settings-activity-actions\s*\{(?P<body>[^}]+)\}", css_resp.text)
     assert actions_block is not None
-    assert "position: absolute;" in actions_block.group("body")
-    assert "right: var(--space-sm);" in actions_block.group("body")
+    assert "justify-content: flex-end;" in actions_block.group("body")
+    details_block = re.search(r"\.gym-settings-activity-details\s*\{(?P<body>[^}]+)\}", css_resp.text)
+    assert details_block is not None
+    assert "display: contents;" in details_block.group("body")
     assert "gym-settings-activity-details" in js_resp.text
 
 

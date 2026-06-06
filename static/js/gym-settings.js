@@ -49,11 +49,6 @@
             : 'mobility';
         return `
             <div class="gym-settings-activity" data-activity-row data-activity-type="${type}">
-                <div class="gym-settings-activity-actions" aria-label="Activity actions">
-                    <button type="button" class="gym-settings-icon-btn" data-action="move-activity-up" aria-label="Move activity up">↑</button>
-                    <button type="button" class="gym-settings-icon-btn" data-action="move-activity-down" aria-label="Move activity down">↓</button>
-                    <button type="button" class="gym-settings-icon-btn gym-settings-icon-btn--danger" data-action="remove-activity" aria-label="Remove activity">×</button>
-                </div>
                 <span class="gym-settings-activity-type">${typeLabel(type)}</span>
                 <div class="gym-settings-activity-main">
                     <label class="gym-settings-field gym-settings-field--name">
@@ -63,6 +58,11 @@
                 </div>
                 <div class="gym-settings-activity-details">
                     ${activityFieldsHtml(activity, type)}
+                </div>
+                <div class="gym-settings-activity-actions" aria-label="Activity actions">
+                    <button type="button" class="gym-settings-icon-btn" data-action="move-activity-up" aria-label="Move activity up">↑</button>
+                    <button type="button" class="gym-settings-icon-btn" data-action="move-activity-down" aria-label="Move activity down">↓</button>
+                    <button type="button" class="gym-settings-icon-btn gym-settings-icon-btn--danger" data-action="remove-activity" aria-label="Remove activity">×</button>
                 </div>
             </div>
         `;
