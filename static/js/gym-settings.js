@@ -49,20 +49,24 @@
             : 'mobility';
         return `
             <div class="gym-settings-activity" data-activity-row data-activity-type="${type}">
-                <span class="gym-settings-activity-type">${typeLabel(type)}</span>
-                <div class="gym-settings-activity-main">
-                    <label class="gym-settings-field gym-settings-field--name">
-                        <span>Name</span>
-                        <input type="text" class="settings-input gym-settings-name" data-field="name" placeholder="Activity name" value="${escapeHtml(activity.name)}" required>
-                    </label>
+                <div class="gym-settings-activity-header">
+                    <span class="gym-settings-activity-type">${typeLabel(type)}</span>
+                    <div class="gym-settings-activity-actions" aria-label="Activity actions">
+                        <button type="button" class="gym-settings-icon-btn" data-action="move-activity-up" aria-label="Move activity up">↑</button>
+                        <button type="button" class="gym-settings-icon-btn" data-action="move-activity-down" aria-label="Move activity down">↓</button>
+                        <button type="button" class="gym-settings-icon-btn gym-settings-icon-btn--danger" data-action="remove-activity" aria-label="Remove activity">×</button>
+                    </div>
                 </div>
-                <div class="gym-settings-activity-details">
-                    ${activityFieldsHtml(activity, type)}
-                </div>
-                <div class="gym-settings-activity-actions" aria-label="Activity actions">
-                    <button type="button" class="gym-settings-icon-btn" data-action="move-activity-up" aria-label="Move activity up">↑</button>
-                    <button type="button" class="gym-settings-icon-btn" data-action="move-activity-down" aria-label="Move activity down">↓</button>
-                    <button type="button" class="gym-settings-icon-btn gym-settings-icon-btn--danger" data-action="remove-activity" aria-label="Remove activity">×</button>
+                <div class="gym-settings-activity-fields">
+                    <div class="gym-settings-activity-main">
+                        <label class="gym-settings-field gym-settings-field--name">
+                            <span>Name</span>
+                            <input type="text" class="settings-input gym-settings-name" data-field="name" placeholder="Activity name" value="${escapeHtml(activity.name)}" required>
+                        </label>
+                    </div>
+                    <div class="gym-settings-activity-details">
+                        ${activityFieldsHtml(activity, type)}
+                    </div>
                 </div>
             </div>
         `;

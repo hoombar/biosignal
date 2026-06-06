@@ -88,9 +88,16 @@ def test_gym_settings_activity_editor_avoids_horizontal_scroller():
     activity_block = re.search(r"\.gym-settings-activity\s*\{(?P<body>[^}]+)\}", css_resp.text)
     assert activity_block is not None
     assert "overflow-x" not in activity_block.group("body")
-    assert "display: grid;" in activity_block.group("body")
-    assert "grid-template-columns: 6.5rem minmax(0, 2fr) repeat(4, minmax(0, 1fr)) auto;" in activity_block.group("body")
+    assert "display: flex;" in activity_block.group("body")
+    assert "flex-direction: column;" in activity_block.group("body")
     assert "width: 100%;" in activity_block.group("body")
+    header_block = re.search(r"\.gym-settings-activity-header\s*\{(?P<body>[^}]+)\}", css_resp.text)
+    assert header_block is not None
+    assert "justify-content: space-between;" in header_block.group("body")
+    fields_block = re.search(r"\.gym-settings-activity-fields\s*\{(?P<body>[^}]+)\}", css_resp.text)
+    assert fields_block is not None
+    assert "grid-template-columns: minmax(16rem, 2fr) repeat(4, minmax(6rem, 1fr));" in fields_block.group("body")
+    assert "width: 100%;" in fields_block.group("body")
     actions_block = re.search(r"\.gym-settings-activity-actions\s*\{(?P<body>[^}]+)\}", css_resp.text)
     assert actions_block is not None
     assert "justify-content: flex-end;" in actions_block.group("body")

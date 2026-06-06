@@ -2334,10 +2334,9 @@ input:focus {
 }
 
 .gym-settings-activity {
-    display: grid;
-    grid-template-columns: 6.5rem minmax(0, 2fr) repeat(4, minmax(0, 1fr)) auto;
+    display: flex;
+    flex-direction: column;
     gap: var(--space-sm);
-    align-items: end;
     width: 100%;
     box-sizing: border-box;
     padding: var(--space-md);
@@ -2346,8 +2345,19 @@ input:focus {
     background: var(--bg-tertiary);
 }
 
-.gym-settings-activity-main {
-    min-width: 0;
+.gym-settings-activity-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+}
+
+.gym-settings-activity-fields {
+    display: grid;
+    grid-template-columns: minmax(16rem, 2fr) repeat(4, minmax(6rem, 1fr));
+    gap: var(--space-sm);
+    align-items: end;
+    width: 100%;
 }
 
 .gym-settings-activity-actions {
@@ -2359,7 +2369,6 @@ input:focus {
 }
 
 .gym-settings-activity-type {
-    align-self: center;
     color: var(--text-muted);
     font-size: 0.75rem;
     font-weight: 800;
@@ -2393,6 +2402,10 @@ input:focus {
 
 .gym-settings-activity-details {
     display: contents;
+}
+
+.gym-settings-activity-main {
+    min-width: 0;
 }
 
 .gym-settings-field {
@@ -2459,34 +2472,13 @@ input:focus {
 }
 
 @media (max-width: 1100px) {
-    .gym-settings-activity {
-        grid-template-columns: 1fr auto;
-    }
-
-    .gym-settings-activity-type {
-        grid-column: 1;
-    }
-
-    .gym-settings-activity-actions {
-        grid-column: 2;
-        grid-row: 1;
-    }
-
-    .gym-settings-activity-main,
-    .gym-settings-activity-details {
-        display: grid;
-        grid-column: 1 / -1;
+    .gym-settings-activity-fields {
         grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-        gap: var(--space-sm);
-    }
-
-    .gym-settings-activity-main {
-        grid-template-columns: 1fr;
     }
 }
 
 @media (max-width: 760px) {
-    .gym-settings-activity-main {
+    .gym-settings-activity-fields {
         grid-template-columns: 1fr;
     }
 
