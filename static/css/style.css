@@ -2293,7 +2293,7 @@ input:focus {
 
 .gym-settings-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.9fr);
+    grid-template-columns: 1fr;
     gap: var(--space-lg);
 }
 
@@ -2302,6 +2302,7 @@ input:focus {
     display: flex;
     flex-direction: column;
     gap: var(--space-md);
+    min-width: 0;
 }
 
 .gym-template-form-header {
@@ -2334,9 +2335,11 @@ input:focus {
 
 .gym-settings-activity {
     display: grid;
-    grid-template-columns: 6.5rem minmax(16rem, 2fr) repeat(4, minmax(5.75rem, 1fr)) auto;
+    grid-template-columns: 6.5rem minmax(0, 2fr) repeat(4, minmax(0, 1fr)) auto;
     gap: var(--space-sm);
     align-items: end;
+    width: 100%;
+    box-sizing: border-box;
     padding: var(--space-md);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
