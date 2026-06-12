@@ -33,7 +33,7 @@
             activity_type: type,
             name: '',
             target_sets: type === 'strength' ? 3 : null,
-            target_reps: type === 'strength' ? 12 : null,
+            target_reps: ['strength', 'reps'].includes(type) ? 12 : null,
             target_weight: null,
             target_weight_unit: type === 'strength' ? 'kg' : (type === 'cardio' ? 'kph' : null),
             target_duration_minutes: type === 'cardio' ? 8 : null,
@@ -44,7 +44,7 @@
     }
 
     function renderActivityRow(activity = emptyActivity()) {
-        const type = ['strength', 'cardio', 'mobility'].includes(activity.activity_type)
+        const type = ['strength', 'cardio', 'mobility', 'reps'].includes(activity.activity_type)
             ? activity.activity_type
             : 'mobility';
         return `
@@ -87,6 +87,7 @@
                 <button type="button" class="btn-secondary gym-activity-type-choice" data-action="choose-activity-type" data-activity-type="strength">Add strength</button>
                 <button type="button" class="btn-secondary gym-activity-type-choice" data-action="choose-activity-type" data-activity-type="cardio">Add cardio</button>
                 <button type="button" class="btn-secondary gym-activity-type-choice" data-action="choose-activity-type" data-activity-type="mobility">Add mobility</button>
+                <button type="button" class="btn-secondary gym-activity-type-choice" data-action="choose-activity-type" data-activity-type="reps">Add reps</button>
             </div>
         `);
     }
@@ -106,6 +107,11 @@
                 ${fieldHtml('target_intensity', 'Intensity', 'text', activity.target_intensity)}
                 ${fieldHtml('target_speed', 'Speed', 'number', activity.target_speed, {step: '0.5'})}
                 ${unitSelectHtml('target_weight_unit', 'Unit', activity.target_weight_unit, ['kph', 'mph', 'rpm'])}
+            `;
+        }
+        if (type === 'reps') {
+            return `
+                ${fieldHtml('target_reps', 'Reps', 'number', activity.target_reps, {step: '1'})}
             `;
         }
         return `
@@ -231,6 +237,13 @@
             data.target_reps = null;
             data.target_weight = null;
             data.target_weight_unit = null;
+            data.target_speed = null;
+        } else if (data.activity_type === 'reps') {
+            data.target_sets = null;
+            data.target_weight = null;
+            data.target_weight_unit = null;
+            data.target_duration_minutes = null;
+            data.target_intensity = null;
             data.target_speed = null;
         }
         return data;

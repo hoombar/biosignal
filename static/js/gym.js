@@ -58,6 +58,9 @@
             if (activity.planned_intensity) parts.push(activity.planned_intensity);
             return parts.join(' · ') || 'Mobility';
         }
+        if (activity.activity_type === 'reps') {
+            return activity.planned_reps != null ? `${activity.planned_reps} reps` : 'Reps';
+        }
         return activity.planned_notes || 'Freeform activity';
     }
 
@@ -217,6 +220,13 @@
                 <div class="gym-adjust-grid">
                     ${numberField('actual_duration_minutes', 'Minutes', activity.actual_duration_minutes)}
                     ${textField('actual_intensity', 'Intensity', activity.actual_intensity)}
+                </div>
+            `;
+        }
+        if (activity.activity_type === 'reps') {
+            return `
+                <div class="gym-adjust-grid">
+                    ${numberField('actual_reps', 'Reps', activity.actual_reps)}
                 </div>
             `;
         }

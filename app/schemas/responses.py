@@ -112,7 +112,7 @@ class ContextDailyEntry(BaseModel):
     notes: str | None = None
 
 
-ActivityType = Literal["strength", "cardio", "mobility"]
+ActivityType = Literal["strength", "cardio", "mobility", "reps"]
 ActivityRating = Literal["easy", "normal", "hard"]
 
 
@@ -147,6 +147,13 @@ class GymTemplateActivityInput(BaseModel):
             self.target_reps = None
             self.target_weight = None
             self.target_weight_unit = None
+            self.target_speed = None
+        elif self.activity_type == "reps":
+            self.target_sets = None
+            self.target_weight = None
+            self.target_weight_unit = None
+            self.target_duration_minutes = None
+            self.target_intensity = None
             self.target_speed = None
         return self
 
