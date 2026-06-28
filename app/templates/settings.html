@@ -212,38 +212,8 @@
             <input type="search" id="habit-search" class="settings-input settings-input--search" placeholder="Search habits…" aria-label="Search habits">
             <label class="archived-toggle"><input type="checkbox" id="show-archived"> Show archived</label>
         </div>
-        <div class="settings-table-wrap">
-            <table class="settings-table">
-                <colgroup>
-                    <col class="settings-table-col--name">
-                    <col class="settings-table-col--type">
-                    <col class="settings-table-col--period">
-                    <col class="settings-table-col--target">
-                    <col class="settings-table-col--negative">
-                    <col class="settings-table-col--label">
-                    <col class="settings-table-col--emoji">
-                    <col class="settings-table-col--color">
-                    <col class="settings-table-col--order">
-                    <col class="settings-table-col--actions">
-                </colgroup>
-                <thead>
-                    <tr>
-                        <th>Habit name</th>
-                        <th>Type</th>
-                        <th>Period</th>
-                        <th>Target</th>
-                        <th>Neg?</th>
-                        <th>Display label</th>
-                        <th>Emoji</th>
-                        <th>Color</th>
-                        <th>Order</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody id="habits-tbody">
-                    <!-- Populated by JS -->
-                </tbody>
-            </table>
+        <div class="habit-card-list" id="habits-list">
+            <!-- Populated by JS -->
         </div>
         <div class="settings-actions">
             <button type="submit" class="btn-primary" id="save-btn">Save all</button>
@@ -725,7 +695,7 @@
 
 <script>
 (async function () {
-    const tbody = document.getElementById('habits-tbody');
+    const habitsList = document.getElementById('habits-list');
     const form = document.getElementById('habits-form');
     const loading = document.getElementById('habits-loading');
     const errorEl = document.getElementById('habits-error');
@@ -752,7 +722,17 @@
         return habitName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
     }
 
-    function renderRow(habit) {
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>'"]/g, char => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;',
+        }[char]));
+    }
+
+    function renderCard(habit) {
         const label = habit.display_name ?? '';
         const emoji = habit.emoji ?? '';
         const color = habit.color ?? '';
@@ -763,67 +743,80 @@
         const archivedClass = habit.archived ? ' habit-row--archived' : '';
         const archiveBtnLabel = habit.archived ? 'Unarchive' : 'Archive';
         const archiveAction = habit.archived ? 'unarchive' : 'archive';
+        const habitName = escapeHtml(habit.name);
+        const displayPlaceholder = escapeHtml(defaultLabel(habit.name));
+        const typeLabel = escapeHtml(habit.habit_type);
 
         const periodOptions = ['day', 'week', 'month']
             .map(p => `<option value="${p}"${p === period ? ' selected' : ''}>${p}</option>`)
             .join('');
 
-        const tr = document.createElement('tr');
-        tr.className = `habit-row${archivedClass}`;
-        tr.dataset.habitId = String(habit.id);
-        tr.dataset.habitName = habit.name;
-        tr.innerHTML = `
-            <td class="habit-name-cell">
-                <span class="habit-raw-name">${habit.name}</span>
-                <span class="habit-default-label">${defaultLabel(habit.name)}</span>
-            </td>
-            <td><span class="habit-type-tag">${habit.habit_type}</span></td>
-            <td>
-                <select class="settings-input settings-input--period" name="period"
-                    aria-label="Evaluation period for ${habit.name}">${periodOptions}</select>
-            </td>
-            <td>
-                <input type="number" class="settings-input settings-input--order" name="target_value"
-                    value="${target}" min="0" placeholder="—"
-                    aria-label="Target for ${habit.name}">
-            </td>
-            <td class="cell-center">
-                <input type="checkbox" name="is_negative" ${isNeg ? 'checked' : ''}
-                    aria-label="Negative habit flag for ${habit.name}">
-            </td>
-            <td>
-                <input type="text" class="settings-input settings-input--label" name="display_name"
-                    value="${label}" placeholder="${defaultLabel(habit.name)}"
-                    aria-label="Display label for ${habit.name}">
-            </td>
-            <td>
-                <input type="text" class="settings-input settings-input--emoji" name="emoji"
-                    value="${emoji}" placeholder="—" maxlength="8"
-                    aria-label="Emoji for ${habit.name}">
-            </td>
-            <td>
-                <label class="color-field">
-                    <input type="color" class="settings-color-picker" value="${color || '#4488ff'}"
-                        aria-label="Accent color picker for ${habit.name}">
-                    <input type="text" class="settings-input settings-input--color" name="color"
-                        value="${color}" placeholder="#4488ff"
-                        pattern="^#[0-9a-fA-F]{6}$" aria-label="Accent color hex value for ${habit.name}">
+        const card = document.createElement('article');
+        card.className = `habit-card${archivedClass}`;
+        card.dataset.habitId = String(habit.id);
+        card.dataset.habitName = habit.name;
+        card.innerHTML = `
+            <div class="habit-card-main">
+                <label class="habit-card-label-field">
+                    <span class="settings-field-label">Display label</span>
+                    <input type="text" class="settings-input settings-input--label" name="display_name"
+                        value="${escapeHtml(label)}" placeholder="${displayPlaceholder}"
+                        aria-label="Display label for ${habitName}">
                 </label>
-            </td>
-            <td>
-                <input type="number" class="settings-input settings-input--order" name="sort_order"
-                    value="${order}" min="0" max="999"
-                    aria-label="Sort order for ${habit.name}">
-            </td>
-            <td class="save-cell">
+                <div class="habit-card-meta">
+                    <span class="habit-type-tag">${typeLabel}</span>
+                    <span class="habit-internal-name">Internal name: <code>${habitName}</code></span>
+                </div>
+            </div>
+
+            <div class="habit-card-fields">
+                <label class="settings-field">
+                    <span class="settings-field-label">Period</span>
+                    <select class="settings-input settings-input--period" name="period"
+                        aria-label="Evaluation period for ${habitName}">${periodOptions}</select>
+                </label>
+                <label class="settings-field">
+                    <span class="settings-field-label">Target</span>
+                    <input type="number" class="settings-input settings-input--order" name="target_value"
+                        value="${escapeHtml(target)}" min="0" placeholder="—"
+                        aria-label="Target for ${habitName}">
+                </label>
+                <label class="settings-field settings-field--checkbox">
+                    <input type="checkbox" name="is_negative" ${isNeg ? 'checked' : ''}
+                        aria-label="Negative habit flag for ${habitName}">
+                    <span>Negative</span>
+                </label>
+                <label class="settings-field">
+                    <span class="settings-field-label">Emoji</span>
+                    <input type="text" class="settings-input settings-input--emoji" name="emoji"
+                        value="${escapeHtml(emoji)}" placeholder="—" maxlength="8"
+                        aria-label="Emoji for ${habitName}">
+                </label>
+                <label class="settings-field color-field">
+                    <span class="settings-field-label color-field-label">Color</span>
+                    <input type="color" class="settings-color-picker" value="${escapeHtml(color || '#4488ff')}"
+                        aria-label="Accent color picker for ${habitName}">
+                    <input type="text" class="settings-input settings-input--color" name="color"
+                        value="${escapeHtml(color)}" placeholder="#4488ff"
+                        pattern="^#[0-9a-fA-F]{6}$" aria-label="Accent color hex value for ${habitName}">
+                </label>
+                <label class="settings-field settings-field--order">
+                    <span class="settings-field-label">Order</span>
+                    <input type="number" class="settings-input settings-input--order" name="sort_order"
+                        value="${escapeHtml(order)}" min="0" max="999"
+                        aria-label="Sort order for ${habitName}">
+                </label>
+            </div>
+
+            <div class="habit-card-actions">
                 <button type="button" class="btn-secondary btn-archive"
                     data-action="${archiveAction}" data-habit-id="${habit.id}">${archiveBtnLabel}</button>
                 <button type="button" class="btn-danger btn-delete"
-                    data-action="delete" data-habit-id="${habit.id}" data-habit-name="${habit.name}">Delete</button>
+                    data-action="delete" data-habit-id="${habit.id}" data-habit-name="${habitName}">Delete</button>
                 <span class="row-status" aria-live="polite"></span>
-            </td>
+            </div>
         `;
-        return tr;
+        return card;
     }
 
     const searchInput = document.getElementById('habit-search');
@@ -841,16 +834,16 @@
     }
 
     function rerender() {
-        tbody.innerHTML = '';
+        habitsList.innerHTML = '';
         const visible = visibleHabits();
         if (visible.length === 0) {
             form.style.display = '';
             noHabits.style.display = habits.length === 0 ? '' : 'none';
-            // If no habits at all → show empty-state. If filter just hides them → keep table visible with empty body.
+            // If no habits exist, show empty-state. If the filter hides them, keep the editor visible.
             return;
         }
         noHabits.style.display = 'none';
-        visible.forEach(h => tbody.appendChild(renderRow(h)));
+        visible.forEach(h => habitsList.appendChild(renderCard(h)));
         form.style.display = '';
     }
 
@@ -874,7 +867,7 @@
 
     syncColorFields(addForm);
 
-    tbody.addEventListener('input', (e) => {
+    habitsList.addEventListener('input', (e) => {
         const picker = e.target.closest('.settings-color-picker');
         const colorText = e.target.closest('.settings-input--color');
 
@@ -917,7 +910,7 @@
         saveStatus.textContent = 'Saving…';
         saveStatus.className = 'save-status';
 
-        const rows = tbody.querySelectorAll('tr[data-habit-id]');
+        const rows = habitsList.querySelectorAll('[data-habit-id]');
         const promises = Array.from(rows).map(async row => {
             const id = row.dataset.habitId;
             const display_name = row.querySelector('[name=display_name]').value.trim() || null;
@@ -958,13 +951,13 @@
 
         await Promise.all(promises);
 
-        const anyErr = tbody.querySelector('.row-status--err');
+        const anyErr = habitsList.querySelector('.row-status--err');
         saveStatus.textContent = anyErr ? 'Some failed to save' : 'Saved';
         saveStatus.className = anyErr ? 'save-status save-status--err' : 'save-status save-status--ok';
         saveBtn.disabled = false;
 
         setTimeout(() => {
-            tbody.querySelectorAll('.row-status').forEach(el => {
+            habitsList.querySelectorAll('.row-status').forEach(el => {
                 el.textContent = '';
                 el.className = 'row-status';
             });
@@ -972,7 +965,7 @@
         }, 3000);
     });
 
-    tbody.addEventListener('click', async (e) => {
+    habitsList.addEventListener('click', async (e) => {
         const btn = e.target.closest('button[data-action]');
         if (!btn) return;
         const id = btn.dataset.habitId;
@@ -1082,9 +1075,11 @@
             period: fd.get('period') || 'day',
             is_negative: fd.get('is_negative') === 'on',
         };
+        const typedName = (fd.get('name') || '').trim();
         const emoji = (fd.get('emoji') || '').trim();
         const color = (fd.get('color') || '').trim();
         const targetRaw = (fd.get('target_value') || '').trim();
+        if (typedName) payload.display_name = typedName;
         if (emoji) payload.emoji = emoji;
         if (color) payload.color = color;
         if (targetRaw !== '') payload.target_value = parseInt(targetRaw, 10);

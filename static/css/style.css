@@ -2515,82 +2515,136 @@ input:focus {
     color: var(--text-muted);
 }
 
-.settings-table-wrap {
-    overflow-x: auto;
+.habit-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
     margin-bottom: var(--space-lg);
 }
 
-.settings-table {
-    width: 100%;
-    min-width: 1360px;
-    border-collapse: separate;
-    border-spacing: 0 8px;
-    table-layout: fixed;
-    font-size: 0.8125rem;
-}
-
-.settings-table-col--name { width: 20rem; }
-.settings-table-col--type { width: 7rem; }
-.settings-table-col--period { width: 7rem; }
-.settings-table-col--target { width: 5.5rem; }
-.settings-table-col--negative { width: 4.5rem; }
-.settings-table-col--label { width: 15rem; }
-.settings-table-col--emoji { width: 5.5rem; }
-.settings-table-col--color { width: 12rem; }
-.settings-table-col--order { width: 5rem; }
-.settings-table-col--actions { width: 10.5rem; }
-
-.settings-table th {
-    text-align: left;
-    padding: 0 var(--space-md) var(--space-xs);
-    font-size: 0.6875rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-muted);
-}
-
-.settings-table td {
+.habit-card {
+    display: grid;
+    grid-template-columns: minmax(16rem, 0.95fr) minmax(0, 1.6fr);
+    gap: var(--space-md);
+    align-items: end;
     padding: var(--space-sm) var(--space-md);
-    border-top: 1px solid var(--border-subtle);
-    border-bottom: 1px solid var(--border-subtle);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
     background: rgba(26, 26, 36, 0.68);
-    vertical-align: middle;
 }
 
-.settings-table tbody tr:hover td {
+.habit-card:hover {
     background: var(--bg-tertiary);
     border-color: var(--border-strong);
 }
 
-.settings-table td:first-child {
-    border-left: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md) 0 0 var(--radius-md);
-}
-
-.settings-table td:last-child {
-    border-right: 1px solid var(--border-subtle);
-    border-radius: 0 var(--radius-md) var(--radius-md) 0;
-}
-
-.habit-name-cell {
+.habit-card-main {
+    min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    min-width: 0;
+    gap: var(--space-xs);
 }
 
-.habit-raw-name {
-    font-family: var(--font-mono);
-    font-size: 0.8125rem;
-    color: var(--text-primary);
-    overflow-wrap: anywhere;
+.habit-card-label-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
-.habit-default-label {
-    font-size: 0.75rem;
+.habit-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.habit-internal-name {
     color: var(--text-muted);
-    overflow-wrap: anywhere;
+    font-size: 0.75rem;
+}
+
+.habit-internal-name code {
+    font-family: var(--font-mono);
+    color: var(--text-secondary);
+}
+
+.habit-card-fields {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(6rem, 0.9fr) minmax(5rem, 0.7fr) minmax(7rem, 0.8fr) minmax(5rem, 0.7fr) minmax(11rem, 1fr) minmax(4.5rem, 0.5fr);
+    gap: var(--space-sm);
+    align-items: end;
+}
+
+.habit-card-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-xs);
+    white-space: nowrap;
+}
+
+.settings-field {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.settings-field-label {
+    font-size: 0.6875rem !important;
+    font-weight: 600;
+    line-height: 1.2;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em;
+    color: var(--text-muted) !important;
+}
+
+.settings-field--checkbox {
+    min-height: 2.5rem;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+}
+
+.settings-field--order {
+    max-width: 5rem;
+}
+
+@media (max-width: 760px) {
+    .habit-card {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
+    .habit-card-fields {
+        grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+    }
+
+    .habit-card-actions {
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 600px) {
+    .settings-section {
+        padding: var(--space-md);
+    }
+
+    .habit-card {
+        padding: var(--space-sm);
+    }
+
+    .habit-card-fields {
+        grid-template-columns: 1fr;
+    }
+
+    .habit-card-actions {
+        flex-wrap: wrap;
+    }
 }
 
 .settings-input {
@@ -2637,6 +2691,10 @@ input:focus {
     grid-template-columns: 2.5rem minmax(0, 1fr);
     align-items: center;
     gap: var(--space-xs);
+}
+
+.color-field-label {
+    grid-column: 1 / -1;
 }
 
 .color-field--compact {
@@ -2789,15 +2847,14 @@ input:focus {
 
 .add-habit-form {
     padding: var(--space-md);
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: minmax(14rem, 1.4fr) minmax(11rem, 1fr) minmax(8rem, 0.8fr) minmax(8rem, 0.7fr) minmax(9rem, 0.9fr) minmax(5rem, 0.5fr) minmax(13rem, 1fr) auto;
     gap: var(--space-sm);
     align-items: center;
 }
 
 .add-habit-form .settings-input {
-    width: auto;
-    flex: 1 1 140px;
+    width: 100%;
     min-width: 0;
 }
 
@@ -2811,7 +2868,17 @@ input:focus {
 }
 
 .add-habit-form select.settings-input {
-    flex: 0 0 auto;
+    width: 100%;
+}
+
+@media (max-width: 1100px) {
+    .add-habit-form {
+        grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    }
+
+    .add-habit-form .btn-primary {
+        justify-self: start;
+    }
 }
 
 .settings-backup {
@@ -2896,6 +2963,18 @@ input:focus {
 
 .habit-row--archived {
     opacity: 0.55;
+}
+
+.habit-row--archived {
+    text-decoration: line-through;
+    text-decoration-color: var(--text-muted);
+}
+
+.habit-row--archived input,
+.habit-row--archived select,
+.habit-row--archived button,
+.habit-row--archived .row-status {
+    text-decoration: none;
 }
 
 .habit-row--archived td {
@@ -3339,6 +3418,17 @@ input:focus {
 
 .cell-center {
     text-align: center;
+}
+
+@media (max-width: 600px) {
+    .settings-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .settings-input--search {
+        max-width: none;
+    }
 }
 
 /* ============================================

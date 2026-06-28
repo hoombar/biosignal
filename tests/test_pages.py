@@ -18,6 +18,26 @@ def test_settings_page_renders_backup_controls():
     assert 'id="habit-import-file-name"' in html
 
 
+def test_habit_settings_editor_prioritizes_display_label_cards():
+    with TestClient(app) as client:
+        html_resp = client.get("/settings")
+        css_resp = client.get("/static/css/style.css")
+
+    assert html_resp.status_code == 200
+    assert css_resp.status_code == 200
+    html = html_resp.text
+    css = css_resp.text
+    assert 'id="habits-list"' in html
+    assert 'class="habit-card-list"' in html
+    assert 'card.className = `habit-card${archivedClass}`' in html
+    assert 'name="display_name"' in html
+    assert 'Internal name' in html
+    assert 'class="settings-table"' not in html
+    assert '.habit-card-list' in css
+    assert '.habit-card-main' in css
+    assert '.habit-internal-name' in css
+
+
 def test_settings_page_renders_sync_controls():
     with TestClient(app) as client:
         resp = client.get("/settings")
