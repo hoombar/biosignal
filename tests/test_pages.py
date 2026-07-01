@@ -156,7 +156,8 @@ def test_gym_settings_activity_editor_filters_fields_by_type():
     assert "fieldHtml('target_reps', 'Reps', 'number', activity.target_reps, {step: '1'})" in script
     assert "normalizeActivityForType(data)" in script
     assert "target_duration_minutes = null" in script
-    assert "target_sets = null" in script
+    assert "target_sets: ['strength', 'mobility'].includes(type) ? 3 : null" in script
+    assert "target_reps: ['strength', 'mobility', 'reps'].includes(type) ? 12 : null" in script
 
 
 def test_gym_settings_add_activity_asks_for_type():

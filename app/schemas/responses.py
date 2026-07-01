@@ -143,8 +143,6 @@ class GymTemplateActivityInput(BaseModel):
             self.target_reps = None
             self.target_weight = None
         elif self.activity_type == "mobility":
-            self.target_sets = None
-            self.target_reps = None
             self.target_weight = None
             self.target_weight_unit = None
             self.target_speed = None

@@ -54,6 +54,9 @@
         }
         if (activity.activity_type === 'mobility') {
             const parts = [];
+            if (activity.planned_sets != null || activity.planned_reps != null) {
+                parts.push(`${activity.planned_sets ?? '-'} x ${activity.planned_reps ?? '-'}`);
+            }
             if (activity.planned_duration_minutes != null) parts.push(`${compactNumber(activity.planned_duration_minutes)} min`);
             if (activity.planned_intensity) parts.push(activity.planned_intensity);
             return parts.join(' · ') || 'Mobility';
@@ -223,6 +226,8 @@
         if (activity.activity_type === 'mobility') {
             return `
                 <div class="gym-adjust-grid">
+                    ${numberField('actual_sets', 'Sets', activity.actual_sets)}
+                    ${numberField('actual_reps', 'Reps', activity.actual_reps)}
                     ${numberField('actual_duration_minutes', 'Minutes', activity.actual_duration_minutes)}
                     ${textField('actual_intensity', 'Intensity', activity.actual_intensity)}
                 </div>

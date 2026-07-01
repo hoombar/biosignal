@@ -157,8 +157,8 @@ class TestGymTemplates:
         assert cardio["target_reps"] is None
         assert cardio["target_weight"] is None
         assert cardio["target_weight_unit"] == "rpm"
-        assert mobility["target_sets"] is None
-        assert mobility["target_reps"] is None
+        assert mobility["target_sets"] == 3
+        assert mobility["target_reps"] == 12
         assert mobility["target_weight"] is None
         assert mobility["target_weight_unit"] is None
         assert mobility["target_speed"] is None
@@ -239,6 +239,33 @@ class TestGymSessions:
         body = refetch_resp.json()
         assert body["template_name_snapshot"] == "Standard upper/back/arms"
         assert [a["name_snapshot"] for a in body["activities"]] == ["Elliptical warm-up", "Low row"]
+
+    @pytest.mark.asyncio
+    async def test_start_session_snapshots_mobility_sets_and_reps(self, async_session):
+        app = _make_app(async_session)
+
+        with TestClient(app) as client:
+            template = client.post("/api/gym/templates", json={
+                "name": "Mobility plan",
+                "activities": [{
+                    "activity_type": "mobility",
+                    "name": "Hip airplanes",
+                    "target_sets": 2,
+                    "target_reps": 8,
+                    "target_duration_minutes": 5,
+                }],
+            }).json()
+            session_resp = client.post(
+                "/api/gym/sessions",
+                json={"date": "2026-06-02", "template_id": template["id"]},
+            )
+
+        assert session_resp.status_code == 201
+        activity = session_resp.json()["activities"][0]
+        assert activity["planned_sets"] == 2
+        assert activity["planned_reps"] == 8
+        assert activity["actual_sets"] == 2
+        assert activity["actual_reps"] == 8
 
     @pytest.mark.asyncio
     async def test_one_session_per_date(self, async_session):

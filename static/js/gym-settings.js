@@ -32,8 +32,8 @@
         return {
             activity_type: type,
             name: '',
-            target_sets: type === 'strength' ? 3 : null,
-            target_reps: ['strength', 'reps'].includes(type) ? 12 : null,
+            target_sets: ['strength', 'mobility'].includes(type) ? 3 : null,
+            target_reps: ['strength', 'mobility', 'reps'].includes(type) ? 12 : null,
             target_weight: null,
             target_weight_unit: type === 'strength' ? 'kg' : (type === 'cardio' ? 'kph' : null),
             target_duration_minutes: type === 'cardio' ? 8 : null,
@@ -115,6 +115,8 @@
             `;
         }
         return `
+            ${fieldHtml('target_sets', 'Sets', 'number', activity.target_sets, {step: '1'})}
+            ${fieldHtml('target_reps', 'Reps', 'number', activity.target_reps, {step: '1'})}
             ${fieldHtml('target_duration_minutes', 'Minutes', 'number', activity.target_duration_minutes, {step: '0.5'})}
             ${fieldHtml('target_intensity', 'Intensity', 'text', activity.target_intensity)}
             ${fieldHtml('notes', 'Notes', 'text', activity.notes, {wide: true})}
@@ -233,8 +235,6 @@
             data.target_reps = null;
             data.target_weight = null;
         } else if (data.activity_type === 'mobility') {
-            data.target_sets = null;
-            data.target_reps = null;
             data.target_weight = null;
             data.target_weight_unit = null;
             data.target_speed = null;
