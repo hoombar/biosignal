@@ -134,22 +134,11 @@ class TestGymTemplates:
                         "target_intensity": "easy",
                         "target_speed": 5,
                     },
-                    {
-                        "activity_type": "reps",
-                        "name": "Dead bug",
-                        "target_sets": 3,
-                        "target_reps": 10,
-                        "target_weight": 20,
-                        "target_weight_unit": "kg",
-                        "target_duration_minutes": 4,
-                        "target_intensity": "controlled",
-                        "target_speed": 5,
-                    },
                 ],
             })
 
         assert resp.status_code == 201
-        strength, cardio, mobility, reps = resp.json()["activities"]
+        strength, cardio, mobility = resp.json()["activities"]
         assert strength["target_duration_minutes"] is None
         assert strength["target_intensity"] is None
         assert strength["target_speed"] is None
@@ -161,14 +150,10 @@ class TestGymTemplates:
         assert mobility["target_reps"] == 12
         assert mobility["target_weight"] is None
         assert mobility["target_weight_unit"] is None
+        assert mobility["target_duration_minutes"] is None
+        assert mobility["target_intensity"] is None
         assert mobility["target_speed"] is None
-        assert reps["target_reps"] == 10
-        assert reps["target_sets"] is None
-        assert reps["target_weight"] is None
-        assert reps["target_weight_unit"] is None
-        assert reps["target_duration_minutes"] is None
-        assert reps["target_intensity"] is None
-        assert reps["target_speed"] is None
+        assert mobility["notes"] is None
 
     @pytest.mark.asyncio
     async def test_freeform_activity_type_is_rejected(self, async_session):
@@ -178,6 +163,18 @@ class TestGymTemplates:
             resp = client.post("/api/gym/templates", json={
                 "name": "Old plan",
                 "activities": [{"activity_type": "freeform", "name": "Stretch"}],
+            })
+
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_reps_activity_type_is_rejected(self, async_session):
+        app = _make_app(async_session)
+
+        with TestClient(app) as client:
+            resp = client.post("/api/gym/templates", json={
+                "name": "Old reps plan",
+                "activities": [{"activity_type": "reps", "name": "Dead bug", "target_reps": 10}],
             })
 
         assert resp.status_code == 422

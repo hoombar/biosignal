@@ -57,12 +57,7 @@
             if (activity.planned_sets != null || activity.planned_reps != null) {
                 parts.push(`${activity.planned_sets ?? '-'} x ${activity.planned_reps ?? '-'}`);
             }
-            if (activity.planned_duration_minutes != null) parts.push(`${compactNumber(activity.planned_duration_minutes)} min`);
-            if (activity.planned_intensity) parts.push(activity.planned_intensity);
             return parts.join(' · ') || 'Mobility';
-        }
-        if (activity.activity_type === 'reps') {
-            return activity.planned_reps != null ? `${activity.planned_reps} reps` : 'Reps';
         }
         return activity.planned_notes || 'Freeform activity';
     }
@@ -192,10 +187,12 @@
                 <details class="gym-adjust">
                     <summary>Adjust</summary>
                     ${renderAdjustFields(activity)}
-                    <label class="gym-note-label">
-                        Note
-                        <textarea data-field="notes" rows="2">${escapeHtml(activity.notes || '')}</textarea>
-                    </label>
+                    ${activity.activity_type === 'mobility' ? '' : `
+                        <label class="gym-note-label">
+                            Note
+                            <textarea data-field="notes" rows="2">${escapeHtml(activity.notes || '')}</textarea>
+                        </label>
+                    `}
                     <button type="button" class="gym-save-adjust" data-action="save-activity">Save changes</button>
                 </details>
             </article>
@@ -227,15 +224,6 @@
             return `
                 <div class="gym-adjust-grid">
                     ${numberField('actual_sets', 'Sets', activity.actual_sets)}
-                    ${numberField('actual_reps', 'Reps', activity.actual_reps)}
-                    ${numberField('actual_duration_minutes', 'Minutes', activity.actual_duration_minutes)}
-                    ${textField('actual_intensity', 'Intensity', activity.actual_intensity)}
-                </div>
-            `;
-        }
-        if (activity.activity_type === 'reps') {
-            return `
-                <div class="gym-adjust-grid">
                     ${numberField('actual_reps', 'Reps', activity.actual_reps)}
                 </div>
             `;

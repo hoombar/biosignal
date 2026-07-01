@@ -149,7 +149,7 @@ def test_gym_settings_activity_editor_filters_fields_by_type():
     assert resp.status_code == 200
     script = resp.text
     assert "data-activity-type=\"mobility\"" in script
-    assert "data-activity-type=\"reps\"" in script
+    assert "data-activity-type=\"reps\"" not in script
     assert "data-field=\"activity_type\"" not in script
     assert "data-activity-type=\"freeform\"" not in script
     assert "unitSelectHtml('target_weight_unit', 'Unit', activity.target_weight_unit, ['kg', 'lbs'])" in script
@@ -158,7 +158,7 @@ def test_gym_settings_activity_editor_filters_fields_by_type():
     assert "normalizeActivityForType(data)" in script
     assert "target_duration_minutes = null" in script
     assert "target_sets: ['strength', 'mobility'].includes(type) ? 3 : null" in script
-    assert "target_reps: ['strength', 'mobility', 'reps'].includes(type) ? 12 : null" in script
+    assert "target_reps: ['strength', 'mobility'].includes(type) ? 12 : null" in script
 
 
 def test_gym_settings_add_activity_asks_for_type():
@@ -172,17 +172,18 @@ def test_gym_settings_add_activity_asks_for_type():
     assert "Add strength" in script
     assert "Add cardio" in script
     assert "Add mobility" in script
-    assert "Add reps" in script
+    assert "Add reps" not in script
 
 
-def test_gym_session_editor_supports_reps_only_activity_type():
+def test_gym_session_editor_supports_mobility_sets_and_reps():
     with TestClient(app) as client:
         resp = client.get("/static/js/gym.js")
 
     assert resp.status_code == 200
     script = resp.text
-    assert "activity.activity_type === 'reps'" in script
+    assert "activity.activity_type === 'reps'" not in script
     assert "actual_reps', 'Reps'" in script
+    assert "actual_sets', 'Sets'" in script
     assert "planned_reps" in script
 
 
