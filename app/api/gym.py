@@ -39,6 +39,10 @@ def _clean_text(value: str | None) -> str | None:
     return cleaned or None
 
 
+def _activity_type(value: str) -> str:
+    return "mobility" if value == "reps" else value
+
+
 async def _load_template(db: AsyncSession, template_id: int) -> GymSessionTemplate:
     template = (await db.execute(
         select(GymSessionTemplate).where(GymSessionTemplate.id == template_id)
@@ -68,7 +72,7 @@ def _template_activity_response(activity: GymTemplateActivity) -> GymTemplateAct
     return GymTemplateActivityResponse(
         id=activity.id,
         sort_order=activity.sort_order,
-        activity_type=activity.activity_type,
+        activity_type=_activity_type(activity.activity_type),
         name=activity.name,
         target_sets=activity.target_sets,
         target_reps=activity.target_reps,
@@ -98,7 +102,7 @@ def _activity_response(activity: GymSessionActivityLog) -> GymSessionActivityRes
     return GymSessionActivityResponse(
         id=activity.id,
         sort_order=activity.sort_order,
-        activity_type=activity.activity_type,
+        activity_type=_activity_type(activity.activity_type),
         name_snapshot=activity.name_snapshot,
         planned_sets=activity.planned_sets,
         planned_reps=activity.planned_reps,

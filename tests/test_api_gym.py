@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.api.gym import router
 from app.core.database import get_db
-from app.models.database import GymSessionActivityLog, GymSessionLog, GymSessionTemplate
+from app.models.database import GymSessionActivityLog, GymSessionLog, GymSessionTemplate, GymTemplateActivity
 
 
 def _make_app(session):
@@ -178,6 +178,30 @@ class TestGymTemplates:
             })
 
         assert resp.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_legacy_reps_template_activity_is_returned_as_mobility(self, async_session):
+        template = GymSessionTemplate(name="Legacy reps plan")
+        async_session.add(template)
+        await async_session.flush()
+        async_session.add(GymTemplateActivity(
+            template_id=template.id,
+            sort_order=0,
+            activity_type="reps",
+            name="Dead bug",
+            target_reps=10,
+        ))
+        await async_session.commit()
+
+        app = _make_app(async_session)
+
+        with TestClient(app) as client:
+            resp = client.get("/api/gym/templates")
+
+        assert resp.status_code == 200
+        activity = resp.json()[0]["activities"][0]
+        assert activity["activity_type"] == "mobility"
+        assert activity["target_reps"] == 10
 
     @pytest.mark.asyncio
     async def test_archive_template_excludes_it_by_default(self, async_session):
