@@ -259,6 +259,28 @@ class TestGymSessions:
         assert second.status_code == 409
 
     @pytest.mark.asyncio
+    async def test_delete_session_removes_session_and_activity_logs(self, async_session):
+        app = _make_app(async_session)
+
+        with TestClient(app) as client:
+            template = client.post("/api/gym/templates", json=_template_payload()).json()
+            session = client.post(
+                "/api/gym/sessions",
+                json={"date": "2026-06-02", "template_id": template["id"]},
+            ).json()
+            delete_resp = client.delete(f"/api/gym/sessions/{session['id']}")
+            refetch_resp = client.get("/api/gym/session", params={"date": "2026-06-02"})
+
+        assert delete_resp.status_code == 204
+        assert refetch_resp.status_code == 200
+        assert refetch_resp.json() is None
+
+        sessions = (await async_session.execute(select(GymSessionLog))).scalars().all()
+        activities = (await async_session.execute(select(GymSessionActivityLog))).scalars().all()
+        assert sessions == []
+        assert activities == []
+
+    @pytest.mark.asyncio
     async def test_partial_activity_completion_and_actual_edits(self, async_session):
         app = _make_app(async_session)
 

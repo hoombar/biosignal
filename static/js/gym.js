@@ -149,9 +149,14 @@
                     <h2>${escapeHtml(session.template_name_snapshot)}</h2>
                     <p>${completed} / ${activities.length} complete</p>
                 </div>
-                <button type="button" class="gym-finish-btn" data-action="finish-session" ${finished ? 'disabled' : ''}>
-                    ${finished ? 'Finished' : 'Finish'}
-                </button>
+                <div class="gym-session-actions">
+                    <button type="button" class="btn-secondary" data-action="delete-session">
+                        Cancel session
+                    </button>
+                    <button type="button" class="gym-finish-btn" data-action="finish-session" ${finished ? 'disabled' : ''}>
+                        ${finished ? 'Finished' : 'Finish'}
+                    </button>
+                </div>
             </div>
             <div class="gym-activity-list">
                 ${activities.map(renderActivity).join('')}
@@ -316,6 +321,21 @@
         }
     }
 
+    async function deleteSession() {
+        if (!state.session) return;
+        if (!window.confirm('Cancel this gym session? This will delete the session log for this date.')) return;
+        setStatus('Cancelling session…');
+        try {
+            await fetchJson(`/api/gym/sessions/${state.session.id}`, {method: 'DELETE'});
+            state.session = null;
+            render();
+            setStatus('');
+        } catch (err) {
+            console.error('Failed to cancel gym session', err);
+            setStatus('Could not cancel session.', true);
+        }
+    }
+
     function collectActivityPatch(card) {
         const patch = {};
         card.querySelectorAll('[data-field]').forEach(input => {
@@ -347,6 +367,10 @@
             const action = actionEl.dataset.action;
             if (action === 'finish-session') {
                 finishSession();
+                return;
+            }
+            if (action === 'delete-session') {
+                deleteSession();
                 return;
             }
             const card = actionEl.closest('[data-activity-id]');

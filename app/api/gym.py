@@ -303,6 +303,19 @@ async def update_session(
     return await _session_response(db, session)
 
 
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_session(session_id: int, db: AsyncSession = Depends(get_db)):
+    session = (await db.execute(
+        select(GymSessionLog).where(GymSessionLog.id == session_id)
+    )).scalar_one_or_none()
+    if session is None:
+        raise HTTPException(status_code=404, detail=f"gym session {session_id} not found")
+    await db.execute(delete(GymSessionActivityLog).where(GymSessionActivityLog.session_log_id == session_id))
+    await db.delete(session)
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.put("/session-activities/{activity_id}", response_model=GymSessionActivityResponse)
 async def update_session_activity(
     activity_id: int,

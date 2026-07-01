@@ -3600,6 +3600,11 @@ input:focus {
     margin-top: var(--space-md);
 }
 
+.gym-session-actions {
+    display: flex;
+    gap: var(--space-sm);
+}
+
 .gym-rating-btn,
 .gym-finish-btn,
 .gym-save-adjust {
@@ -3664,8 +3669,13 @@ input:focus {
     }
 
     .gym-date-label,
+    .gym-session-actions,
     .gym-finish-btn {
         width: 100%;
+    }
+
+    .gym-session-actions {
+        flex-direction: column;
     }
 }
 
