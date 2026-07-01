@@ -92,6 +92,7 @@ def test_settings_page_renders_gym_template_editor():
     assert 'id="gym-template-form"' in html
     assert 'id="gym-template-list"' in html
     assert 'id="gym-add-activity"' in html
+    assert html.index('id="gym-template-activities"') < html.index('id="gym-add-activity"')
     assert "/static/js/gym-settings.js" in html
 
 

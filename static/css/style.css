@@ -2333,6 +2333,10 @@ input:focus {
     background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
 }
 
+.gym-add-activity-btn {
+    align-self: flex-start;
+}
+
 .gym-settings-activity {
     display: flex;
     flex-direction: column;
