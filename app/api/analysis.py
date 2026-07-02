@@ -1,6 +1,6 @@
 """Analysis API endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -73,6 +73,7 @@ async def get_correlation_targets(db: AsyncSession = Depends(get_db)):
 
 @router.get("/correlations", response_model=list[CorrelationResult])
 async def get_correlations(
+    response: Response,
     target: str | None = None,
     target_habit: str | None = None,
     min_days: int = 5,
@@ -91,13 +92,23 @@ async def get_correlations(
         raise HTTPException(status_code=422, detail="Either 'target' or 'target_habit' is required")
 
     settings = get_settings()
+    diagnostics: dict = {}
     correlations = await compute_correlations(
         db,
         settings.tz,
         target=target,
         target_habit=target_habit,
         min_days=min_days,
+        diagnostics=diagnostics,
     )
+
+    if not correlations:
+        empty_reason = diagnostics.get("empty_reason")
+        target_n = diagnostics.get("target_n")
+        if empty_reason:
+            response.headers["X-Correlation-Empty-Reason"] = str(empty_reason)
+        if target_n is not None:
+            response.headers["X-Correlation-Target-N"] = str(target_n)
 
     return [CorrelationResult(**c) for c in correlations]
 

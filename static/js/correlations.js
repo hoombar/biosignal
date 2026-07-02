@@ -53,6 +53,17 @@ function targetDisplayLabel(value) {
     return `Metric: ${value.replace(/_/g, ' ')}`;
 }
 
+function emptyCorrelationMessage(reason, targetN) {
+    if (reason === 'constant_target') {
+        const days = targetN ? ` across ${targetN} tracked days` : '';
+        return `This target has no variation${days}, so correlations cannot be calculated. For supplements, you need both taken and not-taken days to compare.`;
+    }
+    if (reason === 'no_correlatable_features') {
+        return 'This target has enough data, but no other varying metrics overlap with it yet.';
+    }
+    return 'Insufficient data for correlations. Need at least 5 days with this target tracked.';
+}
+
 async function loadMetricMetadata() {
     try {
         const resp = await fetch('/api/export/metadata');
@@ -434,8 +445,10 @@ async function loadCorrelations() {
         const correlations = await resp.json();
 
         if (correlations.length === 0) {
+            const emptyReason = resp.headers.get('X-Correlation-Empty-Reason');
+            const targetN = resp.headers.get('X-Correlation-Target-N');
             lastCorrelations = [];
-            container.innerHTML = '<p class="loading">Insufficient data for correlations. Need at least 5 days with this target tracked.</p>';
+            container.innerHTML = `<p class="loading">${emptyCorrelationMessage(emptyReason, targetN)}</p>`;
             const metricCountEl = document.getElementById('corr-metric-count');
             const dayCountEl = document.getElementById('corr-day-count');
             if (metricCountEl) metricCountEl.textContent = '0';

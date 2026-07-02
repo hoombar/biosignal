@@ -709,6 +709,7 @@ async def compute_correlations(
     min_days: int = 5,
     features_list: list[dict] | None = None,
     habit_thresholds: dict[str, Habit] | None = None,
+    diagnostics: dict | None = None,
 ) -> list[dict]:
     """
     Compute correlations between all features and a target habit.
@@ -746,7 +747,12 @@ async def compute_correlations(
     ]
     target_data = [(f, v) for f, v in target_data if v is not None]
 
+    if diagnostics is not None:
+        diagnostics["target_n"] = len(target_data)
+
     if len(target_data) < min_days:
+        if diagnostics is not None:
+            diagnostics["empty_reason"] = "insufficient_target_data"
         logger.warning(f"Insufficient data: {len(target_data)} days (need {min_days})")
         return []
 
@@ -754,6 +760,11 @@ async def compute_correlations(
     target_features = [f for f, _ in target_data]
     target_values = [v for _, v in target_data]
     target_is_binary = all(v in (0.0, 1.0) for v in target_values)
+    if np.std(target_values) == 0:
+        if diagnostics is not None:
+            diagnostics["empty_reason"] = "constant_target"
+        logger.warning(f"Constant target data for {_target_selector(target_kind, target_name)}: {len(target_data)} days")
+        return []
     if habit_thresholds is None:
         habit_thresholds = await _load_habit_thresholds(session)
 
@@ -902,6 +913,8 @@ async def compute_correlations(
     else:
         target_label = target_name
     logger.info(f"Computed correlations for {len(results)} features against {target_label}")
+    if diagnostics is not None and not results:
+        diagnostics["empty_reason"] = "no_correlatable_features"
     return results
 
 

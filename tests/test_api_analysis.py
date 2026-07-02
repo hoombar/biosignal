@@ -117,6 +117,42 @@ class TestCorrelationsApi:
         metrics = {row["metric"] for row in resp.json()}
         assert "supplement_vitamin_d" in metrics
 
+    @pytest.mark.asyncio
+    async def test_constant_supplement_target_reports_empty_reason(self, async_session):
+        """A supplement taken every logged day has data, but no target variance."""
+        plan = SupplementPlanVersion(
+            slot="morning",
+            version=1,
+            items=[{"name": "Vitamin D", "dose": None, "notes": None}],
+        )
+        async_session.add(plan)
+        await async_session.flush()
+
+        for i in range(8):
+            d = _make_date(i)
+            async_session.add(SleepSession(
+                date=d,
+                total_sleep_seconds=int((6.5 + i * 0.1) * 3600),
+                sleep_score=60 + i,
+            ))
+            async_session.add(SupplementLog(
+                date=d,
+                slot="morning",
+                plan_version_id=plan.id,
+                completed=True,
+                snapshot=plan.items,
+            ))
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get("/api/correlations", params={"target": "supplement:vitamin_d", "min_days": 5})
+
+        assert resp.status_code == 200
+        assert resp.json() == []
+        assert resp.headers["x-correlation-empty-reason"] == "constant_target"
+        assert resp.headers["x-correlation-target-n"] == "8"
+
 
 class TestCorrelationSnapshotApi:
     """Tests for GET /api/correlation-snapshot."""
