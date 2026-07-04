@@ -2297,6 +2297,25 @@ input:focus {
     gap: var(--space-lg);
 }
 
+.gym-activity-library-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    margin-bottom: var(--space-xl);
+}
+
+.gym-activity-library-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.gym-template-add-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+}
+
 .gym-template-form,
 .gym-template-list-panel {
     display: flex;
@@ -2443,6 +2462,10 @@ input:focus {
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
     background: var(--bg-tertiary);
+}
+
+.gym-settings-template--selectable {
+    align-items: center;
 }
 
 .gym-settings-template h4,
@@ -3477,7 +3500,9 @@ input:focus {
 .gym-date-label input,
 .gym-adjust input,
 .gym-adjust select,
-.gym-adjust textarea {
+.gym-adjust textarea,
+.gym-add-session-activity input,
+.gym-add-session-activity select {
     width: 100%;
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
@@ -3634,7 +3659,16 @@ input:focus {
     margin-top: var(--space-sm);
 }
 
-.gym-adjust summary {
+.gym-add-session-activity {
+    margin-top: var(--space-md);
+    padding: var(--space-md);
+    border: 1px dashed var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+}
+
+.gym-adjust summary,
+.gym-add-session-activity summary {
     color: var(--text-secondary);
     cursor: pointer;
     font-size: 0.875rem;
@@ -3656,6 +3690,28 @@ input:focus {
     color: var(--text-secondary);
     font-size: 0.75rem;
     font-weight: 700;
+}
+
+.gym-add-session-activity-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    margin-top: var(--space-sm);
+}
+
+.gym-add-session-activity-panel label,
+.gym-add-save-library {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.gym-add-save-library {
+    flex-direction: row;
+    align-items: center;
 }
 
 .gym-note-label {

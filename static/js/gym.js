@@ -4,6 +4,7 @@
     const state = {
         date: '',
         templates: [],
+        activities: [],
         session: null,
     };
 
@@ -87,6 +88,10 @@
         state.templates = await fetchJson('/api/gym/templates');
     }
 
+    async function loadActivities() {
+        state.activities = await fetchJson('/api/gym/activities');
+    }
+
     async function loadSession() {
         state.session = await fetchJson(`/api/gym/session?date=${encodeURIComponent(state.date)}`);
     }
@@ -96,7 +101,7 @@
         els.session.style.display = 'none';
         els.start.style.display = 'none';
         try {
-            await Promise.all([loadTemplates(), loadSession()]);
+            await Promise.all([loadTemplates(), loadActivities(), loadSession()]);
             render();
             setStatus('');
         } catch (err) {
@@ -159,6 +164,108 @@
             <div class="gym-activity-list">
                 ${activities.map(renderActivity).join('')}
             </div>
+            ${finished ? '' : renderAddActivity()}
+        `;
+    }
+
+    function typeLabel(type) {
+        return type.charAt(0).toUpperCase() + type.slice(1);
+    }
+
+    function renderAddActivity() {
+        return `
+            <details class="gym-add-session-activity">
+                <summary>Add activity</summary>
+                <div class="gym-add-session-activity-panel">
+                    <label>
+                        Saved activity
+                        <select data-add-field="activity_id">
+                            <option value="">Custom activity</option>
+                            ${state.activities.map(activity => `
+                                <option value="${activity.id}">${escapeHtml(activity.name)} (${typeLabel(activity.activity_type)})</option>
+                            `).join('')}
+                        </select>
+                    </label>
+                    <label>
+                        Type
+                        <select data-add-field="activity_type">
+                            <option value="strength">Strength</option>
+                            <option value="cardio">Cardio</option>
+                            <option value="mobility">Mobility</option>
+                        </select>
+                    </label>
+                    <label>
+                        Name
+                        <input type="text" data-add-field="name" placeholder="Activity name">
+                    </label>
+                    <div class="gym-add-session-fields" data-add-fields>
+                        ${renderAddFields('strength')}
+                    </div>
+                    <label class="gym-add-save-library">
+                        <input type="checkbox" data-add-field="save_to_library">
+                        Save custom activity for later
+                    </label>
+                    <button type="button" class="gym-save-adjust" data-action="add-session-activity">Add activity</button>
+                </div>
+            </details>
+        `;
+    }
+
+    function renderAddFields(type) {
+        if (type === 'strength') {
+            return `
+                <div class="gym-adjust-grid">
+                    ${numberAddField('target_weight', 'Weight')}
+                    ${selectAddField('target_weight_unit', 'Unit', 'kg', ['kg', 'lbs'])}
+                    ${numberAddField('target_sets', 'Sets')}
+                    ${numberAddField('target_reps', 'Reps')}
+                </div>
+            `;
+        }
+        if (type === 'cardio') {
+            return `
+                <div class="gym-adjust-grid">
+                    ${numberAddField('target_duration_minutes', 'Minutes')}
+                    ${textAddField('target_intensity', 'Intensity')}
+                    ${numberAddField('target_speed', 'Speed/RPM')}
+                    ${selectAddField('target_weight_unit', 'Unit', 'kph', ['kph', 'mph', 'rpm'])}
+                </div>
+            `;
+        }
+        return `
+            <div class="gym-adjust-grid">
+                ${numberAddField('target_sets', 'Sets')}
+                ${numberAddField('target_reps', 'Reps')}
+            </div>
+        `;
+    }
+
+    function numberAddField(field, label) {
+        return `
+            <label>
+                ${label}
+                <input type="number" step="0.5" min="0" data-add-field="${field}">
+            </label>
+        `;
+    }
+
+    function textAddField(field, label) {
+        return `
+            <label>
+                ${label}
+                <input type="text" data-add-field="${field}">
+            </label>
+        `;
+    }
+
+    function selectAddField(field, label, value, options) {
+        return `
+            <label>
+                ${label}
+                <select data-add-field="${field}">
+                    ${options.map(option => `<option value="${option}" ${value === option ? 'selected' : ''}>${option}</option>`).join('')}
+                </select>
+            </label>
         `;
     }
 
@@ -297,6 +404,26 @@
         }
     }
 
+    async function addSessionActivity(panel) {
+        if (!state.session) return;
+        const payload = collectAddActivityPayload(panel);
+        setStatus('Adding activity…');
+        try {
+            const added = await fetchJson(`/api/gym/sessions/${state.session.id}/activities`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload),
+            });
+            state.session.activities.push(added);
+            if (payload.save_to_library) await loadActivities();
+            renderSession();
+            setStatus('');
+        } catch (err) {
+            console.error('Failed to add gym activity', err);
+            setStatus('Could not add activity.', true);
+        }
+    }
+
     async function finishSession() {
         if (!state.session) return;
         setStatus('Finishing session…');
@@ -342,6 +469,30 @@
         return patch;
     }
 
+    function collectAddActivityPayload(panel) {
+        const payload = {};
+        panel.querySelectorAll('[data-add-field]').forEach(input => {
+            const field = input.dataset.addField;
+            if (field === 'activity_id') {
+                if (input.value) payload.activity_id = Number(input.value);
+                return;
+            }
+            if (payload.activity_id && !['save_to_library'].includes(field)) return;
+            if (input.type === 'checkbox') {
+                payload[field] = input.checked;
+                return;
+            }
+            const value = input.value.trim();
+            if (input.type === 'number') {
+                payload[field] = value === '' ? null : Number(value);
+            } else {
+                payload[field] = value === '' ? null : value;
+            }
+        });
+        if (payload.activity_id) delete payload.save_to_library;
+        return payload;
+    }
+
     function bindEvents() {
         els.date.addEventListener('change', () => {
             state.date = els.date.value || todayIso();
@@ -366,6 +517,11 @@
                 deleteSession();
                 return;
             }
+            if (action === 'add-session-activity') {
+                const panel = actionEl.closest('.gym-add-session-activity-panel');
+                if (panel) addSessionActivity(panel);
+                return;
+            }
             const card = actionEl.closest('[data-activity-id]');
             if (!card) return;
             const activityId = card.dataset.activityId;
@@ -378,6 +534,12 @@
         });
 
         els.session.addEventListener('change', (event) => {
+            if (event.target.dataset.addField === 'activity_type') {
+                const panel = event.target.closest('.gym-add-session-activity-panel');
+                const fields = panel?.querySelector('[data-add-fields]');
+                if (fields) fields.innerHTML = renderAddFields(event.target.value);
+                return;
+            }
             if (event.target.dataset.action !== 'toggle-activity') return;
             const card = event.target.closest('[data-activity-id]');
             if (!card) return;

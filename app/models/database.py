@@ -230,6 +230,27 @@ class GymSessionTemplate(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class GymActivity(Base):
+    """Reusable gym activity definition for templates and ad-hoc sessions."""
+
+    __tablename__ = "gym_activities"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False, unique=True, index=True)
+    activity_type = Column(String, nullable=False)
+    target_sets = Column(Integer, nullable=True)
+    target_reps = Column(Integer, nullable=True)
+    target_weight = Column(Float, nullable=True)
+    target_weight_unit = Column(String, nullable=True)
+    target_duration_minutes = Column(Float, nullable=True)
+    target_intensity = Column(String, nullable=True)
+    target_speed = Column(Float, nullable=True)
+    notes = Column(Text, nullable=True)
+    archived_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class GymTemplateActivity(Base):
     """Ordered activity row within a current gym session template."""
 
@@ -238,6 +259,7 @@ class GymTemplateActivity(Base):
     __table_args__ = (UniqueConstraint("template_id", "sort_order", name="uix_gym_template_activity_order"),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    activity_id = Column(Integer, ForeignKey("gym_activities.id"), nullable=True, index=True)
     template_id = Column(Integer, ForeignKey("gym_session_templates.id"), nullable=False, index=True)
     sort_order = Column(Integer, nullable=False)
     activity_type = Column(String, nullable=False)
@@ -275,6 +297,7 @@ class GymSessionActivityLog(Base):
     __table_args__ = (UniqueConstraint("session_log_id", "sort_order", name="uix_gym_session_activity_order"),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    activity_id = Column(Integer, ForeignKey("gym_activities.id"), nullable=True, index=True)
     session_log_id = Column(Integer, ForeignKey("gym_session_logs.id"), nullable=False, index=True)
     sort_order = Column(Integer, nullable=False)
     activity_type = Column(String, nullable=False)

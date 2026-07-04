@@ -117,8 +117,9 @@ ActivityRating = Literal["easy", "normal", "hard"]
 
 
 class GymTemplateActivityInput(BaseModel):
-    activity_type: ActivityType
-    name: str = Field(min_length=1)
+    activity_id: int | None = None
+    activity_type: ActivityType | None = None
+    name: str | None = Field(default=None, min_length=1)
     target_sets: int | None = Field(default=None, ge=0)
     target_reps: int | None = Field(default=None, ge=0)
     target_weight: float | None = Field(default=None, ge=0)
@@ -130,6 +131,10 @@ class GymTemplateActivityInput(BaseModel):
 
     @model_validator(mode="after")
     def normalize_by_activity_type(self):
+        if self.activity_id is None and (self.activity_type is None or self.name is None):
+            raise ValueError("activity_id or inline activity_type and name are required")
+        if self.activity_type is None:
+            return self
         if self.activity_type == "strength":
             if self.target_weight_unit not in (None, "kg", "lbs"):
                 raise ValueError("strength unit must be kg or lbs")
@@ -177,6 +182,57 @@ class GymTemplateResponse(BaseModel):
     activities: list[GymTemplateActivityResponse] = []
 
 
+class GymActivityInput(BaseModel):
+    activity_type: ActivityType
+    name: str = Field(min_length=1)
+    target_sets: int | None = Field(default=None, ge=0)
+    target_reps: int | None = Field(default=None, ge=0)
+    target_weight: float | None = Field(default=None, ge=0)
+    target_weight_unit: str | None = None
+    target_duration_minutes: float | None = Field(default=None, ge=0)
+    target_intensity: str | None = None
+    target_speed: float | None = Field(default=None, ge=0)
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def normalize_by_activity_type(self):
+        if self.activity_type == "strength":
+            if self.target_weight_unit not in (None, "kg", "lbs"):
+                raise ValueError("strength unit must be kg or lbs")
+            self.target_duration_minutes = None
+            self.target_intensity = None
+            self.target_speed = None
+        elif self.activity_type == "cardio":
+            if self.target_weight_unit not in (None, "kph", "mph", "rpm"):
+                raise ValueError("cardio unit must be kph, mph, or rpm")
+            self.target_sets = None
+            self.target_reps = None
+            self.target_weight = None
+        elif self.activity_type == "mobility":
+            self.target_weight = None
+            self.target_weight_unit = None
+            self.target_duration_minutes = None
+            self.target_intensity = None
+            self.target_speed = None
+            self.notes = None
+        return self
+
+
+class GymActivityCreateRequest(GymActivityInput):
+    pass
+
+
+class GymActivityUpdateRequest(GymActivityInput):
+    pass
+
+
+class GymActivityResponse(GymActivityInput):
+    id: int
+    archived: bool
+    created_at: datetime
+    updated_at: datetime
+
+
 class GymSessionCreateRequest(BaseModel):
     date: date
     template_id: int
@@ -200,8 +256,30 @@ class GymSessionActivityUpdateRequest(BaseModel):
     notes: str | None = None
 
 
+class GymSessionActivityCreateRequest(BaseModel):
+    activity_id: int | None = None
+    activity_type: ActivityType | None = None
+    name: str | None = Field(default=None, min_length=1)
+    target_sets: int | None = Field(default=None, ge=0)
+    target_reps: int | None = Field(default=None, ge=0)
+    target_weight: float | None = Field(default=None, ge=0)
+    target_weight_unit: str | None = None
+    target_duration_minutes: float | None = Field(default=None, ge=0)
+    target_intensity: str | None = None
+    target_speed: float | None = Field(default=None, ge=0)
+    notes: str | None = None
+    save_to_library: bool = False
+
+    @model_validator(mode="after")
+    def require_library_or_inline_activity(self):
+        if self.activity_id is None and (self.activity_type is None or self.name is None):
+            raise ValueError("activity_id or inline activity_type and name are required")
+        return self
+
+
 class GymSessionActivityResponse(BaseModel):
     id: int
+    activity_id: int | None = None
     sort_order: int
     activity_type: ActivityType
     name_snapshot: str

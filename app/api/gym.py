@@ -4,12 +4,13 @@ from __future__ import annotations
 from datetime import date as DateType, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.models.database import (
+    GymActivity,
     GymSessionActivityLog,
     GymSessionLog,
     GymSessionTemplate,
@@ -17,10 +18,14 @@ from app.models.database import (
 )
 from app.schemas.responses import (
     GymSessionActivityResponse,
+    GymSessionActivityCreateRequest,
     GymSessionActivityUpdateRequest,
     GymSessionCreateRequest,
     GymSessionResponse,
     GymSessionUpdateRequest,
+    GymActivityCreateRequest,
+    GymActivityResponse,
+    GymActivityUpdateRequest,
     GymTemplateActivityInput,
     GymTemplateActivityResponse,
     GymTemplateCreateRequest,
@@ -52,6 +57,15 @@ async def _load_template(db: AsyncSession, template_id: int) -> GymSessionTempla
     return template
 
 
+async def _load_activity(db: AsyncSession, activity_id: int) -> GymActivity:
+    activity = (await db.execute(
+        select(GymActivity).where(GymActivity.id == activity_id)
+    )).scalar_one_or_none()
+    if activity is None:
+        raise HTTPException(status_code=404, detail=f"gym activity {activity_id} not found")
+    return activity
+
+
 async def _template_activities(db: AsyncSession, template_id: int) -> list[GymTemplateActivity]:
     return list((await db.execute(
         select(GymTemplateActivity)
@@ -71,6 +85,7 @@ async def _session_activities(db: AsyncSession, session_id: int) -> list[GymSess
 def _template_activity_response(activity: GymTemplateActivity) -> GymTemplateActivityResponse:
     return GymTemplateActivityResponse(
         id=activity.id,
+        activity_id=activity.activity_id,
         sort_order=activity.sort_order,
         activity_type=_activity_type(activity.activity_type),
         name=activity.name,
@@ -101,6 +116,7 @@ async def _template_response(db: AsyncSession, template: GymSessionTemplate) -> 
 def _activity_response(activity: GymSessionActivityLog) -> GymSessionActivityResponse:
     return GymSessionActivityResponse(
         id=activity.id,
+        activity_id=activity.activity_id,
         sort_order=activity.sort_order,
         activity_type=_activity_type(activity.activity_type),
         name_snapshot=activity.name_snapshot,
@@ -125,6 +141,25 @@ def _activity_response(activity: GymSessionActivityLog) -> GymSessionActivityRes
     )
 
 
+def _gym_activity_response(activity: GymActivity) -> GymActivityResponse:
+    return GymActivityResponse(
+        id=activity.id,
+        archived=activity.archived_at is not None,
+        activity_type=_activity_type(activity.activity_type),
+        name=activity.name,
+        target_sets=activity.target_sets,
+        target_reps=activity.target_reps,
+        target_weight=activity.target_weight,
+        target_weight_unit=activity.target_weight_unit,
+        target_duration_minutes=activity.target_duration_minutes,
+        target_intensity=activity.target_intensity,
+        target_speed=activity.target_speed,
+        notes=activity.notes,
+        created_at=activity.created_at,
+        updated_at=activity.updated_at,
+    )
+
+
 async def _session_response(db: AsyncSession, session: GymSessionLog) -> GymSessionResponse:
     activities = await _session_activities(db, session.id)
     return GymSessionResponse(
@@ -139,8 +174,7 @@ async def _session_response(db: AsyncSession, session: GymSessionLog) -> GymSess
     )
 
 
-def _apply_template_activity(row: GymTemplateActivity, data: GymTemplateActivityInput, sort_order: int) -> None:
-    row.sort_order = sort_order
+def _apply_gym_activity(row: GymActivity, data: GymActivityCreateRequest | GymActivityUpdateRequest) -> None:
     row.activity_type = data.activity_type
     row.name = data.name.strip()
     row.target_sets = data.target_sets
@@ -153,6 +187,121 @@ def _apply_template_activity(row: GymTemplateActivity, data: GymTemplateActivity
     row.notes = _clean_text(data.notes)
 
 
+def _apply_template_activity(row: GymTemplateActivity, data: GymTemplateActivityInput, sort_order: int) -> None:
+    if data.activity_type is None or data.name is None:
+        raise HTTPException(status_code=422, detail="activity_type and name are required")
+    row.sort_order = sort_order
+    row.activity_id = data.activity_id
+    row.activity_type = data.activity_type
+    row.name = data.name.strip()
+    row.target_sets = data.target_sets
+    row.target_reps = data.target_reps
+    row.target_weight = data.target_weight
+    row.target_weight_unit = _clean_text(data.target_weight_unit)
+    row.target_duration_minutes = data.target_duration_minutes
+    row.target_intensity = _clean_text(data.target_intensity)
+    row.target_speed = data.target_speed
+    row.notes = _clean_text(data.notes)
+
+
+def _activity_input_from_library(activity: GymActivity) -> GymTemplateActivityInput:
+    return GymTemplateActivityInput(
+        activity_id=activity.id,
+        activity_type=_activity_type(activity.activity_type),
+        name=activity.name,
+        target_sets=activity.target_sets,
+        target_reps=activity.target_reps,
+        target_weight=activity.target_weight,
+        target_weight_unit=activity.target_weight_unit,
+        target_duration_minutes=activity.target_duration_minutes,
+        target_intensity=activity.target_intensity,
+        target_speed=activity.target_speed,
+        notes=activity.notes,
+    )
+
+
+async def _resolve_template_activity(db: AsyncSession, data: GymTemplateActivityInput) -> GymTemplateActivityInput:
+    if data.activity_id is None:
+        return data
+    activity = await _load_activity(db, data.activity_id)
+    if activity.archived_at is not None:
+        raise HTTPException(status_code=409, detail="cannot add archived gym activity")
+    if data.activity_type is not None and data.name is not None:
+        return data
+    return _activity_input_from_library(activity)
+
+
+async def _resolve_session_activity(db: AsyncSession, data: GymSessionActivityCreateRequest) -> GymTemplateActivityInput:
+    if data.activity_id is not None:
+        activity = await _load_activity(db, data.activity_id)
+        if activity.archived_at is not None:
+            raise HTTPException(status_code=409, detail="cannot add archived gym activity")
+        return _activity_input_from_library(activity)
+    inline = GymActivityCreateRequest(
+        activity_type=data.activity_type,
+        name=data.name,
+        target_sets=data.target_sets,
+        target_reps=data.target_reps,
+        target_weight=data.target_weight,
+        target_weight_unit=data.target_weight_unit,
+        target_duration_minutes=data.target_duration_minutes,
+        target_intensity=data.target_intensity,
+        target_speed=data.target_speed,
+        notes=data.notes,
+    )
+    activity_id = None
+    if data.save_to_library:
+        activity = GymActivity()
+        _apply_gym_activity(activity, inline)
+        db.add(activity)
+        try:
+            await db.flush()
+        except IntegrityError as exc:
+            await db.rollback()
+            raise HTTPException(status_code=409, detail="gym activity name already exists") from exc
+        activity_id = activity.id
+    return GymTemplateActivityInput(
+        activity_id=activity_id,
+        activity_type=inline.activity_type,
+        name=inline.name,
+        target_sets=inline.target_sets,
+        target_reps=inline.target_reps,
+        target_weight=inline.target_weight,
+        target_weight_unit=inline.target_weight_unit,
+        target_duration_minutes=inline.target_duration_minutes,
+        target_intensity=inline.target_intensity,
+        target_speed=inline.target_speed,
+        notes=inline.notes,
+    )
+
+
+def _new_session_activity(session_id: int, data: GymTemplateActivityInput, sort_order: int) -> GymSessionActivityLog:
+    if data.activity_type is None or data.name is None:
+        raise HTTPException(status_code=422, detail="activity_type and name are required")
+    return GymSessionActivityLog(
+        session_log_id=session_id,
+        activity_id=data.activity_id,
+        sort_order=sort_order,
+        activity_type=data.activity_type,
+        name_snapshot=data.name,
+        planned_sets=data.target_sets,
+        planned_reps=data.target_reps,
+        planned_weight=data.target_weight,
+        planned_weight_unit=data.target_weight_unit,
+        planned_duration_minutes=data.target_duration_minutes,
+        planned_intensity=data.target_intensity,
+        planned_speed=data.target_speed,
+        planned_notes=data.notes,
+        actual_sets=data.target_sets,
+        actual_reps=data.target_reps,
+        actual_weight=data.target_weight,
+        actual_weight_unit=data.target_weight_unit,
+        actual_duration_minutes=data.target_duration_minutes,
+        actual_intensity=data.target_intensity,
+        actual_speed=data.target_speed,
+    )
+
+
 async def _replace_template_activities(
     db: AsyncSession,
     template_id: int,
@@ -160,9 +309,61 @@ async def _replace_template_activities(
 ) -> None:
     await db.execute(delete(GymTemplateActivity).where(GymTemplateActivity.template_id == template_id))
     for index, activity_data in enumerate(activities):
+        activity_data = await _resolve_template_activity(db, activity_data)
         activity = GymTemplateActivity(template_id=template_id)
         _apply_template_activity(activity, activity_data, index)
         db.add(activity)
+
+
+@router.get("/activities", response_model=list[GymActivityResponse])
+async def list_activities(
+    include_archived: bool = False,
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(GymActivity)
+    if not include_archived:
+        stmt = stmt.where(GymActivity.archived_at.is_(None))
+    rows = list((await db.execute(stmt.order_by(GymActivity.name))).scalars().all())
+    return [_gym_activity_response(row) for row in rows]
+
+
+@router.post("/activities", response_model=GymActivityResponse, status_code=status.HTTP_201_CREATED)
+async def create_activity(body: GymActivityCreateRequest, db: AsyncSession = Depends(get_db)):
+    activity = GymActivity()
+    _apply_gym_activity(activity, body)
+    if not activity.name:
+        raise HTTPException(status_code=422, detail="activity name must not be blank")
+    db.add(activity)
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="gym activity name already exists") from exc
+    return _gym_activity_response(activity)
+
+
+@router.put("/activities/{activity_id}", response_model=GymActivityResponse)
+async def update_activity(activity_id: int, body: GymActivityUpdateRequest, db: AsyncSession = Depends(get_db)):
+    activity = await _load_activity(db, activity_id)
+    _apply_gym_activity(activity, body)
+    activity.updated_at = datetime.utcnow()
+    if not activity.name:
+        raise HTTPException(status_code=422, detail="activity name must not be blank")
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="gym activity update conflicts with existing data") from exc
+    return _gym_activity_response(activity)
+
+
+@router.delete("/activities/{activity_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def archive_activity(activity_id: int, db: AsyncSession = Depends(get_db)):
+    activity = await _load_activity(db, activity_id)
+    activity.archived_at = datetime.utcnow()
+    activity.updated_at = datetime.utcnow()
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/templates", response_model=list[GymTemplateResponse])
@@ -260,32 +461,54 @@ async def create_session(body: GymSessionCreateRequest, db: AsyncSession = Depen
     try:
         await db.flush()
         for activity in activities:
-            db.add(GymSessionActivityLog(
-                session_log_id=session.id,
-                sort_order=activity.sort_order,
-                activity_type=activity.activity_type,
-                name_snapshot=activity.name,
-                planned_sets=activity.target_sets,
-                planned_reps=activity.target_reps,
-                planned_weight=activity.target_weight,
-                planned_weight_unit=activity.target_weight_unit,
-                planned_duration_minutes=activity.target_duration_minutes,
-                planned_intensity=activity.target_intensity,
-                planned_speed=activity.target_speed,
-                planned_notes=activity.notes,
-                actual_sets=activity.target_sets,
-                actual_reps=activity.target_reps,
-                actual_weight=activity.target_weight,
-                actual_weight_unit=activity.target_weight_unit,
-                actual_duration_minutes=activity.target_duration_minutes,
-                actual_intensity=activity.target_intensity,
-                actual_speed=activity.target_speed,
+            db.add(_new_session_activity(
+                session.id,
+                GymTemplateActivityInput(
+                    activity_id=activity.activity_id,
+                    activity_type=_activity_type(activity.activity_type),
+                    name=activity.name,
+                    target_sets=activity.target_sets,
+                    target_reps=activity.target_reps,
+                    target_weight=activity.target_weight,
+                    target_weight_unit=activity.target_weight_unit,
+                    target_duration_minutes=activity.target_duration_minutes,
+                    target_intensity=activity.target_intensity,
+                    target_speed=activity.target_speed,
+                    notes=activity.notes,
+                ),
+                activity.sort_order,
             ))
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
         raise HTTPException(status_code=409, detail="gym session already exists for this date") from exc
     return await _session_response(db, session)
+
+
+@router.post("/sessions/{session_id}/activities", response_model=GymSessionActivityResponse, status_code=status.HTTP_201_CREATED)
+async def add_session_activity(
+    session_id: int,
+    body: GymSessionActivityCreateRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    session = (await db.execute(
+        select(GymSessionLog).where(GymSessionLog.id == session_id)
+    )).scalar_one_or_none()
+    if session is None:
+        raise HTTPException(status_code=404, detail=f"gym session {session_id} not found")
+    sort_order = (await db.execute(
+        select(func.max(GymSessionActivityLog.sort_order))
+        .where(GymSessionActivityLog.session_log_id == session_id)
+    )).scalar_one()
+    activity_data = await _resolve_session_activity(db, body)
+    activity = _new_session_activity(session.id, activity_data, 0 if sort_order is None else sort_order + 1)
+    db.add(activity)
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="gym session activity already exists at this order") from exc
+    return _activity_response(activity)
 
 
 @router.put("/sessions/{session_id}", response_model=GymSessionResponse)

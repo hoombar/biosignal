@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.api.gym import router
 from app.core.database import get_db
-from app.models.database import GymSessionActivityLog, GymSessionLog, GymSessionTemplate, GymTemplateActivity
+from app.models.database import GymActivity, GymSessionActivityLog, GymSessionLog, GymSessionTemplate, GymTemplateActivity
 
 
 def _make_app(session):
@@ -46,6 +46,73 @@ def _template_payload(name="Standard upper/back/arms"):
 
 
 class TestGymTemplates:
+
+    @pytest.mark.asyncio
+    async def test_template_can_snapshot_library_activity(self, async_session):
+        app = _make_app(async_session)
+
+        with TestClient(app) as client:
+            activity = client.post("/api/gym/activities", json={
+                "activity_type": "strength",
+                "name": "Chest press",
+                "target_sets": 3,
+                "target_reps": 10,
+                "target_weight": 35,
+                "target_weight_unit": "kg",
+            }).json()
+            resp = client.post("/api/gym/templates", json={
+                "name": "Push day",
+                "activities": [{"activity_id": activity["id"]}],
+            })
+
+        assert resp.status_code == 201
+        row = resp.json()["activities"][0]
+        assert row["activity_id"] == activity["id"]
+        assert row["name"] == "Chest press"
+        assert row["target_weight"] == 35
+
+
+class TestGymActivities:
+
+    @pytest.mark.asyncio
+    async def test_create_list_update_and_archive_activity(self, async_session):
+        app = _make_app(async_session)
+
+        with TestClient(app) as client:
+            create_resp = client.post("/api/gym/activities", json={
+                "activity_type": "strength",
+                "name": "Lat pulldown",
+                "target_sets": 3,
+                "target_reps": 12,
+                "target_weight": 45,
+                "target_weight_unit": "kg",
+            })
+            activity_id = create_resp.json()["id"]
+            update_resp = client.put(f"/api/gym/activities/{activity_id}", json={
+                "activity_type": "strength",
+                "name": "Wide grip lat pulldown",
+                "target_sets": 4,
+                "target_reps": 10,
+                "target_weight": 47.5,
+                "target_weight_unit": "kg",
+            })
+            list_resp = client.get("/api/gym/activities")
+            archive_resp = client.delete(f"/api/gym/activities/{activity_id}")
+            default_after_archive = client.get("/api/gym/activities")
+            archived_resp = client.get("/api/gym/activities", params={"include_archived": "true"})
+
+        assert create_resp.status_code == 201
+        assert update_resp.status_code == 200
+        assert update_resp.json()["name"] == "Wide grip lat pulldown"
+        assert update_resp.json()["target_sets"] == 4
+        assert [row["name"] for row in list_resp.json()] == ["Wide grip lat pulldown"]
+        assert archive_resp.status_code == 204
+        assert default_after_archive.json() == []
+        assert archived_resp.json()[0]["archived"] is True
+
+        row = (await async_session.execute(select(GymActivity))).scalar_one()
+        assert row.archived_at is not None
+
 
     @pytest.mark.asyncio
     async def test_create_and_list_template_with_ordered_activities(self, async_session):
@@ -233,6 +300,71 @@ class TestGymTemplates:
 
 
 class TestGymSessions:
+
+    @pytest.mark.asyncio
+    async def test_add_library_activity_to_active_session_without_changing_template(self, async_session):
+        app = _make_app(async_session)
+
+        with TestClient(app) as client:
+            activity = client.post("/api/gym/activities", json={
+                "activity_type": "strength",
+                "name": "Cable fly",
+                "target_sets": 3,
+                "target_reps": 12,
+                "target_weight": 15,
+                "target_weight_unit": "kg",
+            }).json()
+            template = client.post("/api/gym/templates", json=_template_payload()).json()
+            session = client.post(
+                "/api/gym/sessions",
+                json={"date": "2026-06-02", "template_id": template["id"]},
+            ).json()
+            add_resp = client.post(
+                f"/api/gym/sessions/{session['id']}/activities",
+                json={"activity_id": activity["id"]},
+            )
+            template_resp = client.get("/api/gym/templates")
+
+        assert add_resp.status_code == 201
+        added = add_resp.json()
+        assert added["activity_id"] == activity["id"]
+        assert added["sort_order"] == 2
+        assert added["name_snapshot"] == "Cable fly"
+        assert added["actual_weight"] == 15
+        assert [a["name"] for a in template_resp.json()[0]["activities"]] == ["Elliptical warm-up", "Low row"]
+
+    @pytest.mark.asyncio
+    async def test_add_inline_activity_to_active_session(self, async_session):
+        app = _make_app(async_session)
+
+        with TestClient(app) as client:
+            template = client.post("/api/gym/templates", json=_template_payload()).json()
+            session = client.post(
+                "/api/gym/sessions",
+                json={"date": "2026-06-02", "template_id": template["id"]},
+            ).json()
+            resp = client.post(
+                f"/api/gym/sessions/{session['id']}/activities",
+                json={
+                    "activity_type": "cardio",
+                    "name": "Bike intervals",
+                    "target_duration_minutes": 12,
+                    "target_intensity": "level 7",
+                    "target_speed": 90,
+                    "target_weight_unit": "rpm",
+                    "save_to_library": True,
+                },
+            )
+
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["activity_id"] is not None
+        assert body["activity_type"] == "cardio"
+        assert body["name_snapshot"] == "Bike intervals"
+        assert body["actual_duration_minutes"] == 12
+
+        library_row = (await async_session.execute(select(GymActivity))).scalar_one()
+        assert library_row.name == "Bike intervals"
 
     @pytest.mark.asyncio
     async def test_start_session_snapshots_current_template(self, async_session):

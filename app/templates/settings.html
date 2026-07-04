@@ -114,6 +114,26 @@
         <p class="settings-desc">Manage current gym plans. Logged sessions keep a snapshot of the plan used on the day.</p>
     </div>
 
+    <div class="gym-activity-library-panel">
+        <div class="gym-template-form-header">
+            <div>
+                <h3>Activities</h3>
+                <p class="settings-desc">Reusable exercises for templates and impromptu session additions.</p>
+            </div>
+            <button type="button" class="btn-secondary" id="gym-activity-refresh">Refresh</button>
+        </div>
+        <form id="gym-activity-form" class="gym-activity-library-form">
+            <input type="hidden" id="gym-activity-id">
+            <div id="gym-activity-editor"></div>
+            <div class="settings-actions">
+                <button type="submit" class="btn-primary">Save activity</button>
+                <button type="button" class="btn-secondary" id="gym-activity-reset">New activity</button>
+                <span id="gym-activity-status" class="save-status"></span>
+            </div>
+        </form>
+        <div id="gym-activity-list" class="gym-settings-list"></div>
+    </div>
+
     <div class="gym-settings-layout">
         <form id="gym-template-form" class="gym-template-form">
             <input type="hidden" id="gym-template-id">
@@ -129,7 +149,10 @@
                 <h3>Activities</h3>
             </div>
             <div id="gym-template-activities" class="gym-template-activities"></div>
-            <button type="button" class="btn-secondary gym-add-activity-btn" id="gym-add-activity">Add activity</button>
+            <div class="gym-template-add-actions">
+                <button type="button" class="btn-secondary gym-add-activity-btn" id="gym-add-saved-activity">Add saved activity</button>
+                <button type="button" class="btn-secondary gym-add-activity-btn" id="gym-add-activity">Add inline activity</button>
+            </div>
             <div class="settings-actions">
                 <button type="submit" class="btn-primary" id="gym-template-save">Save template</button>
                 <button type="button" class="btn-secondary" id="gym-template-reset">New template</button>

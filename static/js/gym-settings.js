@@ -3,6 +3,7 @@
 
     const els = {};
     let templates = [];
+    let activities = [];
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -47,10 +48,18 @@
         const type = ['strength', 'cardio', 'mobility'].includes(activity.activity_type)
             ? activity.activity_type
             : 'mobility';
+        const activityIdAttr = activity.activity_id ? ` data-activity-id="${activity.activity_id}"` : '';
         return `
-            <div class="gym-settings-activity" data-activity-row data-activity-type="${type}">
+            <div class="gym-settings-activity" data-activity-row data-activity-type="${type}"${activityIdAttr}>
                 <div class="gym-settings-activity-header">
-                    <span class="gym-settings-activity-type">${typeLabel(type)}</span>
+                    <label class="gym-settings-field">
+                        <span>Type</span>
+                        <select class="settings-input" data-action="change-activity-type">
+                            ${['strength', 'cardio', 'mobility'].map(option => `
+                                <option value="${option}" ${type === option ? 'selected' : ''}>${typeLabel(option)}</option>
+                            `).join('')}
+                        </select>
+                    </label>
                     <div class="gym-settings-activity-actions" aria-label="Activity actions">
                         <button type="button" class="gym-settings-icon-btn" data-action="move-activity-up" aria-label="Move activity up">↑</button>
                         <button type="button" class="gym-settings-icon-btn" data-action="move-activity-down" aria-label="Move activity down">↓</button>
@@ -164,12 +173,49 @@
         renderTemplateList();
     }
 
+    async function loadActivities() {
+        activities = await fetchJson('/api/gym/activities?include_archived=true');
+        renderActivityList();
+    }
+
+    function renderActivityList() {
+        if (!els.activityList) return;
+        const visible = activities;
+        if (visible.length === 0) {
+            els.activityList.innerHTML = '<p class="settings-desc">No saved activities yet. Add common exercises here, or create them while logging a session.</p>';
+            return;
+        }
+        els.activityList.innerHTML = visible.map(activity => `
+            <article class="gym-settings-template ${activity.archived ? 'gym-settings-template--archived' : ''}">
+                <div>
+                    <h4>${escapeHtml(activity.name)}</h4>
+                    <p>${typeLabel(activity.activity_type)}${activity.archived ? ' · archived' : ''}</p>
+                </div>
+                <div class="gym-settings-template-actions">
+                    <button type="button" class="btn-secondary" data-action="edit-activity" data-activity-id="${activity.id}">Edit</button>
+                    ${activity.archived ? '' : `<button type="button" class="btn-secondary" data-action="archive-activity" data-activity-id="${activity.id}">Archive</button>`}
+                </div>
+            </article>
+        `).join('');
+    }
+
     function resetForm() {
         els.id.value = '';
         els.name.value = '';
         els.description.value = '';
         els.activities.innerHTML = '';
         setStatus('');
+    }
+
+    function resetActivityForm() {
+        els.activityId.value = '';
+        els.activityEditor.innerHTML = renderActivityRow(emptyActivity('strength'));
+        setActivityStatus('');
+    }
+
+    function setActivityStatus(message, kind) {
+        els.activityStatus.textContent = message || '';
+        els.activityStatus.className = kind ? `save-status save-status--${kind}` : 'save-status';
     }
 
     function editTemplate(templateId) {
@@ -184,6 +230,14 @@
         setStatus(`Editing ${template.name}`);
     }
 
+    function editActivity(activityId) {
+        const activity = activities.find(row => row.id === Number(activityId));
+        if (!activity) return;
+        els.activityId.value = activity.id;
+        els.activityEditor.innerHTML = renderActivityRow(activity);
+        setActivityStatus(`Editing ${activity.name}`);
+    }
+
     function numberOrNull(value) {
         const trimmed = String(value || '').trim();
         return trimmed === '' ? null : Number(trimmed);
@@ -196,6 +250,7 @@
 
     function readActivity(row) {
         const data = {activity_type: row.dataset.activityType};
+        if (row.dataset.activityId) data.activity_id = Number(row.dataset.activityId);
         row.querySelectorAll('[data-field]').forEach(input => {
             const field = input.dataset.field;
             if ([
@@ -212,6 +267,11 @@
         });
         data.name = data.name || '';
         return normalizeActivityForType(data);
+    }
+
+    function readLibraryActivity() {
+        const row = els.activityEditor.querySelector('[data-activity-row]');
+        return row ? readActivity(row) : emptyActivity('strength');
     }
 
     function normalizeActivityForType(data) {
@@ -273,6 +333,30 @@
         }
     }
 
+    async function saveActivity(event) {
+        event.preventDefault();
+        const id = els.activityId.value;
+        const payload = readLibraryActivity();
+        delete payload.activity_id;
+        if (!payload.name) {
+            setActivityStatus('Activity name is required', 'err');
+            return;
+        }
+        setActivityStatus('Saving…');
+        try {
+            await fetchJson(id ? `/api/gym/activities/${id}` : '/api/gym/activities', {
+                method: id ? 'PUT' : 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload),
+            });
+            await loadActivities();
+            resetActivityForm();
+            setActivityStatus('Saved', 'ok');
+        } catch (err) {
+            setActivityStatus(err.message, 'err');
+        }
+    }
+
     async function archiveTemplate(templateId) {
         setStatus('Archiving…');
         try {
@@ -296,14 +380,84 @@
         }
     }
 
+    async function archiveActivity(activityId) {
+        setActivityStatus('Archiving…');
+        try {
+            await fetchJson(`/api/gym/activities/${activityId}`, {method: 'DELETE'});
+            await loadActivities();
+            if (els.activityId.value === String(activityId)) resetActivityForm();
+            setActivityStatus('Archived', 'ok');
+        } catch (err) {
+            setActivityStatus(err.message, 'err');
+        }
+    }
+
+    function showSavedActivityChooser() {
+        const existing = els.activities.querySelector('[data-saved-activity-chooser]');
+        if (existing) {
+            existing.remove();
+            return;
+        }
+        const activeActivities = activities.filter(activity => !activity.archived);
+        const html = activeActivities.length === 0
+            ? '<p class="settings-desc">No saved activities available yet.</p>'
+            : activeActivities.map(activity => `
+                <article class="gym-settings-template gym-settings-template--selectable">
+                    <div>
+                        <h4>${escapeHtml(activity.name)}</h4>
+                        <p>${typeLabel(activity.activity_type)}</p>
+                    </div>
+                    <button type="button" class="btn-secondary" data-action="choose-saved-activity" data-activity-id="${activity.id}">Add</button>
+                </article>
+            `).join('');
+        els.activities.insertAdjacentHTML('beforeend', `
+            <div class="gym-activity-type-chooser" data-saved-activity-chooser>${html}</div>
+        `);
+    }
+
+    function changeActivityType(row, type) {
+        const current = readActivity(row);
+        const replacement = emptyActivity(type);
+        replacement.name = current.name || '';
+        row.replaceWith(document.createRange().createContextualFragment(renderActivityRow(replacement)));
+    }
+
     function bindEvents() {
+        els.activityForm.addEventListener('submit', saveActivity);
+        els.activityReset.addEventListener('click', resetActivityForm);
+        els.activityRefresh.addEventListener('click', loadActivities);
+        els.activityList.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-action]');
+            if (!button) return;
+            if (button.dataset.action === 'edit-activity') editActivity(button.dataset.activityId);
+            if (button.dataset.action === 'archive-activity') archiveActivity(button.dataset.activityId);
+        });
+        els.activityEditor.addEventListener('change', (event) => {
+            if (event.target.dataset.action !== 'change-activity-type') return;
+            const row = event.target.closest('[data-activity-row]');
+            if (row) changeActivityType(row, event.target.value);
+        });
         els.form.addEventListener('submit', saveTemplate);
         els.reset.addEventListener('click', resetForm);
         els.refresh.addEventListener('click', loadTemplates);
+        els.addSavedActivity.addEventListener('click', showSavedActivityChooser);
         els.addActivity.addEventListener('click', showActivityTypeChooser);
+        els.activities.addEventListener('change', (event) => {
+            if (event.target.dataset.action !== 'change-activity-type') return;
+            const row = event.target.closest('[data-activity-row]');
+            if (row) changeActivityType(row, event.target.value);
+        });
         els.activities.addEventListener('click', (event) => {
             const button = event.target.closest('[data-action]');
             if (!button) return;
+            if (button.dataset.action === 'choose-saved-activity') {
+                const chooser = button.closest('[data-saved-activity-chooser]');
+                const activity = activities.find(row => row.id === Number(button.dataset.activityId));
+                if (!activity) return;
+                chooser.insertAdjacentHTML('beforebegin', renderActivityRow({...activity, activity_id: activity.id}));
+                chooser.remove();
+                return;
+            }
             if (button.dataset.action === 'choose-activity-type') {
                 const chooser = button.closest('[data-activity-type-chooser]');
                 const type = button.dataset.activityType;
@@ -336,11 +490,19 @@
     }
 
     async function init() {
+        els.activityForm = document.getElementById('gym-activity-form');
+        els.activityId = document.getElementById('gym-activity-id');
+        els.activityEditor = document.getElementById('gym-activity-editor');
+        els.activityReset = document.getElementById('gym-activity-reset');
+        els.activityRefresh = document.getElementById('gym-activity-refresh');
+        els.activityStatus = document.getElementById('gym-activity-status');
+        els.activityList = document.getElementById('gym-activity-list');
         els.form = document.getElementById('gym-template-form');
         els.id = document.getElementById('gym-template-id');
         els.name = document.getElementById('gym-template-name');
         els.description = document.getElementById('gym-template-description');
         els.activities = document.getElementById('gym-template-activities');
+        els.addSavedActivity = document.getElementById('gym-add-saved-activity');
         els.addActivity = document.getElementById('gym-add-activity');
         els.reset = document.getElementById('gym-template-reset');
         els.refresh = document.getElementById('gym-template-refresh');
@@ -348,11 +510,12 @@
         els.list = document.getElementById('gym-template-list');
         if (!els.form) return;
         bindEvents();
+        resetActivityForm();
         resetForm();
         try {
-            await loadTemplates();
+            await Promise.all([loadActivities(), loadTemplates()]);
         } catch (err) {
-            setStatus(`Failed to load gym templates: ${err.message}`, 'err');
+            setStatus(`Failed to load gym data: ${err.message}`, 'err');
         }
     }
 
