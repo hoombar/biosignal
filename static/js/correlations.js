@@ -435,7 +435,7 @@ async function loadCorrelations() {
     }
 
     localStorage.setItem(TARGET_STORAGE_KEY, target);
-    container.innerHTML = '<p class="loading">Loading correlations...</p>';
+    container.innerHTML = '<p class="loading loading--with-spinner">Loading correlations...</p>';
 
     try {
         const resp = await fetch(`/api/correlations?target=${encodeURIComponent(target)}`);
