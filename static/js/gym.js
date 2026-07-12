@@ -68,10 +68,12 @@
         return `${count} ${count === 1 ? 'activity' : 'activities'}`;
     }
 
-    function setStatus(message, isError) {
+    function setStatus(message, isError, isLoading) {
         els.status.textContent = message || '';
         els.status.style.display = message ? '' : 'none';
         els.status.classList.toggle('gym-status--error', Boolean(isError));
+        els.status.classList.toggle('loading', Boolean(isLoading));
+        els.status.classList.toggle('loading--with-spinner', Boolean(isLoading));
     }
 
     async function fetchJson(url, options) {
@@ -97,7 +99,7 @@
     }
 
     async function refresh() {
-        setStatus('Loading gym session…');
+        setStatus('Loading gym session…', false, true);
         els.session.style.display = 'none';
         els.start.style.display = 'none';
         try {
