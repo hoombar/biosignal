@@ -112,13 +112,28 @@ async function fetchDailySummariesForWindow(startIso, endIso) {
     trendsData = await resp.json();
 }
 
+function setTrendsChartLoading(isLoading) {
+    const loading = document.getElementById('trends-chart-loading');
+    const canvas = document.getElementById('trends-chart');
+    if (loading) loading.style.display = isLoading ? '' : 'none';
+    if (canvas) canvas.style.display = isLoading ? 'none' : '';
+}
+
 async function reloadRangeWindow(startIso, endIso) {
-    await fetchDailySummariesForWindow(startIso, endIso);
-    buildMetricPicker();
-    if (activeMetrics.size === 0) {
-        activateDefaults();
+    setTrendsChartLoading(true);
+    try {
+        await fetchDailySummariesForWindow(startIso, endIso);
+        buildMetricPicker();
+        if (activeMetrics.size === 0) {
+            activateDefaults();
+        }
+        setTrendsChartLoading(false);
+        updateChart();
+    } catch (err) {
+        const loading = document.getElementById('trends-chart-loading');
+        if (loading) loading.innerHTML = '<p class="error">Failed to load chart data.</p>';
+        throw err;
     }
-    updateChart();
 }
 
 async function refreshSuggestionsIfNeeded() {
@@ -360,7 +375,7 @@ async function onCorrelateTargetChange() {
     }
 
     localStorage.setItem(TARGET_STORAGE_KEY, target);
-    content.innerHTML = '<p class="loading" style="padding: 1rem 0; font-size: 0.875rem;">Loading…</p>';
+    content.innerHTML = '<p class="loading loading--with-spinner" style="padding: 1rem 0; font-size: 0.875rem;">Loading…</p>';
     updateChart();
 
     try {

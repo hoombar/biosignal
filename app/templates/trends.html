@@ -56,7 +56,8 @@
                 </div>
             </div>
 
-            <canvas id="trends-chart" style="height: 420px;"></canvas>
+            <div id="trends-chart-loading" class="loading loading--with-spinner" style="min-height: 420px;">Loading chart data...</div>
+            <canvas id="trends-chart" style="height: 420px; display: none;"></canvas>
 
             <!-- Binary habits render below the chart as one strip per habit. -->
             <div id="habit-lanes" class="habit-lanes is-empty"></div>
@@ -66,7 +67,7 @@
         <div class="chart-container" style="padding: 1rem 1.5rem;">
             <h2 style="margin-bottom: 0.75rem;">Select Metrics</h2>
             <div id="metric-accordion">
-                <p class="loading">Loading metrics…</p>
+                <p class="loading loading--with-spinner">Loading metrics…</p>
             </div>
         </div>
     </div>
