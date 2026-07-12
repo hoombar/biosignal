@@ -46,7 +46,7 @@ async function initiateLogin() {
 
     btn.disabled = true;
     btn.textContent = 'Connecting...';
-    status.innerHTML = '<p class="loading" style="padding: 1rem;">Logging in to Garmin...</p>';
+    status.innerHTML = '<p class="loading loading--with-spinner" style="padding: 1rem;">Logging in to Garmin...</p>';
 
     try {
         const resp = await fetch('/api/garmin/auth/login', { method: 'POST' });
@@ -88,7 +88,7 @@ async function submitMfa() {
 
     btn.disabled = true;
     btn.textContent = 'Verifying...';
-    status.innerHTML = '';
+    status.innerHTML = '<p class="loading loading--with-spinner" style="padding: 1rem;">Verifying code...</p>';
 
     try {
         const resp = await fetch('/api/garmin/auth/mfa', {

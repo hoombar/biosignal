@@ -200,13 +200,109 @@ def test_gym_settings_template_list_supports_unarchive():
 
 def test_overview_page_no_longer_renders_manual_sync_controls():
     with TestClient(app) as client:
-        resp = client.get("/")
+        resp = client.get("/overview")
 
     assert resp.status_code == 200
     html = resp.text
     assert "Sync Status" not in html
     assert "Backfill Historical Data" not in html
     assert 'id="sync-btn"' not in html
+
+
+def test_overview_page_renders_loading_spinners():
+    with TestClient(app) as client:
+        resp = client.get("/overview")
+
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'class="value loading loading--inline loading--with-spinner" id="total-days"' in html
+    assert 'class="loading loading--with-spinner"' in html
+
+
+def test_daily_page_renders_loading_spinners():
+    with TestClient(app) as client:
+        resp = client.get("/daily")
+
+    assert resp.status_code == 200
+    html = resp.text
+    assert html.count('class="loading loading--with-spinner"') >= 3
+    assert 'id="metrics-grid"' in html
+    assert 'id="habits-list"' in html
+
+
+def test_correlations_page_renders_loading_spinner_shells():
+    with TestClient(app) as client:
+        resp = client.get("/correlations")
+
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'Loading targets' in html
+    assert 'class="loading loading--with-spinner"' in html
+
+
+def test_trends_page_renders_loading_spinners():
+    with TestClient(app) as client:
+        resp = client.get("/trends")
+
+    assert resp.status_code == 200
+    html = resp.text
+    assert html.count('class="loading loading--with-spinner"') >= 2
+    assert 'id="trends-chart-loading"' in html
+
+
+def test_insights_page_renders_loading_spinners():
+    with TestClient(app) as client:
+        resp = client.get("/insights")
+
+    assert resp.status_code == 200
+    html = resp.text
+    assert html.count('class="loading loading--with-spinner"') >= 2
+
+
+def test_log_page_renders_loading_spinner():
+    with TestClient(app) as client:
+        resp = client.get("/log")
+
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'id="log-loading" class="loading loading--with-spinner"' in html
+
+
+def test_gym_page_renders_loading_spinner():
+    with TestClient(app) as client:
+        resp = client.get("/gym")
+
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'id="gym-status" class="gym-status loading loading--with-spinner"' in html
+
+
+def test_settings_page_renders_loading_spinners():
+    with TestClient(app) as client:
+        resp = client.get("/settings")
+
+    assert resp.status_code == 200
+    html = resp.text
+    assert html.count('class="loading loading--with-spinner"') >= 3
+
+
+def test_garmin_setup_page_renders_loading_spinner():
+    with TestClient(app) as client:
+        resp = client.get("/setup/garmin")
+
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'class="loading loading--with-spinner"' in html
+
+
+def test_loading_css_renders_spinner():
+    with TestClient(app) as client:
+        resp = client.get("/static/css/style.css")
+
+    assert resp.status_code == 200
+    css = resp.text
+    assert ".loading--with-spinner::before" in css
+    assert "@keyframes loading-spin" in css
 
 
 def test_log_page_renders_brand_logo_and_favicon():
