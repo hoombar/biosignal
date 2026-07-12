@@ -1576,6 +1576,29 @@ input:focus {
     color: var(--text-secondary);
 }
 
+.loading--with-spinner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+}
+
+.loading--with-spinner::before {
+    content: "";
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid var(--border-strong);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    animation: loading-spin 0.8s linear infinite;
+    flex: 0 0 auto;
+}
+
+.loading--inline {
+    padding: 0;
+    text-align: left;
+}
+
 .error {
     background-color: rgba(255, 68, 102, 0.1);
     color: var(--danger-color);
@@ -1619,6 +1642,10 @@ input:focus {
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
+}
+
+@keyframes loading-spin {
+    to { transform: rotate(360deg); }
 }
 
 .animate-fade-in {

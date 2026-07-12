@@ -16,9 +16,15 @@ function confidenceLabel(c) {
     return c.confidence ? `${c.confidence} confidence` : `${c.strength || 'signal'} signal`;
 }
 
+function setLoadedText(id, text) {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.classList.remove('loading', 'loading--inline', 'loading--with-spinner');
+}
+
 async function loadCorrelationSnapshot() {
     const container = document.getElementById('top-correlates');
-    container.innerHTML = '<p class="loading">Loading unexpected signals...</p>';
+    container.innerHTML = '<p class="loading loading--with-spinner">Loading unexpected signals...</p>';
 
     try {
         const corrResp = await fetch('/api/correlation-snapshot?limit=5&min_abs=0.3&min_days=14');
@@ -60,11 +66,11 @@ async function loadOverview() {
         let filteredDays = daysWithData;
         const eventDays = daysWithData.filter(d => d.habits.some(h => Number(h.value) !== 0));
 
-        document.getElementById('total-days').textContent = filteredDays.length;
-        document.getElementById('fog-days').textContent = eventDays.length;
+        setLoadedText('total-days', filteredDays.length);
+        setLoadedText('fog-days', eventDays.length);
 
         const fogPct = filteredDays.length > 0 ? (eventDays.length / filteredDays.length * 100).toFixed(1) : 0;
-        document.getElementById('fog-pct').textContent = fogPct + '%';
+        setLoadedText('fog-pct', fogPct + '%');
 
         // Calculate current streak of days without any non-zero habit event.
         let streak = 0;
@@ -76,10 +82,11 @@ async function loadOverview() {
                 break;
             }
         }
-        document.getElementById('clear-streak').textContent = streak + ' days';
+        setLoadedText('clear-streak', streak + ' days');
 
     } catch (error) {
         console.error('Error loading overview:', error);
+        ['total-days', 'fog-days', 'fog-pct', 'clear-streak'].forEach(id => setLoadedText(id, '-'));
     }
 
 }

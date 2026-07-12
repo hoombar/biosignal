@@ -6,19 +6,19 @@
 <div class="stat-cards" id="stats">
     <div class="stat-card">
         <h3>Total Days Tracked</h3>
-        <div class="value" id="total-days">-</div>
+        <div class="value loading loading--inline loading--with-spinner" id="total-days">Loading</div>
     </div>
     <div class="stat-card">
         <h3>Habit Event Days</h3>
-        <div class="value" id="fog-days">-</div>
+        <div class="value loading loading--inline loading--with-spinner" id="fog-days">Loading</div>
     </div>
     <div class="stat-card">
         <h3>Event Percentage</h3>
-        <div class="value" id="fog-pct">-</div>
+        <div class="value loading loading--inline loading--with-spinner" id="fog-pct">Loading</div>
     </div>
     <div class="stat-card">
         <h3>Current Quiet Streak</h3>
-        <div class="value" id="clear-streak">-</div>
+        <div class="value loading loading--inline loading--with-spinner" id="clear-streak">Loading</div>
     </div>
 </div>
 
@@ -26,7 +26,7 @@
     <h2>Unexpected Correlation Signals</h2>
     <p class="muted">Filters out obvious derived metric pairs so cross-domain signals are easier to spot.</p>
     <div id="top-correlates">
-        <p class="loading">Loading unexpected signals...</p>
+        <p class="loading loading--with-spinner">Loading unexpected signals...</p>
     </div>
 </div>
 
