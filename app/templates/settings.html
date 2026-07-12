@@ -25,7 +25,7 @@
     </div>
 
     <div id="sync-status" class="service-sync-grid">
-        <p class="loading">Loading sync status...</p>
+        <p class="loading loading--with-spinner">Loading sync status...</p>
     </div>
 
     <div class="service-sync-actions">
@@ -69,7 +69,7 @@
         <p class="settings-desc">Group supplements by dose window. Logs keep the exact list from the day they were recorded.</p>
     </div>
 
-    <div id="supplements-loading" class="loading">Loading supplements...</div>
+    <div id="supplements-loading" class="loading loading--with-spinner">Loading supplements...</div>
     <div id="supplements-error" class="error" style="display:none;"></div>
     <div id="supplements-form" class="supplements-settings" style="display:none;">
         <div id="supplements-slots" class="supplements-settings-grid"></div>
@@ -131,7 +131,9 @@
                 <span id="gym-activity-status" class="save-status"></span>
             </div>
         </form>
-        <div id="gym-activity-list" class="gym-settings-list"></div>
+        <div id="gym-activity-list" class="gym-settings-list">
+            <div class="loading loading--with-spinner">Loading activities...</div>
+        </div>
     </div>
 
     <div class="gym-settings-layout">
@@ -165,7 +167,9 @@
                 <h3>Current plans</h3>
                 <button type="button" class="btn-secondary" id="gym-template-refresh">Refresh</button>
             </div>
-            <div id="gym-template-list" class="gym-settings-list"></div>
+            <div id="gym-template-list" class="gym-settings-list">
+                <div class="loading loading--with-spinner">Loading plans...</div>
+            </div>
         </div>
     </div>
 </section>
@@ -227,7 +231,7 @@
         <span id="backup-status" class="save-status"></span>
     </div>
 
-    <div id="habits-loading" class="loading">Loading habits...</div>
+    <div id="habits-loading" class="loading loading--with-spinner">Loading habits...</div>
     <div id="habits-error" class="error" style="display:none;"></div>
 
     <form id="habits-form" style="display:none;">
