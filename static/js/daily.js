@@ -375,7 +375,7 @@ async function renderMonth(year, month) {
         `${MONTH_NAMES[month]} ${year}`;
 
     const container = document.getElementById('calendar-grid');
-    container.innerHTML = '<p class="loading">Loading...</p>';
+    container.innerHTML = '<p class="loading loading--with-spinner">Loading...</p>';
 
     try {
         const data = await fetchMonth(year, month);
@@ -444,7 +444,7 @@ async function renderYearHeatmap(year) {
     document.getElementById('year-label').textContent = year;
 
     const container = document.getElementById('year-heatmap');
-    container.innerHTML = '<p class="loading">Loading...</p>';
+    container.innerHTML = '<p class="loading loading--with-spinner">Loading...</p>';
 
     try {
         const data = await fetchCalendarYear(year);

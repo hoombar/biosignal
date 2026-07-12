@@ -11,7 +11,7 @@
         <button class="year-nav-btn" onclick="navigateYear(1)" title="Next year">&rarr;</button>
     </div>
     <div class="year-heatmap" id="year-heatmap">
-        <p class="loading">Loading...</p>
+        <p class="loading loading--with-spinner">Loading...</p>
     </div>
     <div class="month-tabs" id="month-tabs"></div>
 </div>
@@ -36,7 +36,7 @@
         </div>
 
         <div class="calendar-grid" id="calendar-grid">
-            <p class="loading">Loading...</p>
+            <p class="loading loading--with-spinner">Loading...</p>
         </div>
 
         <div class="calendar-legend" id="calendar-legend"></div>
@@ -60,7 +60,7 @@
         <div class="detail-content">
             <!-- Metrics Grid -->
             <div class="metrics-grid" id="metrics-grid">
-                <!-- Cards populated by JS -->
+                <p class="loading loading--with-spinner">Loading day details...</p>
             </div>
 
             <!-- Habits Sidebar -->
@@ -70,7 +70,7 @@
                     <a class="habits-panel-edit" id="habits-edit-link" href="/log" title="Open in Log to edit">Edit&nbsp;&rarr;</a>
                 </div>
                 <div class="habits-list" id="habits-list">
-                    <!-- Populated by JS -->
+                    <p class="loading loading--with-spinner">Loading daily log...</p>
                 </div>
             </div>
         </div>
