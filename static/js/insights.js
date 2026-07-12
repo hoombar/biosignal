@@ -37,7 +37,7 @@ function getTargetHabit() {
 async function loadInsights() {
     const targetHabit = getTargetHabit();
     const container = document.getElementById('insights-list');
-    container.innerHTML = '<p class="loading">Loading insights...</p>';
+    container.innerHTML = '<p class="loading loading--with-spinner">Loading insights...</p>';
 
     if (!targetHabit) {
         container.innerHTML = '<p>No habits available for analysis yet.</p>';
@@ -87,7 +87,7 @@ async function loadInsights() {
 async function loadPatterns() {
     const targetHabit = getTargetHabit();
     const container = document.getElementById('patterns-list');
-    container.innerHTML = '<p class="loading">Loading patterns...</p>';
+    container.innerHTML = '<p class="loading loading--with-spinner">Loading patterns...</p>';
 
     if (!targetHabit) {
         container.innerHTML = '<p>No habits available for pattern analysis yet.</p>';
