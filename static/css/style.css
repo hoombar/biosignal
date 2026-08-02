@@ -1,4 +1,4 @@
-/* Energy Tracker - Data-Forward Dark Theme */
+/* BioSignal - Signal Field daylight theme */
 
 /* ============================================
    CSS VARIABLES
@@ -6,57 +6,81 @@
 
 :root {
     /* Typography */
-    --font-display: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-    --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    --font-display: "Aptos", "SF Pro Display", "Segoe UI Variable Display", system-ui, sans-serif;
+    --font-body: "Source Sans 3", "Aptos", -apple-system, system-ui, sans-serif;
+    --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace;
+
+    /* Signal Field semantic tokens */
+    --bg: #f4f7f1;
+    --surface: #fbfcf7;
+    --surface-raised: #eaf0e6;
+    --fg: #14221c;
+    --fg-2: #33443b;
+    --muted: #68776e;
+    --meta: #859188;
+    --border: #cfd8cf;
+    --border-soft: #e1e7de;
+    --accent: #176d62;
+    --accent-on: #f8fff8;
+    --sync: #3f6fbd;
+    --sleep: #527bc7;
+    --recovery: #16835f;
+    --stress: #a1641d;
+    --load: #bf4b3f;
+    --environment: #268b7d;
+    --habit: #7d8e23;
+    --danger: #c53d54;
+    --warn: #b2761f;
+    --success: #16835f;
 
     /* Base dark theme */
-    --bg-primary: #0a0a0f;
-    --bg-secondary: #12121a;
-    --bg-tertiary: #1a1a24;
-    --bg-hover: #22222e;
+    --bg-primary: var(--bg);
+    --bg-secondary: var(--surface);
+    --bg-tertiary: var(--surface-raised);
+    --bg-hover: #dfe8dc;
     --bg-color: var(--bg-secondary);
 
     /* Text hierarchy */
-    --text-primary: #f0f0f5;
-    --text-secondary: #8888a0;
-    --text-muted: #555566;
+    --text-primary: var(--fg);
+    --text-secondary: var(--fg-2);
+    --text-muted: var(--muted);
     --text-color: var(--text-primary);
 
     /* Borders */
-    --border-subtle: #2a2a38;
-    --border-strong: #3a3a4a;
+    --border-subtle: var(--border-soft);
+    --border-strong: var(--border);
     --border-color: var(--border-subtle);
 
     /* Semantic colors */
-    --color-positive: #00ff88;
-    --color-negative: #ff4466;
-    --color-warning: #ffaa00;
-    --color-neutral: #4488ff;
+    --color-positive: var(--success);
+    --color-negative: var(--danger);
+    --color-warning: var(--warn);
+    --color-neutral: var(--accent);
     --success-color: var(--color-positive);
     --danger-color: var(--color-negative);
     --warning-color: var(--color-warning);
     --primary-color: var(--color-neutral);
 
     /* Metric category colors */
-    --color-sleep: #a78bfa;
-    --color-hrv: #34d399;
-    --color-spo2: #38bdf8;
-    --color-heart: #f87171;
-    --color-battery: #fbbf24;
-    --color-stress: #fb923c;
-    --color-activity: #60a5fa;
-    --color-light: #facc15;
-    --color-pollen: #84cc16;
-    --color-weather: #38bdf8;
-    --color-habits: #e879f9;
+    --color-sleep: var(--sleep);
+    --color-hrv: var(--recovery);
+    --color-spo2: var(--sync);
+    --color-heart: var(--load);
+    --color-battery: var(--recovery);
+    --color-stress: var(--stress);
+    --color-activity: var(--load);
+    --color-light: var(--environment);
+    --color-pollen: var(--habit);
+    --color-weather: var(--environment);
+    --color-habits: var(--habit);
 
     /* Correlation lollipop palette */
-    --corr-positive: #5fa8ff;
-    --corr-negative: #f59e0b;
+    --corr-positive: var(--sync);
+    --corr-negative: var(--stress);
 
     /* Header */
-    --header-bg: #08080c;
-    --header-text: var(--text-primary);
+    --header-bg: var(--surface);
+    --header-text: var(--fg);
 
     /* Spacing scale */
     --space-xs: 0.25rem;
@@ -3776,5 +3800,372 @@ input:focus {
 
     .context-form-grid {
         grid-template-columns: 1fr;
+    }
+}
+
+/* ============================================
+   SIGNAL FIELD SHELL REPAINT
+   ============================================ */
+
+body {
+    font-family: var(--font-body);
+    color: var(--fg);
+    background:
+        radial-gradient(circle at top left, rgba(23, 109, 98, 0.08), transparent 32rem),
+        linear-gradient(180deg, #f7faf3 0%, var(--bg) 22rem);
+}
+
+h1, h2, h3, h4, h5, h6,
+.site-brand-name {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+}
+
+.mono,
+code,
+.metric-value,
+.stat-value,
+.stat-card .value,
+.year-label,
+.calendar-cell .date-num,
+.sleep-score,
+.log-date,
+input[type="number"] {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
+.site-header {
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    border-color: var(--border-soft);
+    box-shadow: 0 18px 48px rgba(20, 34, 28, 0.05);
+}
+
+.site-brand {
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--fg);
+    text-decoration: none;
+}
+
+.site-logo {
+    width: 2.5rem;
+    height: 2.5rem;
+    max-width: none;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid var(--border);
+}
+
+.site-brand-text {
+    display: grid;
+    gap: 0.05rem;
+}
+
+.site-brand-name {
+    color: var(--fg);
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.site-brand-kicker {
+    color: var(--muted);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    line-height: 1.1;
+    text-transform: uppercase;
+}
+
+.site-nav a {
+    position: relative;
+    min-height: 44px;
+    border-radius: 0;
+    color: var(--fg-2);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+.site-nav a:hover {
+    color: var(--fg);
+    background: transparent;
+}
+
+.site-nav a::after {
+    content: "";
+    position: absolute;
+    left: var(--space-md);
+    right: var(--space-md);
+    bottom: 0.35rem;
+    height: 2px;
+    border-radius: 999px;
+    background: transparent;
+}
+
+.site-nav a.active {
+    color: var(--accent);
+    background: transparent;
+}
+
+.site-nav a.active::after,
+.site-nav a:hover::after {
+    background: var(--accent);
+}
+
+.site-nav a.nav-settings {
+    margin-left: 0;
+    color: var(--fg-2);
+    font-size: 0.875rem;
+    padding: var(--space-sm) var(--space-md);
+}
+
+.site-nav a.nav-settings:hover,
+.site-nav a.nav-settings.active {
+    color: var(--accent);
+    background: transparent;
+}
+
+.chart-container,
+.stat-card,
+.metric-card,
+.year-heatmap-section,
+.calendar-section,
+.detail-section,
+.context-panel,
+.supplement-slot,
+.context-event {
+    background: color-mix(in srgb, var(--surface) 96%, white);
+    border-color: var(--border-soft);
+    box-shadow: 0 16px 42px rgba(20, 34, 28, 0.06);
+}
+
+.chart-container,
+.stat-card,
+.metric-card,
+.year-heatmap-section,
+.calendar-section,
+.detail-section {
+    border-radius: 18px;
+}
+
+button,
+.year-nav-btn,
+.month-nav-btn,
+.log-nav-btn,
+input[type="submit"] {
+    min-height: 44px;
+    border-color: var(--border);
+    background: var(--surface);
+    color: var(--fg);
+}
+
+button:hover,
+.year-nav-btn:hover,
+.month-nav-btn:hover,
+.log-nav-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    background: var(--surface-raised);
+    color: var(--accent);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus,
+select:focus,
+textarea:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+}
+
+input[type="number"],
+input[type="text"],
+input[type="date"],
+input[type="password"],
+select,
+textarea {
+    min-height: 44px;
+    border-color: var(--border);
+    background: var(--surface);
+    color: var(--fg);
+}
+
+.loading {
+    color: var(--muted);
+}
+
+.loading--with-spinner::before {
+    border-color: var(--border);
+    border-top-color: var(--accent);
+}
+
+.error {
+    background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+    border-color: color-mix(in srgb, var(--danger) 28%, var(--border));
+    color: var(--danger);
+}
+
+.empty-state {
+    color: var(--muted);
+    background: color-mix(in srgb, var(--surface) 80%, transparent);
+    border: 1px dashed var(--border);
+    border-radius: 18px;
+}
+
+.month-tab.active,
+.context-submit {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-on);
+}
+
+.log-page {
+    max-width: 760px;
+}
+
+.log-header {
+    padding: 0.75rem;
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    box-shadow: 0 12px 32px rgba(20, 34, 28, 0.05);
+}
+
+.log-date {
+    color: var(--fg);
+    font-size: clamp(1.35rem, 2vw, 1.75rem);
+}
+
+.log-date-rel {
+    color: var(--muted);
+}
+
+.calendar-section {
+    top: 1.25rem;
+}
+
+.calendar-cell {
+    border-color: var(--border-soft);
+    background: var(--surface);
+}
+
+.calendar-cell:hover,
+.calendar-cell.selected {
+    border-color: var(--accent);
+}
+
+.calendar-cell.selected {
+    box-shadow: inset 0 -3px 0 var(--accent), 0 8px 22px rgba(23, 109, 98, 0.12);
+}
+
+@media (min-width: 1025px) {
+    body {
+        display: grid;
+        grid-template-columns: 13.25rem minmax(0, 1fr);
+        min-height: 100vh;
+    }
+
+    .site-header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        min-height: 100vh;
+        padding: 1.5rem 1rem;
+        align-self: start;
+        flex-direction: column;
+        align-items: stretch;
+        border-right: 1px solid var(--border-soft);
+        border-bottom: 0;
+    }
+
+    .site-brand {
+        padding-bottom: 1.25rem;
+        border-bottom: 1px solid var(--border-soft);
+    }
+
+    .site-nav {
+        width: 100%;
+        margin-left: 0;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.15rem;
+    }
+
+    .site-nav a {
+        padding: 0.65rem 0.75rem 0.65rem 1rem;
+    }
+
+    .site-nav a::after {
+        top: 0.8rem;
+        bottom: 0.8rem;
+        left: 0;
+        right: auto;
+        width: 3px;
+        height: auto;
+    }
+
+    main {
+        width: 100%;
+        max-width: 1600px;
+        margin: 0 auto;
+        padding: 1.5rem;
+    }
+}
+
+@media (max-width: 1024px) {
+    .site-header {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        padding: 0.8rem 1rem;
+    }
+
+    .site-nav {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        scrollbar-width: thin;
+    }
+
+    .site-nav a {
+        flex: 0 0 auto;
+        white-space: nowrap;
+    }
+}
+
+@media (max-width: 768px) {
+    .site-header {
+        align-items: center;
+    }
+
+    .nav-toggle {
+        display: none;
+    }
+
+    .site-nav,
+    .site-header[data-nav-open="true"] .site-nav {
+        display: flex;
+        order: 3;
+        width: 100%;
+        margin-left: 0;
+        padding-top: 0.25rem;
+        flex-direction: row;
+        align-items: center;
+        overflow-x: auto;
+    }
+
+    .site-nav a {
+        width: auto;
+    }
+
+    main {
+        padding: 0.75rem;
+    }
+
+    .log-header {
+        border-radius: 18px;
+    }
+
+    .site-brand-kicker {
+        display: none;
     }
 }

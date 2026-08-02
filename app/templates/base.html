@@ -3,26 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Biosignal{% endblock %}</title>
+    <title>{% block title %}BioSignal{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="/static/images/favicon.png">
     <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/css/style.css?v=20260628-habit-editor-2">
+    <link rel="stylesheet" href="/static/css/style.css?v=20260802-signal-field-1">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="/static/js/site-nav.js" defer></script>
 </head>
 <body>
     <header class="site-header" data-nav-open="false">
-        <a href="/log" class="site-brand" aria-label="Biosignal home">
+        <a href="/log" class="site-brand" aria-label="BioSignal home">
             <img
                 src="/static/images/logo.jpeg"
-                alt="Biosignal"
+                alt="BioSignal"
                 class="site-logo"
                 width="320"
                 height="239"
             >
+            <span class="site-brand-text">
+                <span class="site-brand-name">BioSignal</span>
+                <span class="site-brand-kicker">Signal Field</span>
+            </span>
         </a>
         <button
             type="button"
@@ -36,14 +40,14 @@
             <span class="nav-toggle-bar"></span>
         </button>
         <nav id="site-nav" class="site-nav" aria-label="Primary">
-            <a href="/log" class="{{ 'active' if active_page == 'log' }}">Log</a>
+            <a href="/log" class="{{ 'active' if active_page == 'log' }}">Today</a>
             <a href="/gym" class="{{ 'active' if active_page == 'gym' }}">Gym</a>
             <a href="/overview" class="{{ 'active' if active_page == 'overview' }}">Overview</a>
             <a href="/daily" class="{{ 'active' if active_page == 'daily' }}">Daily</a>
             <a href="/correlations" class="{{ 'active' if active_page == 'correlations' }}">Correlations</a>
             <a href="/trends" class="{{ 'active' if active_page == 'trends' }}">Trends</a>
             <a href="/insights" class="{{ 'active' if active_page == 'insights' }}">Insights</a>
-            <a href="/settings" class="nav-settings {{ 'active' if active_page == 'settings' }}" title="Settings">&#9881;</a>
+            <a href="/settings" class="nav-settings {{ 'active' if active_page == 'settings' }}" title="Settings">Settings</a>
         </nav>
     </header>
 
