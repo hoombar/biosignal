@@ -14,6 +14,7 @@
     --bg: #f4f7f1;
     --surface: #fbfcf7;
     --surface-raised: #eaf0e6;
+    --surface-warm: var(--surface-raised);
     --fg: #14221c;
     --fg-2: #33443b;
     --muted: #68776e;
@@ -32,6 +33,9 @@
     --danger: #c53d54;
     --warn: #b2761f;
     --success: #16835f;
+    --accent-hover: color-mix(in srgb, var(--accent), black 7%);
+    --accent-active: color-mix(in srgb, var(--accent), black 14%);
+    --focus-ring: 0 0 0 3px color-mix(in srgb, var(--sync), transparent 68%);
 
     /* Base dark theme */
     --bg-primary: var(--bg);
@@ -89,6 +93,11 @@
     --space-lg: 1.5rem;
     --space-xl: 2rem;
     --space-2xl: 3rem;
+
+    /* Motion */
+    --motion-fast: 150ms;
+    --motion-base: 220ms;
+    --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 
     /* Border radius */
     --radius-sm: 4px;
@@ -3811,8 +3820,26 @@ body {
     font-family: var(--font-body);
     color: var(--fg);
     background:
+        linear-gradient(90deg, color-mix(in srgb, var(--border), transparent 68%) 1px, transparent 1px),
+        linear-gradient(color-mix(in srgb, var(--border), transparent 74%) 1px, transparent 1px),
         radial-gradient(circle at top left, rgba(23, 109, 98, 0.08), transparent 32rem),
         linear-gradient(180deg, #f7faf3 0%, var(--bg) 22rem);
+    background-size: 36px 36px, 36px 36px, auto, auto;
+}
+
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image: repeating-linear-gradient(
+        120deg,
+        transparent 0,
+        transparent 74px,
+        color-mix(in srgb, var(--accent), transparent 92%) 75px,
+        transparent 76px
+    );
+    opacity: 0.45;
 }
 
 h1, h2, h3, h4, h5, h6,
@@ -3836,9 +3863,14 @@ input[type="number"] {
 }
 
 .site-header {
+    position: relative;
     background: color-mix(in srgb, var(--surface) 94%, transparent);
     border-color: var(--border-soft);
     box-shadow: 0 18px 48px rgba(20, 34, 28, 0.05);
+}
+
+main {
+    position: relative;
 }
 
 .site-brand {
@@ -3958,6 +3990,7 @@ input[type="submit"] {
     border-color: var(--border);
     background: var(--surface);
     color: var(--fg);
+    transition: background var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
 }
 
 button:hover,
@@ -3969,6 +4002,13 @@ button:hover,
     color: var(--accent);
 }
 
+button:active,
+.year-nav-btn:active,
+.month-nav-btn:active,
+.log-nav-btn:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
 button:focus-visible,
 a:focus-visible,
 input:focus,
@@ -3976,6 +4016,7 @@ select:focus,
 textarea:focus {
     outline: 2px solid var(--accent);
     outline-offset: 3px;
+    box-shadow: var(--focus-ring);
 }
 
 input[type="number"],
@@ -4056,6 +4097,172 @@ textarea {
 
 .calendar-cell.selected {
     box-shadow: inset 0 -3px 0 var(--accent), 0 8px 22px rgba(23, 109, 98, 0.12);
+}
+
+/* Shared Signal Field primitives for current and next migrated surfaces. */
+.status-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 30px;
+    padding: 0 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--fg-2);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.chip::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--chip-color, var(--meta));
+}
+
+.chip.good,
+.chip.success {
+    --chip-color: var(--success);
+}
+
+.chip.sync {
+    --chip-color: var(--sync);
+}
+
+.chip.warn,
+.chip.review {
+    --chip-color: var(--warn);
+}
+
+.chip.danger,
+.chip.error {
+    --chip-color: var(--danger);
+}
+
+.dayline {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: linear-gradient(90deg, var(--surface), color-mix(in srgb, var(--surface-warm), transparent 18%));
+}
+
+.dayline-track {
+    display: grid;
+    grid-template-columns: 1.25fr 0.8fr 0.9fr 0.8fr 0.9fr 0.9fr 0.85fr;
+    gap: 3px;
+    min-height: 14px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--border-soft);
+}
+
+.dayline-segment {
+    background: var(--segment-color, var(--accent));
+}
+
+.dayline-segment--sleep { --segment-color: var(--sleep); }
+.dayline-segment--sync { --segment-color: var(--sync); }
+.dayline-segment--habit { --segment-color: var(--habit); }
+.dayline-segment--supplement { --segment-color: var(--recovery); }
+.dayline-segment--context { --segment-color: var(--warn); }
+.dayline-segment--training { --segment-color: var(--load); }
+.dayline-segment--analysis { --segment-color: var(--accent); }
+
+.dayline-labels {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.5rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+}
+
+.dayline-labels span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.capture-row,
+.evidence-row,
+.signal-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.75rem;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--surface-warm), transparent 18%);
+}
+
+.capture-row strong,
+.evidence-row strong,
+.signal-row strong {
+    color: var(--fg);
+    font-size: 0.875rem;
+}
+
+.capture-row span,
+.evidence-row span,
+.signal-row span {
+    color: var(--muted);
+    font-size: 0.75rem;
+}
+
+.evidence-row--low-confidence,
+.signal-row--low-confidence {
+    opacity: 0.58;
+}
+
+.module-card,
+.metric-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.module-card {
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+}
+
+.module-card.signal::before,
+.metric-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 1rem;
+    right: 1rem;
+    height: 3px;
+    border-radius: 0 0 999px 999px;
+    background: var(--rail-color, var(--accent));
+}
+
+@media (max-width: 430px) {
+    .dayline-track,
+    .dayline-labels {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .capture-row,
+    .evidence-row,
+    .signal-row {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (min-width: 1025px) {
