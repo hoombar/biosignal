@@ -603,7 +603,11 @@
                 updateActivity(activityId, {rating: actionEl.dataset.rating});
             }
             if (action === 'save-activity') {
-                updateActivity(activityId, collectActivityPatch(card));
+                updateActivity(
+                    activityId,
+                    collectActivityPatch(card),
+                    {promptTemplateUpdate: Boolean(card.querySelector('[data-action="toggle-activity"]')?.checked)},
+                );
             }
         });
 

@@ -206,9 +206,18 @@ def test_gym_session_completion_can_update_template():
     assert resp.status_code == 200
     script = resp.text
     assert "promptTemplateUpdate: event.target.checked" in script
+    assert "promptTemplateUpdate: Boolean(card.querySelector('[data-action=\"toggle-activity\"]')?.checked)" in script
     assert "Update the template with these completed values?" in script
     assert "function updateTemplateFromCompletedActivity(activity)" in script
     assert "`/api/gym/templates/${template.id}`" in script
+
+
+def test_gym_page_cache_busts_session_script():
+    with TestClient(app) as client:
+        resp = client.get("/gym")
+
+    assert resp.status_code == 200
+    assert "/static/js/gym.js?v=20260808-activity-summary-template" in resp.text
 
 
 def test_gym_settings_template_list_supports_unarchive():
