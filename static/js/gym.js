@@ -32,31 +32,39 @@
         return Number.isInteger(number) ? String(number) : String(number).replace(/0+$/, '').replace(/\.$/, '');
     }
 
-    function plannedSummary(activity) {
+    function activitySummary(activity) {
         if (activity.activity_type === 'strength') {
             const parts = [];
-            if (activity.planned_weight != null) {
-                parts.push(`${compactNumber(activity.planned_weight)} ${activity.planned_weight_unit || 'kg'}`);
+            const weight = activity.actual_weight ?? activity.planned_weight;
+            const sets = activity.actual_sets ?? activity.planned_sets;
+            const reps = activity.actual_reps ?? activity.planned_reps;
+            if (weight != null) {
+                parts.push(`${compactNumber(weight)} ${activity.actual_weight_unit || activity.planned_weight_unit || 'kg'}`);
             }
-            if (activity.planned_sets != null || activity.planned_reps != null) {
-                parts.push(`${activity.planned_sets ?? '-'} x ${activity.planned_reps ?? '-'}`);
+            if (sets != null || reps != null) {
+                parts.push(`${sets ?? '-'} x ${reps ?? '-'}`);
             }
             return parts.join(' · ') || 'Strength';
         }
         if (activity.activity_type === 'cardio') {
             const parts = [];
-            if (activity.planned_duration_minutes != null) parts.push(`${compactNumber(activity.planned_duration_minutes)} min`);
-            if (activity.planned_intensity) parts.push(activity.planned_intensity);
-            if (activity.planned_speed != null) {
-                const unit = activity.planned_weight_unit ? ` ${activity.planned_weight_unit}` : '';
-                parts.push(`${compactNumber(activity.planned_speed)}${unit}`);
+            const duration = activity.actual_duration_minutes ?? activity.planned_duration_minutes;
+            const intensity = activity.actual_intensity ?? activity.planned_intensity;
+            const speed = activity.actual_speed ?? activity.planned_speed;
+            if (duration != null) parts.push(`${compactNumber(duration)} min`);
+            if (intensity) parts.push(intensity);
+            if (speed != null) {
+                const unit = activity.actual_weight_unit || activity.planned_weight_unit;
+                parts.push(`${compactNumber(speed)}${unit ? ` ${unit}` : ''}`);
             }
             return parts.join(' · ') || 'Cardio';
         }
         if (activity.activity_type === 'mobility') {
             const parts = [];
-            if (activity.planned_sets != null || activity.planned_reps != null) {
-                parts.push(`${activity.planned_sets ?? '-'} x ${activity.planned_reps ?? '-'}`);
+            const sets = activity.actual_sets ?? activity.planned_sets;
+            const reps = activity.actual_reps ?? activity.planned_reps;
+            if (sets != null || reps != null) {
+                parts.push(`${sets ?? '-'} x ${reps ?? '-'}`);
             }
             return parts.join(' · ') || 'Mobility';
         }
@@ -280,7 +288,7 @@
                     <input type="checkbox" data-action="toggle-activity" ${checked}>
                     <span>
                         <span class="gym-activity-name">${escapeHtml(activity.name_snapshot)}</span>
-                        <span class="gym-activity-plan">${escapeHtml(plannedSummary(activity))}</span>
+                        <span class="gym-activity-plan">${escapeHtml(activitySummary(activity))}</span>
                     </span>
                 </label>
                 <div class="gym-rating" aria-label="Exercise rating">
@@ -385,7 +393,70 @@
         }
     }
 
-    async function updateActivity(activityId, patch) {
+    function matchingTemplateActivity(activity) {
+        const template = state.templates.find(item => item.id === state.session?.template_id);
+        if (!template) return null;
+        const templateActivity = template.activities.find(item => item.sort_order === activity.sort_order);
+        return templateActivity ? {template, templateActivity} : null;
+    }
+
+    function completedTemplatePatch(activity) {
+        if (activity.activity_type === 'strength') {
+            return {
+                target_sets: activity.actual_sets,
+                target_reps: activity.actual_reps,
+                target_weight: activity.actual_weight,
+                target_weight_unit: activity.actual_weight_unit || activity.planned_weight_unit,
+            };
+        }
+        if (activity.activity_type === 'cardio') {
+            return {
+                target_duration_minutes: activity.actual_duration_minutes,
+                target_intensity: activity.actual_intensity,
+                target_speed: activity.actual_speed,
+                target_weight_unit: activity.actual_weight_unit || activity.planned_weight_unit,
+            };
+        }
+        return {
+            target_sets: activity.actual_sets,
+            target_reps: activity.actual_reps,
+        };
+    }
+
+    function hasTemplateChanges(templateActivity, patch) {
+        return Object.entries(patch).some(([field, value]) => (templateActivity[field] ?? null) !== (value ?? null));
+    }
+
+    async function updateTemplateFromCompletedActivity(activity) {
+        const match = matchingTemplateActivity(activity);
+        if (!match) return;
+        const {template, templateActivity} = match;
+        const patch = completedTemplatePatch(activity);
+        if (!hasTemplateChanges(templateActivity, patch)) return;
+        if (!window.confirm('Update the template with these completed values?')) return;
+        setStatus('Updating template…');
+        try {
+            const activities = template.activities.map(item => (
+                item.id === templateActivity.id ? {...item, ...patch} : item
+            ));
+            const updated = await fetchJson(`/api/gym/templates/${template.id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    name: template.name,
+                    description: template.description,
+                    activities,
+                }),
+            });
+            Object.assign(template, updated);
+            setStatus('Template updated.');
+        } catch (err) {
+            console.error('Failed to update gym template from completed activity', err);
+            setStatus('Activity saved, but the template could not be updated.', true);
+        }
+    }
+
+    async function updateActivity(activityId, patch, options = {}) {
         const activity = state.session.activities.find(item => item.id === Number(activityId));
         if (!activity) return;
         Object.assign(activity, patch);
@@ -398,6 +469,7 @@
             });
             Object.assign(activity, updated);
             renderSession();
+            if (options.promptTemplateUpdate) await updateTemplateFromCompletedActivity(activity);
         } catch (err) {
             console.error('Failed to update gym activity', err);
             setStatus('Could not save activity update.', true);
@@ -545,7 +617,14 @@
             if (event.target.dataset.action !== 'toggle-activity') return;
             const card = event.target.closest('[data-activity-id]');
             if (!card) return;
-            updateActivity(card.dataset.activityId, {completed: event.target.checked});
+            const patch = event.target.checked
+                ? {...collectActivityPatch(card), completed: true}
+                : {completed: false};
+            updateActivity(
+                card.dataset.activityId,
+                patch,
+                {promptTemplateUpdate: event.target.checked},
+            );
         });
     }
 

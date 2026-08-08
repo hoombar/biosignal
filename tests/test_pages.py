@@ -187,6 +187,30 @@ def test_gym_session_editor_supports_mobility_sets_and_reps():
     assert "planned_reps" in script
 
 
+def test_gym_session_summary_uses_current_actual_values():
+    with TestClient(app) as client:
+        resp = client.get("/static/js/gym.js")
+
+    assert resp.status_code == 200
+    script = resp.text
+    assert "function activitySummary(activity)" in script
+    assert "activity.actual_weight ?? activity.planned_weight" in script
+    assert "activity.actual_duration_minutes ?? activity.planned_duration_minutes" in script
+    assert "activity.actual_sets ?? activity.planned_sets" in script
+
+
+def test_gym_session_completion_can_update_template():
+    with TestClient(app) as client:
+        resp = client.get("/static/js/gym.js")
+
+    assert resp.status_code == 200
+    script = resp.text
+    assert "promptTemplateUpdate: event.target.checked" in script
+    assert "Update the template with these completed values?" in script
+    assert "function updateTemplateFromCompletedActivity(activity)" in script
+    assert "`/api/gym/templates/${template.id}`" in script
+
+
 def test_gym_settings_template_list_supports_unarchive():
     with TestClient(app) as client:
         resp = client.get("/static/js/gym-settings.js")
