@@ -7,6 +7,13 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_gym_activity_cards_do_not_render_substitution_controls():
+    source = (REPO_ROOT / "static/js/gym.js").read_text()
+
+    assert "renderSubstitution(activity)" not in source
+    assert 'data-action="substitute-activity"' not in source
+
+
 def run_fetch_scenario(method: str, outcomes: list[str]) -> dict:
     script = textwrap.dedent(
         """

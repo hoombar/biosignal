@@ -217,7 +217,7 @@ def test_gym_page_cache_busts_session_script():
         resp = client.get("/gym")
 
     assert resp.status_code == 200
-    assert "/static/js/gym.js?v=20260809-substitutions-retry" in resp.text
+    assert "/static/js/gym.js?v=20260809-compact-activities" in resp.text
 
 
 def test_gym_settings_template_list_supports_unarchive():

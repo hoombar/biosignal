@@ -321,7 +321,6 @@
                         </button>
                     `).join('')}
                 </div>
-                ${renderSubstitution(activity)}
                 <details class="gym-adjust">
                     <summary>Adjust</summary>
                     ${renderAdjustFields(performed)}
@@ -334,28 +333,6 @@
                     <button type="button" class="gym-save-adjust" data-action="save-activity">Save changes</button>
                 </details>
             </article>
-        `;
-    }
-
-    function renderSubstitution(activity) {
-        if (state.activities.length === 0) return '';
-        return `
-            <details class="gym-substitute">
-                <summary>${activity.substitution_name_snapshot ? 'Change substitution' : 'Substitute activity'}</summary>
-                <div class="gym-substitute-panel">
-                    <label>
-                        Perform instead
-                        <select data-substitution-field="activity_id">
-                            ${state.activities.map(saved => `
-                                <option value="${saved.id}" ${activity.substitution_activity_id === saved.id ? 'selected' : ''}>
-                                    ${escapeHtml(saved.name)} (${typeLabel(saved.activity_type)})
-                                </option>
-                            `).join('')}
-                        </select>
-                    </label>
-                    <button type="button" class="gym-save-adjust" data-action="substitute-activity">Use substitution</button>
-                </div>
-            </details>
         `;
     }
 
@@ -529,26 +506,6 @@
         }
     }
 
-    async function substituteActivity(card) {
-        const input = card.querySelector('[data-substitution-field="activity_id"]');
-        if (!input?.value) return;
-        setStatus('Saving substitution…');
-        try {
-            const updated = await fetchJson(`/api/gym/session-activities/${card.dataset.activityId}/substitution`, {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({activity_id: Number(input.value)}),
-            });
-            const activity = state.session.activities.find(item => item.id === Number(card.dataset.activityId));
-            Object.assign(activity, updated);
-            renderSession();
-            setStatus('Substitution saved.');
-        } catch (err) {
-            console.error('Failed to save gym substitution', err);
-            setStatus('Could not save substitution after retrying. Check your connection and try again.', true);
-        }
-    }
-
     async function addSessionActivity(panel) {
         if (!state.session) return;
         const payload = collectAddActivityPayload(panel);
@@ -679,9 +636,6 @@
                     collectActivityPatch(card),
                     {promptTemplateUpdate: Boolean(card.querySelector('[data-action="toggle-activity"]')?.checked)},
                 );
-            }
-            if (action === 'substitute-activity') {
-                substituteActivity(card);
             }
         });
 
