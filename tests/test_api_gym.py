@@ -363,8 +363,77 @@ class TestGymSessions:
         assert body["name_snapshot"] == "Bike intervals"
         assert body["actual_duration_minutes"] == 12
 
-        library_row = (await async_session.execute(select(GymActivity))).scalar_one()
+        library_row = (await async_session.execute(
+            select(GymActivity).where(GymActivity.name == "Bike intervals")
+        )).scalar_one()
         assert library_row.name == "Bike intervals"
+
+    @pytest.mark.asyncio
+    async def test_ad_hoc_activity_is_saved_for_later_by_default(self, async_session):
+        app = _make_app(async_session)
+
+        with TestClient(app) as client:
+            template = client.post("/api/gym/templates", json=_template_payload()).json()
+            session = client.post(
+                "/api/gym/sessions",
+                json={"date": "2026-06-02", "template_id": template["id"]},
+            ).json()
+            added = client.post(
+                f"/api/gym/sessions/{session['id']}/activities",
+                json={
+                    "activity_type": "strength",
+                    "name": "Laid-back leg press",
+                    "target_sets": 3,
+                    "target_reps": 10,
+                },
+            )
+            library = client.get("/api/gym/activities")
+
+        assert added.status_code == 201
+        assert added.json()["activity_id"] is not None
+        assert "Laid-back leg press" in [activity["name"] for activity in library.json()]
+
+    @pytest.mark.asyncio
+    async def test_substitution_preserves_planned_activity_context(self, async_session):
+        app = _make_app(async_session)
+
+        with TestClient(app) as client:
+            substitute = client.post("/api/gym/activities", json={
+                "activity_type": "strength",
+                "name": "Laid-back leg press",
+                "target_sets": 3,
+                "target_reps": 10,
+                "target_weight": 80,
+                "target_weight_unit": "kg",
+            }).json()
+            template = client.post("/api/gym/templates", json={
+                "name": "Leg day",
+                "activities": [{
+                    "activity_type": "strength",
+                    "name": "Leg press",
+                    "target_sets": 4,
+                    "target_reps": 8,
+                    "target_weight": 100,
+                    "target_weight_unit": "kg",
+                }],
+            }).json()
+            session = client.post(
+                "/api/gym/sessions",
+                json={"date": "2026-06-02", "template_id": template["id"]},
+            ).json()
+            planned = session["activities"][0]
+            response = client.put(
+                f"/api/gym/session-activities/{planned['id']}/substitution",
+                json={"activity_id": substitute["id"]},
+            )
+
+        assert response.status_code == 200
+        activity = response.json()
+        assert activity["name_snapshot"] == "Leg press"
+        assert activity["planned_weight"] == 100
+        assert activity["substitution_activity_id"] == substitute["id"]
+        assert activity["substitution_name_snapshot"] == "Laid-back leg press"
+        assert activity["actual_weight"] == 80
 
     @pytest.mark.asyncio
     async def test_start_session_snapshots_current_template(self, async_session):
@@ -523,3 +592,34 @@ class TestGymSessions:
         row = (await async_session.execute(select(GymSessionLog))).scalar_one()
         assert row.date == date(2026, 6, 2)
         assert row.completed_at is not None
+
+    @pytest.mark.asyncio
+    async def test_session_auto_finishes_only_when_all_activities_have_effort_ratings(self, async_session):
+        app = _make_app(async_session)
+
+        with TestClient(app) as client:
+            template = client.post("/api/gym/templates", json=_template_payload()).json()
+            session = client.post(
+                "/api/gym/sessions",
+                json={"date": "2026-06-02", "template_id": template["id"]},
+            ).json()
+            first, second = session["activities"]
+
+            client.put(
+                f"/api/gym/session-activities/{first['id']}",
+                json={"completed": True, "rating": "normal"},
+            )
+            client.put(
+                f"/api/gym/session-activities/{second['id']}",
+                json={"completed": True},
+            )
+            before_rating = client.get("/api/gym/session", params={"date": "2026-06-02"})
+
+            client.put(
+                f"/api/gym/session-activities/{second['id']}",
+                json={"rating": "hard"},
+            )
+            finished = client.get("/api/gym/session", params={"date": "2026-06-02"})
+
+        assert before_rating.json()["completed_at"] is None
+        assert finished.json()["completed_at"] is not None

@@ -13,7 +13,7 @@ from app.core.config import get_settings
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 PRIOR_HEAD = "a1d2e3f4b5c6"
-CURRENT_HEAD = "5c1d2e3f4a6b"
+CURRENT_HEAD = "6d7e8f9a0b1c"
 
 
 def _run_alembic(args: list[str], db_path: str) -> None:
@@ -67,6 +67,12 @@ async def test_startup_migrations_upgrade_database_to_head(monkeypatch, temp_db_
                 sa.text("SELECT name FROM sqlite_master WHERE type='table'")
             ).fetchall()
         }
+        gym_activity_columns = {
+            row[1]
+            for row in conn.execute(
+                sa.text("PRAGMA table_info('gym_session_activity_logs')")
+            ).fetchall()
+        }
 
     assert revision == CURRENT_HEAD
     assert "source" in habit_columns
@@ -76,3 +82,5 @@ async def test_startup_migrations_upgrade_database_to_head(monkeypatch, temp_db_
     assert "gym_activities" in tables
     assert "gym_session_logs" in tables
     assert "gym_session_activity_logs" in tables
+    assert "substitution_activity_id" in gym_activity_columns
+    assert "substitution_name_snapshot" in gym_activity_columns

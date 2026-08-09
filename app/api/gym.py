@@ -117,9 +117,15 @@ def _activity_response(activity: GymSessionActivityLog) -> GymSessionActivityRes
     return GymSessionActivityResponse(
         id=activity.id,
         activity_id=activity.activity_id,
+        substitution_activity_id=activity.substitution_activity_id,
         sort_order=activity.sort_order,
         activity_type=_activity_type(activity.activity_type),
         name_snapshot=activity.name_snapshot,
+        substitution_name_snapshot=activity.substitution_name_snapshot,
+        substitution_activity_type=(
+            _activity_type(activity.substitution_activity_type)
+            if activity.substitution_activity_type else None
+        ),
         planned_sets=activity.planned_sets,
         planned_reps=activity.planned_reps,
         planned_weight=activity.planned_weight,
@@ -251,14 +257,16 @@ async def _resolve_session_activity(db: AsyncSession, data: GymSessionActivityCr
     )
     activity_id = None
     if data.save_to_library:
-        activity = GymActivity()
-        _apply_gym_activity(activity, inline)
-        db.add(activity)
-        try:
+        activity = (await db.execute(
+            select(GymActivity).where(GymActivity.name == inline.name.strip())
+        )).scalar_one_or_none()
+        if activity is None:
+            activity = GymActivity()
+            _apply_gym_activity(activity, inline)
+            db.add(activity)
             await db.flush()
-        except IntegrityError as exc:
-            await db.rollback()
-            raise HTTPException(status_code=409, detail="gym activity name already exists") from exc
+        elif activity.archived_at is not None:
+            raise HTTPException(status_code=409, detail="gym activity name belongs to an archived activity")
         activity_id = activity.id
     return GymTemplateActivityInput(
         activity_id=activity_id,
@@ -310,6 +318,19 @@ async def _replace_template_activities(
     await db.execute(delete(GymTemplateActivity).where(GymTemplateActivity.template_id == template_id))
     for index, activity_data in enumerate(activities):
         activity_data = await _resolve_template_activity(db, activity_data)
+        if activity_data.activity_id is None:
+            if activity_data.name is None:
+                raise HTTPException(status_code=422, detail="activity name is required")
+            library_activity = (await db.execute(
+                select(GymActivity).where(GymActivity.name == activity_data.name.strip())
+            )).scalar_one_or_none()
+            if library_activity is None:
+                library_activity = GymActivity()
+                _apply_gym_activity(library_activity, GymActivityCreateRequest(**activity_data.model_dump()))
+                db.add(library_activity)
+                await db.flush()
+            if library_activity.archived_at is None:
+                activity_data.activity_id = library_activity.id
         activity = GymTemplateActivity(template_id=template_id)
         _apply_template_activity(activity, activity_data, index)
         db.add(activity)
@@ -558,5 +579,59 @@ async def update_session_activity(
     update_data = body.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(activity, field, _clean_text(value) if field in {"actual_weight_unit", "actual_intensity", "notes"} else value)
+    await db.flush()
+    await _auto_finish_session(db, activity.session_log_id)
+    await db.commit()
+    return _activity_response(activity)
+
+
+async def _auto_finish_session(db: AsyncSession, session_id: int) -> None:
+    remaining = (await db.execute(
+        select(func.count(GymSessionActivityLog.id)).where(
+            GymSessionActivityLog.session_log_id == session_id,
+            (GymSessionActivityLog.completed.is_(False)) | (GymSessionActivityLog.rating.is_(None)),
+        )
+    )).scalar_one()
+    total = (await db.execute(
+        select(func.count(GymSessionActivityLog.id)).where(
+            GymSessionActivityLog.session_log_id == session_id,
+        )
+    )).scalar_one()
+    if total and remaining == 0:
+        session = (await db.execute(
+            select(GymSessionLog).where(GymSessionLog.id == session_id)
+        )).scalar_one()
+        if session.completed_at is None:
+            session.completed_at = datetime.utcnow()
+
+
+@router.put(
+    "/session-activities/{activity_id}/substitution",
+    response_model=GymSessionActivityResponse,
+)
+async def substitute_session_activity(
+    activity_id: int,
+    body: GymSessionActivityCreateRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    activity = (await db.execute(
+        select(GymSessionActivityLog).where(GymSessionActivityLog.id == activity_id)
+    )).scalar_one_or_none()
+    if activity is None:
+        raise HTTPException(status_code=404, detail=f"gym session activity {activity_id} not found")
+
+    substitute = await _resolve_session_activity(db, body)
+    activity.substitution_activity_id = substitute.activity_id
+    activity.substitution_name_snapshot = substitute.name
+    activity.substitution_activity_type = substitute.activity_type
+    activity.actual_sets = substitute.target_sets
+    activity.actual_reps = substitute.target_reps
+    activity.actual_weight = substitute.target_weight
+    activity.actual_weight_unit = substitute.target_weight_unit
+    activity.actual_duration_minutes = substitute.target_duration_minutes
+    activity.actual_intensity = substitute.target_intensity
+    activity.actual_speed = substitute.target_speed
+    activity.completed = False
+    activity.rating = None
     await db.commit()
     return _activity_response(activity)

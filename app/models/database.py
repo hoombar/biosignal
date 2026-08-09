@@ -298,10 +298,13 @@ class GymSessionActivityLog(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     activity_id = Column(Integer, ForeignKey("gym_activities.id"), nullable=True, index=True)
+    substitution_activity_id = Column(Integer, ForeignKey("gym_activities.id"), nullable=True, index=True)
     session_log_id = Column(Integer, ForeignKey("gym_session_logs.id"), nullable=False, index=True)
     sort_order = Column(Integer, nullable=False)
     activity_type = Column(String, nullable=False)
     name_snapshot = Column(String, nullable=False)
+    substitution_name_snapshot = Column(String, nullable=True)
+    substitution_activity_type = Column(String, nullable=True)
     planned_sets = Column(Integer, nullable=True)
     planned_reps = Column(Integer, nullable=True)
     planned_weight = Column(Float, nullable=True)

@@ -84,14 +84,33 @@
         els.status.classList.toggle('loading--with-spinner', Boolean(isLoading));
     }
 
-    async function fetchJson(url, options) {
-        const resp = await fetch(url, options);
-        if (!resp.ok) {
-            const detail = await resp.text();
-            throw new Error(detail || `HTTP ${resp.status}`);
+    function retryDelay() {
+        return new Promise(resolve => setTimeout(resolve, 350));
+    }
+
+    async function fetchJson(url, options = {}) {
+        const method = (options.method || 'GET').toUpperCase();
+        const attempts = ['GET', 'PUT', 'PATCH'].includes(method) ? 2 : 1;
+        let lastError;
+        for (let attempt = 0; attempt < attempts; attempt += 1) {
+            try {
+                const resp = await fetch(url, options);
+                if (!resp.ok) {
+                    const detail = await resp.text();
+                    const error = new Error(detail || `HTTP ${resp.status}`);
+                    error.retryable = resp.status >= 500;
+                    throw error;
+                }
+                if (resp.status === 204) return null;
+                return resp.json();
+            } catch (error) {
+                lastError = error;
+                const retryable = error instanceof TypeError || error.name === 'TypeError' || error.retryable;
+                if (!retryable || attempt === attempts - 1) throw error;
+                await retryDelay();
+            }
         }
-        if (resp.status === 204) return null;
-        return resp.json();
+        throw lastError;
     }
 
     async function loadTemplates() {
@@ -211,10 +230,7 @@
                     <div class="gym-add-session-fields" data-add-fields>
                         ${renderAddFields('strength')}
                     </div>
-                    <label class="gym-add-save-library">
-                        <input type="checkbox" data-add-field="save_to_library">
-                        Save custom activity for later
-                    </label>
+                    <p class="gym-add-save-library">Custom activities are saved for later.</p>
                     <button type="button" class="gym-save-adjust" data-action="add-session-activity">Add activity</button>
                 </div>
             </details>
@@ -282,13 +298,17 @@
     function renderActivity(activity) {
         const checked = activity.completed ? 'checked' : '';
         const doneClass = activity.completed ? ' gym-activity--done' : '';
+        const performed = activity.substitution_name_snapshot
+            ? {...activity, activity_type: activity.substitution_activity_type, name_snapshot: activity.substitution_name_snapshot}
+            : activity;
         return `
             <article class="gym-activity${doneClass}" data-activity-id="${activity.id}">
                 <label class="gym-activity-main">
                     <input type="checkbox" data-action="toggle-activity" ${checked}>
                     <span>
-                        <span class="gym-activity-name">${escapeHtml(activity.name_snapshot)}</span>
-                        <span class="gym-activity-plan">${escapeHtml(activitySummary(activity))}</span>
+                        <span class="gym-activity-name">${escapeHtml(performed.name_snapshot)}</span>
+                        ${activity.substitution_name_snapshot ? `<span class="gym-activity-plan">Instead of ${escapeHtml(activity.name_snapshot)}</span>` : ''}
+                        <span class="gym-activity-plan">${escapeHtml(activitySummary(performed))}</span>
                     </span>
                 </label>
                 <div class="gym-rating" aria-label="Exercise rating">
@@ -301,10 +321,11 @@
                         </button>
                     `).join('')}
                 </div>
+                ${renderSubstitution(activity)}
                 <details class="gym-adjust">
                     <summary>Adjust</summary>
-                    ${renderAdjustFields(activity)}
-                    ${activity.activity_type === 'mobility' ? '' : `
+                    ${renderAdjustFields(performed)}
+                    ${performed.activity_type === 'mobility' ? '' : `
                         <label class="gym-note-label">
                             Note
                             <textarea data-field="notes" rows="2">${escapeHtml(activity.notes || '')}</textarea>
@@ -313,6 +334,28 @@
                     <button type="button" class="gym-save-adjust" data-action="save-activity">Save changes</button>
                 </details>
             </article>
+        `;
+    }
+
+    function renderSubstitution(activity) {
+        if (state.activities.length === 0) return '';
+        return `
+            <details class="gym-substitute">
+                <summary>${activity.substitution_name_snapshot ? 'Change substitution' : 'Substitute activity'}</summary>
+                <div class="gym-substitute-panel">
+                    <label>
+                        Perform instead
+                        <select data-substitution-field="activity_id">
+                            ${state.activities.map(saved => `
+                                <option value="${saved.id}" ${activity.substitution_activity_id === saved.id ? 'selected' : ''}>
+                                    ${escapeHtml(saved.name)} (${typeLabel(saved.activity_type)})
+                                </option>
+                            `).join('')}
+                        </select>
+                    </label>
+                    <button type="button" class="gym-save-adjust" data-action="substitute-activity">Use substitution</button>
+                </div>
+            </details>
         `;
     }
 
@@ -394,6 +437,7 @@
     }
 
     function matchingTemplateActivity(activity) {
+        if (activity.substitution_activity_id) return null;
         const template = state.templates.find(item => item.id === state.session?.template_id);
         if (!template) return null;
         const templateActivity = template.activities.find(item => item.sort_order === activity.sort_order);
@@ -468,13 +512,40 @@
                 body: JSON.stringify(patch),
             });
             Object.assign(activity, updated);
+            const allComplete = state.session.activities.length > 0
+                && state.session.activities.every(item => item.completed && item.rating);
+            if (allComplete && !state.session.completed_at) state.session.completed_at = new Date().toISOString();
             renderSession();
             if (options.promptTemplateUpdate) await updateTemplateFromCompletedActivity(activity);
         } catch (err) {
             console.error('Failed to update gym activity', err);
-            setStatus('Could not save activity update.', true);
-            await loadSession();
-            render();
+            setStatus('Could not save activity update after retrying. Check your connection and try again.', true);
+            try {
+                await loadSession();
+                render();
+            } catch (reloadError) {
+                console.error('Failed to reload gym session after save error', reloadError);
+            }
+        }
+    }
+
+    async function substituteActivity(card) {
+        const input = card.querySelector('[data-substitution-field="activity_id"]');
+        if (!input?.value) return;
+        setStatus('Saving substitution…');
+        try {
+            const updated = await fetchJson(`/api/gym/session-activities/${card.dataset.activityId}/substitution`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({activity_id: Number(input.value)}),
+            });
+            const activity = state.session.activities.find(item => item.id === Number(card.dataset.activityId));
+            Object.assign(activity, updated);
+            renderSession();
+            setStatus('Substitution saved.');
+        } catch (err) {
+            console.error('Failed to save gym substitution', err);
+            setStatus('Could not save substitution after retrying. Check your connection and try again.', true);
         }
     }
 
@@ -489,7 +560,7 @@
                 body: JSON.stringify(payload),
             });
             state.session.activities.push(added);
-            if (payload.save_to_library) await loadActivities();
+            if (!payload.activity_id) await loadActivities();
             renderSession();
             setStatus('');
         } catch (err) {
@@ -608,6 +679,9 @@
                     collectActivityPatch(card),
                     {promptTemplateUpdate: Boolean(card.querySelector('[data-action="toggle-activity"]')?.checked)},
                 );
+            }
+            if (action === 'substitute-activity') {
+                substituteActivity(card);
             }
         });
 

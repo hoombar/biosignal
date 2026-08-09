@@ -268,7 +268,7 @@ class GymSessionActivityCreateRequest(BaseModel):
     target_intensity: str | None = None
     target_speed: float | None = Field(default=None, ge=0)
     notes: str | None = None
-    save_to_library: bool = False
+    save_to_library: bool = True
 
     @model_validator(mode="after")
     def require_library_or_inline_activity(self):
@@ -280,9 +280,12 @@ class GymSessionActivityCreateRequest(BaseModel):
 class GymSessionActivityResponse(BaseModel):
     id: int
     activity_id: int | None = None
+    substitution_activity_id: int | None = None
     sort_order: int
     activity_type: ActivityType
     name_snapshot: str
+    substitution_name_snapshot: str | None = None
+    substitution_activity_type: ActivityType | None = None
     planned_sets: int | None = None
     planned_reps: int | None = None
     planned_weight: float | None = None
