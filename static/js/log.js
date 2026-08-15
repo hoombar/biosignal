@@ -29,6 +29,7 @@
     // Cache fetched days so flipping back/forth doesn't refetch.
     const dayCache = {};  // { 'YYYY-MM-DD': {date, habits: [{name, value, type}]} }
     let supplementSlots = [];
+    let editingContextId = null;
 
     function clearDayCache() {
         Object.keys(dayCache).forEach(key => delete dayCache[key]);
@@ -155,6 +156,21 @@
 
     function renderContextPanel(day) {
         const contexts = day.contexts || [];
+        const editingEvent = contexts.find(event => String(event.id) === editingContextId) || null;
+        if (editingContextId !== null && !editingEvent) editingContextId = null;
+        const formEvent = editingEvent || {};
+        const formCategory = formEvent.category || 'travel';
+        const categoryOptions = [
+            ['travel', 'Travel'],
+            ['conference', 'Conference'],
+            ['illness', 'Illness'],
+            ['stress', 'Stress'],
+            ['vacation', 'Vacation'],
+            ['recovery', 'Recovery'],
+            ['other', 'Other'],
+        ].map(([value, label]) => (
+            `<option value="${value}"${formCategory === value ? ' selected' : ''}>${label}</option>`
+        )).join('');
         const summaryText = contexts.length
             ? `${contexts.length} context${contexts.length === 1 ? '' : 's'}: ${contexts.map(event => event.title).join(', ')}`
             : 'Context';
@@ -173,13 +189,16 @@
                         <p>${escapeHtml(range)}</p>
                         ${event.notes ? `<p class="context-notes">${escapeHtml(event.notes)}</p>` : ''}
                     </div>
-                    <button type="button" class="context-delete" data-context-delete="${event.id}" aria-label="Delete context event">Remove</button>
+                    <div class="context-event-actions">
+                        <button type="button" data-context-edit="${event.id}" aria-label="Edit context event">Edit</button>
+                        <button type="button" class="context-delete" data-context-delete="${event.id}" aria-label="Delete context event">Remove</button>
+                    </div>
                 </article>
             `;
         }).join('') : '<p class="context-empty">No outlier context for this day.</p>';
 
         return `
-            <details class="context-panel">
+            <details class="context-panel"${editingEvent ? ' open' : ''}>
                 <summary class="context-panel-summary">
                     <div>
                         <h2>${escapeHtml(summaryText)}</h2>
@@ -194,29 +213,26 @@
                         days can be excluded from baseline calculations.
                     </p>
                     <div class="context-event-list">${eventsHtml}</div>
-                    <form class="context-form" id="context-form">
-                        <input type="text" name="title" placeholder="Conference abroad, hotel sleep, long flight" required maxlength="120">
+                    <form class="context-form" id="context-form"${editingEvent ? ` data-context-id="${editingEvent.id}"` : ''}>
+                        <input type="text" name="title" value="${escapeHtml(formEvent.title || '')}" placeholder="Conference abroad, hotel sleep, long flight" required maxlength="120">
                         <div class="context-form-grid">
-                            <label>Start <input type="date" name="start_date" value="${currentDate}" required></label>
-                            <label>End <input type="date" name="end_date" value="${currentDate}" required></label>
+                            <label>Start <input type="date" name="start_date" value="${escapeHtml(formEvent.start_date || currentDate)}" required></label>
+                            <label>End <input type="date" name="end_date" value="${escapeHtml(formEvent.end_date || currentDate)}" required></label>
                             <label>Category
                                 <select name="category">
-                                    <option value="travel">Travel</option>
-                                    <option value="conference">Conference</option>
-                                    <option value="illness">Illness</option>
-                                    <option value="stress">Stress</option>
-                                    <option value="vacation">Vacation</option>
-                                    <option value="recovery">Recovery</option>
-                                    <option value="other">Other</option>
+                                    ${categoryOptions}
                                 </select>
                             </label>
                         </div>
-                        <textarea name="notes" rows="2" placeholder="Optional note: what changed, and why this day may not compare fairly to normal days"></textarea>
+                        <textarea name="notes" rows="2" placeholder="Optional note: what changed, and why this day may not compare fairly to normal days">${escapeHtml(formEvent.notes || '')}</textarea>
                         <label class="context-baseline-toggle">
-                            <input type="checkbox" name="exclude_from_baseline" checked>
+                            <input type="checkbox" name="exclude_from_baseline"${editingEvent ? (editingEvent.exclude_from_baseline ? ' checked' : '') : ' checked'}>
                             Treat this date range as non-baseline
                         </label>
-                        <button type="submit" class="context-submit">Add context</button>
+                        <div class="context-form-actions">
+                            <button type="submit" class="context-submit">${editingEvent ? 'Update context' : 'Add context'}</button>
+                            ${editingEvent ? '<button type="button" data-context-cancel>Cancel</button>' : ''}
+                        </div>
                     </form>
                 </div>
             </details>
@@ -264,6 +280,7 @@
 
     async function render(dateStr, options = {}) {
         const updateUrl = options.updateUrl === true;
+        if (dateStr !== currentDate) editingContextId = null;
         currentDate = dateStr;
         if (updateUrl && window.location.hash.slice(1) !== dateStr) {
             history.replaceState(null, '', `#${dateStr}`);
@@ -357,28 +374,32 @@
         const form = event.target;
         const submit = form.querySelector('button[type="submit"]');
         const formData = new FormData(form);
+        const contextId = form.dataset?.contextId || null;
         const body = {
             title: formData.get('title'),
             start_date: formData.get('start_date'),
             end_date: formData.get('end_date'),
             category: formData.get('category') || 'other',
-            tags: [],
-            intensity: null,
             exclude_from_baseline: formData.get('exclude_from_baseline') === 'on',
             notes: formData.get('notes') || null,
         };
+        if (!contextId) {
+            body.tags = [];
+            body.intensity = null;
+        }
         submit.disabled = true;
         try {
-            const resp = await fetch('/api/context-events', {
-                method: 'POST',
+            const resp = await fetch(contextId ? `/api/context-events/${contextId}` : '/api/context-events', {
+                method: contextId ? 'PATCH' : 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(body),
             });
             if (!resp.ok) {
                 const detail = await resp.text();
-                console.error('Failed to create context event:', detail);
+                console.error(`Failed to ${contextId ? 'update' : 'create'} context event:`, detail);
                 return;
             }
+            editingContextId = null;
             clearDayCache();
             render(currentDate);
         } finally {
@@ -387,6 +408,20 @@
     });
 
     contextEl.addEventListener('click', async (event) => {
+        const editButton = event.target.closest('button[data-context-edit]');
+        if (editButton) {
+            editingContextId = editButton.dataset.contextEdit;
+            contextEl.innerHTML = renderContextPanel(dayCache[currentDate] || {});
+            return;
+        }
+
+        const cancelButton = event.target.closest('button[data-context-cancel]');
+        if (cancelButton) {
+            editingContextId = null;
+            contextEl.innerHTML = renderContextPanel(dayCache[currentDate] || {});
+            return;
+        }
+
         const button = event.target.closest('button[data-context-delete]');
         if (!button) return;
         button.disabled = true;
@@ -397,6 +432,7 @@
                 console.error('Failed to delete context event:', detail);
                 return;
             }
+            if (editingContextId === button.dataset.contextDelete) editingContextId = null;
             clearDayCache();
             render(currentDate);
         } finally {

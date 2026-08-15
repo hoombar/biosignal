@@ -27,6 +27,7 @@ def run_log_js_scenario(
         let habitBindOptions = null;
         const scrollCalls = [];
         const dailyUrls = [];
+        const fetchCalls = [];
 
         function makeElement(id) {
             return {
@@ -101,6 +102,11 @@ def run_log_js_scenario(
                 },
             },
             fetch: async (url, options) => {
+                fetchCalls.push({
+                    url: String(url),
+                    method: options?.method || 'GET',
+                    body: options?.body || null,
+                });
                 if (String(url).startsWith('/api/daily')) dailyUrls.push(url);
                 return {
                     ok: true,
@@ -157,6 +163,36 @@ def run_log_js_scenario(
                     },
                 });
                 await flushAsyncWork();
+            } else if (action === 'contextEdit' || action === 'contextEditSubmit') {
+                await elements['log-context'].listeners.click({
+                    target: {
+                        closest(selector) {
+                            if (selector === 'button[data-context-edit]') {
+                                return { dataset: { contextEdit: '1' } };
+                            }
+                            return null;
+                        },
+                    },
+                });
+                if (action === 'contextEditSubmit') {
+                    await elements['log-context'].listeners.submit({
+                        preventDefault() {},
+                        target: {
+                            id: 'context-form',
+                            dataset: { contextId: '1' },
+                            fields: {
+                                title: 'Conference extended',
+                                start_date: '2026-05-01',
+                                end_date: '2026-05-09',
+                                category: 'conference',
+                                exclude_from_baseline: 'on',
+                                notes: 'Updated range',
+                            },
+                            querySelector() { return { disabled: false }; },
+                        },
+                    });
+                    await flushAsyncWork();
+                }
             }
             console.log(JSON.stringify({
                 hash: context.window.location.hash,
@@ -164,6 +200,7 @@ def run_log_js_scenario(
                 dateText: elements['log-date'].textContent,
                 contextHtml: elements['log-context'].innerHTML,
                 dailyUrls,
+                fetchCalls,
                 scrollCalls,
                 supplementsHtml: elements['log-supplements'].innerHTML,
             }));
@@ -253,6 +290,67 @@ def test_log_context_panel_defaults_collapsed_with_saved_context():
     assert 'Excluded from baseline' in html
 
 
+def test_log_context_edit_uses_saved_date_range_instead_of_selected_day():
+    result = run_log_js_scenario(
+        "#2026-05-04",
+        "contextEdit",
+        daily_response=[{
+            "date": "2026-05-04",
+            "habits": [],
+            "supplements": [],
+            "contexts": [{
+                "id": 1,
+                "title": "Conference abroad",
+                "start_date": "2026-05-01",
+                "end_date": "2026-05-07",
+                "category": "conference",
+                "tags": ["hotel"],
+                "intensity": "high",
+                "exclude_from_baseline": True,
+                "notes": "Saved range",
+            }],
+        }],
+    )
+
+    html = result["contextHtml"]
+    assert '<details class="context-panel" open>' in html
+    assert 'name="start_date" value="2026-05-01"' in html
+    assert 'name="end_date" value="2026-05-07"' in html
+    assert 'data-context-id="1"' in html
+    assert "Update context" in html
+
+
+def test_log_context_edit_patches_fields_without_erasing_hidden_metadata():
+    result = run_log_js_scenario(
+        "#2026-05-04",
+        "contextEditSubmit",
+        daily_response=[{
+            "date": "2026-05-04",
+            "habits": [],
+            "supplements": [],
+            "contexts": [{
+                "id": 1,
+                "title": "Conference abroad",
+                "start_date": "2026-05-01",
+                "end_date": "2026-05-07",
+                "category": "conference",
+                "tags": ["hotel"],
+                "intensity": "high",
+                "exclude_from_baseline": True,
+                "notes": "Saved range",
+            }],
+        }],
+    )
+
+    request = next(call for call in result["fetchCalls"] if call["method"] == "PATCH")
+    assert request["url"] == "/api/context-events/1"
+    body = json.loads(request["body"])
+    assert body["start_date"] == "2026-05-01"
+    assert body["end_date"] == "2026-05-09"
+    assert "tags" not in body
+    assert "intensity" not in body
+
+
 def test_log_preserves_scroll_after_habit_counter_update():
     result = run_log_js_scenario("#2026-05-04", "habitChange")
 
@@ -262,4 +360,6 @@ def test_log_preserves_scroll_after_habit_counter_update():
 def test_log_refetches_current_day_after_context_submit():
     result = run_log_js_scenario("#2026-05-04", "contextSubmit")
 
+    request = next(call for call in result["fetchCalls"] if call["method"] == "POST")
+    assert request["url"] == "/api/context-events"
     assert result["dailyUrls"].count("/api/daily?start=2026-05-04&end=2026-05-04") == 2
