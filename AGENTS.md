@@ -98,6 +98,18 @@ Core:
 pytest tests/ -v
 ```
 
+Local development:
+```bash
+# From the repository root; use the local virtual environment, not Docker.
+source .venv/bin/activate
+alembic upgrade head
+uvicorn app.main:app --reload
+```
+
+The local server is available at `http://localhost:8000`. Check
+`http://localhost:8000/api/health` before investigating the Docker deployment;
+the Compose service uses the separate host port `8234`.
+
 Migration safety:
 ```bash
 alembic upgrade head
