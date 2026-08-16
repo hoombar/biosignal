@@ -98,20 +98,6 @@ Core:
 pytest tests/ -v
 ```
 
-Local development:
-```bash
-# From the repository root; use the local virtual environment, not Docker.
-source .venv/bin/activate
-alembic upgrade head
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-The local server is available at `http://localhost:8000` and on the host LAN
-address for the Synology reverse proxy. Check
-`http://localhost:8000/api/health` before investigating the Docker deployment;
-the Compose service uses the separate host port `8234`. For the local server,
-the Synology proxy target is `192.168.0.122:8000`.
-
 Migration safety:
 ```bash
 alembic upgrade head
