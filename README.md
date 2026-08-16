@@ -237,8 +237,12 @@ pip install -e .
 alembic upgrade head
 
 # Start dev server
-uvicorn app.main:app --reload
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
+
+The local server runs on port `8000`. When accessed through the Synology
+reverse proxy, configure `biosignal.home.arpa` to target
+`192.168.0.122:8000`.
 
 ### Run Tests
 
