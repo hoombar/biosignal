@@ -221,6 +221,7 @@ def run_log_js_scenario(
             action or "",
             json.dumps(supplement_config or {"slots": []}),
             json.dumps(daily_response) if daily_response is not None else "null",
+            str(context_id or ""),
         ],
         cwd=REPO_ROOT,
         check=True,
@@ -301,7 +302,7 @@ def test_log_supplement_slot_shows_not_taken_state():
     assert "Not taken" in result["supplementsHtml"]
 
 
-def test_log_context_panel_defaults_collapsed_with_saved_context():
+def test_log_context_panel_opens_for_single_saved_context():
     result = run_log_js_scenario(
         "#2026-05-04",
         daily_response=[{
@@ -324,8 +325,7 @@ def test_log_context_panel_defaults_collapsed_with_saved_context():
     )
 
     html = result["contextHtml"]
-    assert '<details class="context-panel">' in html
-    assert '<details class="context-panel" open' not in html
+    assert '<details class="context-panel" open>' in html
     assert '1 context: Conference abroad' in html
     assert 'Saved for this date range' in html
     assert 'Excluded from baseline' in html
@@ -360,6 +360,32 @@ def test_log_context_edit_uses_saved_date_range_instead_of_selected_day():
     assert 'name="end_date" value="2026-05-07"' in html
     assert 'data-context-id="1"' in html
     assert "Update context" in html
+
+
+def test_log_auto_opens_single_context_when_navigating_into_saved_range():
+    result = run_log_js_scenario(
+        "#2026-08-10",
+        daily_response=[{
+            "date": "2026-08-10",
+            "habits": [],
+            "supplements": [],
+            "contexts": [{
+                "id": 7,
+                "title": "Camping",
+                "start_date": "2026-08-08",
+                "end_date": "2026-08-15",
+                "category": "vacation",
+                "exclude_from_baseline": True,
+                "notes": "Camping trip",
+            }],
+        }],
+    )
+
+    html = result["contextHtml"]
+    assert '<details class="context-panel" open>' in html
+    assert 'name="start_date" value="2026-08-08"' in html
+    assert 'name="end_date" value="2026-08-15"' in html
+    assert 'data-context-id="7"' in html
 
 
 def test_log_context_edit_patches_fields_without_erasing_hidden_metadata():

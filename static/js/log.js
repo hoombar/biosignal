@@ -303,6 +303,10 @@
 
         try {
             const day = await loadDay(dateStr);
+            const contexts = day.contexts || [];
+            if (editingContextId === null && contexts.length === 1) {
+                editingContextId = String(contexts[0].id);
+            }
             contextEl.innerHTML = renderContextPanel(day);
             supplementsEl.innerHTML = renderSupplementsPanel(day);
             habitsEl.innerHTML = HabitPanel.renderHabitsPanel(day, { mode: 'edit' });
