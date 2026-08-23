@@ -113,6 +113,7 @@ def test_daily_context_summary_renders_baseline_exclusion():
     assert "Excluded from baseline" in html
     assert "flight" in html
     assert "hotel" in html
+    assert '/log?context=1#' in html
 
 
 def test_daily_context_summary_empty_without_contexts():

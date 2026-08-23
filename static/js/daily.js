@@ -752,6 +752,7 @@ function renderSupplementSnapshot(day) {
 function renderContextSummary(day) {
     const contexts = day.contexts || [];
     if (!contexts.length) return '';
+    const editUrl = context => `/log?context=${encodeURIComponent(context.id)}#${day.date || ''}`;
 
     const contextRows = contexts.map(context => {
         const range = context.start_date === context.end_date
@@ -770,6 +771,7 @@ function renderContextSummary(day) {
                 <div class="daily-context-meta">${escapeHtml(range)}${context.intensity ? ` · ${titleCase(context.intensity)} intensity` : ''}</div>
                 ${context.notes ? `<div class="daily-context-notes">${escapeHtml(context.notes)}</div>` : ''}
                 ${tags ? `<div class="daily-context-tags">${tags}</div>` : ''}
+                <a href="${editUrl(context)}" title="Edit ${escapeHtml(context.title)} on Log">Edit</a>
             </div>
         `;
     }).join('');
@@ -778,7 +780,7 @@ function renderContextSummary(day) {
         <div class="daily-context-summary">
             <div class="daily-context-header">
                 <h3>Context</h3>
-                <a href="/log#${day.date || ''}" title="Edit context on Log">Edit&nbsp;&rarr;</a>
+                <a href="${editUrl(contexts[0])}" title="Edit context on Log">Edit&nbsp;&rarr;</a>
             </div>
             ${contextRows}
         </div>

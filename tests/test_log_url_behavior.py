@@ -12,6 +12,7 @@ def run_log_js_scenario(
     action: str | None = None,
     supplement_config: dict | None = None,
     daily_response: list[dict] | None = None,
+    context_id: int | None = None,
 ) -> dict:
     script = textwrap.dedent(
         """
@@ -23,6 +24,7 @@ def run_log_js_scenario(
         const action = process.argv[2] || '';
         const supplementConfig = JSON.parse(process.argv[3] || '{"slots":[]}');
         const dailyResponse = JSON.parse(process.argv[4] || 'null');
+        const contextId = process.argv[5] || '';
         const elements = {};
         let habitBindOptions = null;
         const scrollCalls = [];
@@ -76,7 +78,7 @@ def run_log_js_scenario(
                 }
             },
             window: {
-                location: { hash: initialHash },
+                location: { hash: initialHash, search: contextId ? `?context=${contextId}` : '' },
                 _activeHabits: [],
                 scrollX: 0,
                 scrollY: 480,
@@ -260,6 +262,45 @@ def test_log_only_renders_configured_supplement_slots():
     assert 'data-slot="evening"' not in html
 
 
+def test_log_supplement_slots_have_distinct_slot_classes():
+    result = run_log_js_scenario(
+        "",
+        supplement_config={
+            "slots": [
+                {"slot": "morning", "version": 1, "items": [{"name": "Vitamin D"}]},
+                {"slot": "evening", "version": 1, "items": [{"name": "Magnesium"}]},
+            ]
+        },
+        daily_response=[{
+            "date": "2026-05-04",
+            "habits": [],
+            "supplements": [
+                {"slot": "morning", "completed": True},
+                {"slot": "evening", "completed": True},
+            ],
+            "contexts": [],
+        }],
+    )
+
+    html = result["supplementsHtml"]
+    assert "supplement-slot--morning" in html
+    assert "supplement-slot--evening" in html
+    assert "Taken" in html
+
+
+def test_log_supplement_slot_shows_not_taken_state():
+    result = run_log_js_scenario(
+        "",
+        supplement_config={
+            "slots": [
+                {"slot": "morning", "version": 1, "items": [{"name": "Vitamin D"}]},
+            ]
+        },
+    )
+
+    assert "Not taken" in result["supplementsHtml"]
+
+
 def test_log_context_panel_defaults_collapsed_with_saved_context():
     result = run_log_js_scenario(
         "#2026-05-04",
@@ -293,7 +334,7 @@ def test_log_context_panel_defaults_collapsed_with_saved_context():
 def test_log_context_edit_uses_saved_date_range_instead_of_selected_day():
     result = run_log_js_scenario(
         "#2026-05-04",
-        "contextEdit",
+        None,
         daily_response=[{
             "date": "2026-05-04",
             "habits": [],
@@ -310,6 +351,7 @@ def test_log_context_edit_uses_saved_date_range_instead_of_selected_day():
                 "notes": "Saved range",
             }],
         }],
+        context_id=1,
     )
 
     html = result["contextHtml"]

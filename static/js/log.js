@@ -25,11 +25,16 @@
         return null;
     }
 
+    function readContextId() {
+        const match = (window.location.search || '').match(/[?&]context=(\d+)/);
+        return match ? match[1] : null;
+    }
+
     let currentDate = readHashDate() || todayLocal();
     // Cache fetched days so flipping back/forth doesn't refetch.
     const dayCache = {};  // { 'YYYY-MM-DD': {date, habits: [{name, value, type}]} }
     let supplementSlots = [];
-    let editingContextId = null;
+    let editingContextId = readContextId();
 
     function clearDayCache() {
         Object.keys(dayCache).forEach(key => delete dayCache[key]);
