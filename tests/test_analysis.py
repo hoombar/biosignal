@@ -8,7 +8,14 @@ import pytest
 from datetime import date, timedelta
 
 import app.services.analysis as analysis_service
-from app.models.database import ContextEvent, SleepSession, DailyHabit, HabitDisplayConfig
+from app.models.database import (
+    ContextEvent,
+    DailyHabit,
+    HabitDisplayConfig,
+    SleepSession,
+    SupplementLog,
+    SupplementPlanVersion,
+)
 from app.services.analysis import (
     _compute_bucketed_correlation_signals,
     compute_correlation_snapshot,
@@ -41,6 +48,50 @@ async def _seed_day(session, day_offset: int, sleep_hours: float, slump: bool):
 
 
 class TestComputeCorrelations:
+
+    @pytest.mark.asyncio
+    async def test_removed_supplement_keeps_historical_not_taken_days(self, async_session):
+        """A removed item should remain zero on later logged snapshots."""
+        original_plan = SupplementPlanVersion(
+            slot="morning",
+            version=1,
+            items=[{"name": "Multivitamin", "dose": None, "notes": None}],
+        )
+        removed_plan = SupplementPlanVersion(
+            slot="morning",
+            version=2,
+            items=[],
+        )
+        async_session.add_all([original_plan, removed_plan])
+        await async_session.flush()
+
+        for i in range(20):
+            d = _make_date(i)
+            async_session.add(SleepSession(
+                date=d,
+                total_sleep_seconds=int((5.5 if i < 10 else 8.5) * 3600),
+                sleep_score=60 if i < 10 else 85,
+            ))
+            async_session.add(SupplementLog(
+                date=d,
+                slot="morning",
+                plan_version_id=original_plan.id if i < 10 else removed_plan.id,
+                completed=True,
+                snapshot=original_plan.items if i < 10 else removed_plan.items,
+            ))
+        await async_session.commit()
+
+        diagnostics = {}
+        result = await compute_correlations(
+            async_session,
+            target="supplement:multivitamin",
+            min_days=5,
+            diagnostics=diagnostics,
+        )
+
+        assert diagnostics["target_n"] == 20
+        assert diagnostics.get("empty_reason") != "constant_target"
+        assert any(row["metric"] == "sleep_hours" for row in result)
 
     @pytest.mark.asyncio
     async def test_returns_empty_with_insufficient_data(self, async_session):

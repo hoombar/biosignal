@@ -26,6 +26,7 @@ from app.models.database import (
     GymSessionActivityLog,
     GymSessionLog,
     SupplementLog,
+    SupplementPlanVersion,
 )
 from app.services.supplements import supplement_key
 from app.services.environmental import AstronomyProvider, location_key
@@ -736,20 +737,52 @@ async def compute_supplement_features(
         .order_by(SupplementLog.slot)
     )).scalars().all()
 
+    plans = (await session.execute(
+        select(SupplementPlanVersion).order_by(
+            SupplementPlanVersion.slot,
+            SupplementPlanVersion.version,
+        )
+    )).scalars().all()
+    plans_by_id = {plan.id: plan for plan in plans}
     supplement_items_by_key: dict[str, dict] = {}
     for row in rows:
-        value = 1 if row.completed else 0
+        plan = plans_by_id.get(row.plan_version_id)
+        historical_items: dict[str, str] = {}
+        if plan is not None:
+            for candidate in plans:
+                if candidate.slot != plan.slot or candidate.version > plan.version:
+                    continue
+                for item in candidate.items or []:
+                    name = str(item.get("name", "")).strip()
+                    if name:
+                        historical_items.setdefault(supplement_key(name), name)
+
+        snapshot_items = {
+            supplement_key(str(item.get("name", "")).strip())
+            for item in row.snapshot or []
+            if str(item.get("name", "")).strip()
+        }
+        for key, historical_name in historical_items.items():
+            value = 1 if row.completed and key in snapshot_items else 0
+            existing = supplement_items_by_key.get(key)
+            supplement_items_by_key[key] = {
+                "key": key,
+                "name": existing["name"] if existing else historical_name,
+                "value": max(existing["value"], value) if existing else value,
+            }
+
         for item in row.snapshot or []:
             name = str(item.get("name", "")).strip()
             if not name:
                 continue
             key = supplement_key(name)
             existing = supplement_items_by_key.get(key)
-            supplement_items_by_key[key] = {
-                "key": key,
-                "name": existing["name"] if existing else name,
-                "value": max(existing["value"], value) if existing else value,
-            }
+            if existing is None:
+                supplement_items_by_key[key] = {
+                    "key": key,
+                    "name": name,
+                    "value": 1 if row.completed else 0,
+                }
 
     return {
         "supplements": [
