@@ -2258,6 +2258,19 @@ input:focus {
     display: block;
 }
 
+#settings-tab-data:checked ~ .settings-tab-list label[for="settings-tab-data"] {
+    color: var(--accent-on);
+    background: var(--accent);
+}
+
+#settings-tab-data:focus-visible ~ .settings-tab-list label[for="settings-tab-data"] {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 3px;
+}
+
+#settings-tab-data:checked ~ #settings-panel-data {
+    display: block;
+}
 .settings-section {
     background: var(--bg-secondary);
     border: 1px solid var(--border-subtle);
