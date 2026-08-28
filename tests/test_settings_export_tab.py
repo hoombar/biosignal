@@ -14,5 +14,7 @@ def test_settings_has_dedicated_import_export_tab():
     assert "Import / Export" in html
     assert 'id="settings-panel-data"' in html
     assert 'href="/api/export/full"' in html
+    assert 'id="full-export-btn"' in html
+    assert 'id="full-export-status"' in html
     assert 'href="/api/habits/export"' in html
     assert 'id="settings-panel-habits"' in html

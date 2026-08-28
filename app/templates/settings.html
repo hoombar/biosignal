@@ -244,7 +244,8 @@
             <p class="settings-desc">Download your computed features, habit history, or all analysis data.</p>
         </div>
         <div class="settings-backup-actions">
-            <a href="/api/export/full" class="btn-primary" download>Export all data (ZIP)</a>
+            <a href="/api/export/full" class="btn-primary" id="full-export-btn" data-full-export>Export all data (ZIP)</a>
+            <span id="full-export-status" class="save-status" role="status" aria-live="polite"></span>
             <a href="/api/habits/export" class="btn-secondary" download>Export habits (JSON)</a>
         </div>
         <p class="settings-backup-note">The full-data archive includes health, habits, supplements, gym, context, and settings data. It excludes credentials, raw Garmin payloads, diagnostics, caches, and precise location metadata.</p>
@@ -1161,4 +1162,5 @@
 })();
 </script>
 <script src="/static/js/gym-settings.js"></script>
+<script src="/static/js/full-export.js"></script>
 {% endblock %}
