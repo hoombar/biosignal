@@ -215,6 +215,7 @@
         </div>
         <div class="settings-backup-actions">
             <a href="/api/habits/export" class="btn-primary" download>Export habits</a>
+            <a href="/api/export/full" class="btn-secondary" download>Export all data</a>
             <div class="settings-file-picker" id="habit-import-picker">
                 <input
                     type="file"
@@ -228,6 +229,7 @@
             <button type="button" class="btn-primary" id="habit-import-btn" disabled>Import</button>
         </div>
         <p class="settings-backup-note">Import overwrites matching habits and replaces their logged history. Habits not in the file stay unchanged.</p>
+        <p class="settings-backup-note">The full-data export is a ZIP for analysis. It includes health, habits, supplements, gym, context, and settings data, but not credentials, raw Garmin payloads, diagnostics, caches, or precise location metadata.</p>
         <span id="backup-status" class="save-status"></span>
     </div>
 

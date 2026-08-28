@@ -10,6 +10,7 @@ Seeds in-memory DB with known data, tests:
 import csv
 import io
 import json
+import zipfile
 import pytest
 from datetime import date, datetime
 from fastapi import FastAPI
@@ -36,6 +37,20 @@ def utc_dt(year, month, day, hour=0, minute=0):
 
 
 class TestExportFeatures:
+
+    @pytest.mark.asyncio
+    async def test_full_export_returns_zip_download(self, async_session):
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get("/api/export/full")
+
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("application/zip")
+        assert "attachment" in resp.headers["content-disposition"]
+        assert "biosignal_full_export_" in resp.headers["content-disposition"]
+        assert resp.headers["cache-control"] == "no-store"
+        with zipfile.ZipFile(io.BytesIO(resp.content)) as bundle:
+            assert "manifest.json" in bundle.namelist()
 
     @pytest.mark.asyncio
     async def test_csv_export_has_date_column(self, async_session):

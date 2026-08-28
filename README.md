@@ -132,6 +132,7 @@ Set `HABITSYNC_URL` and `HABITSYNC_API_KEY` in the environment for the duration 
 ### Export
 - `GET /api/export?format=csv&days=N` - Export computed features
 - `GET /api/export/timeseries?type=heart_rate&start=...&end=...` - Raw data export
+- `GET /api/export/full` - Download a ZIP archive of all analysis data
 - `GET /api/export/metadata` - Feature definitions
 
 ## Dashboard Views

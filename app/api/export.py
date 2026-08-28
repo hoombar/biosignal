@@ -14,8 +14,32 @@ from app.models.database import Habit
 from app.services.habit_config import list_habit_display_entries
 from app.services.supplements import list_supplement_items
 from app.services.features import compute_features_range
+from app.services.full_export import build_full_export
 
 router = APIRouter(prefix="/api/export", tags=["export"])
+
+
+@router.get("/full")
+async def export_full_data(db: AsyncSession = Depends(get_db)):
+    """Download a privacy-scoped archive of persisted and derived user data."""
+    archive = await build_full_export(db)
+    today = date.today().isoformat()
+
+    def chunks():
+        try:
+            while chunk := archive.read(1024 * 1024):
+                yield chunk
+        finally:
+            archive.close()
+
+    return StreamingResponse(
+        chunks(),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="biosignal_full_export_{today}.zip"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 # Feature metadata for documentation

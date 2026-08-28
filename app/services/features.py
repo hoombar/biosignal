@@ -655,6 +655,7 @@ async def compute_environmental_features(
     tz: ZoneInfo,
     latitude: float | None,
     longitude: float | None,
+    persist: bool = True,
 ) -> dict:
     """Compute configured environmental features for a day."""
     if latitude is None or longitude is None:
@@ -677,6 +678,10 @@ async def compute_environmental_features(
 
     metrics = AstronomyProvider().daily_metrics(target_date, tz, latitude, longitude)
     if not metrics:
+        return features
+
+    if not persist:
+        features.update({metric.metric_key: metric.value for metric in metrics})
         return features
 
     fetched_at = datetime.utcnow()
@@ -898,7 +903,8 @@ async def compute_context_features(
 async def compute_daily_features(
     session: AsyncSession,
     target_date: date,
-    timezone: str = "Europe/London"
+    timezone: str = "Europe/London",
+    persist_environmental: bool = True,
 ) -> dict:
     """
     Compute all features for a single day.
@@ -916,6 +922,7 @@ async def compute_daily_features(
         tz,
         settings.environment_latitude,
         settings.environment_longitude,
+        persist=persist_environmental,
     )
     features.update(environmental_features)
 
@@ -960,7 +967,8 @@ async def compute_features_range(
     session: AsyncSession,
     start_date: date,
     end_date: date,
-    timezone: str = "Europe/London"
+    timezone: str = "Europe/London",
+    persist_environmental: bool = True,
 ) -> list[dict]:
     """
     Compute features for a date range.
@@ -972,7 +980,9 @@ async def compute_features_range(
     current = start_date
 
     while current <= end_date:
-        features = await compute_daily_features(session, current, timezone)
+        features = await compute_daily_features(
+            session, current, timezone, persist_environmental=persist_environmental
+        )
         results.append(features)
         current += timedelta(days=1)
 

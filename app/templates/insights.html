@@ -30,7 +30,7 @@
     <p>Download your data for external analysis:</p>
     <button onclick="exportData('csv', 90)">Export Last 90 Days (CSV)</button>
     <button onclick="exportData('json', 90)">Export Last 90 Days (JSON)</button>
-    <button onclick="exportData('csv', 365)">Export All Data (CSV)</button>
+    <a href="/api/export/full" class="btn-primary" download>Export All Data (ZIP)</a>
 </div>
 
 <script src="/static/js/insights.js"></script>
