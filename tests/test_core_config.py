@@ -7,11 +7,24 @@ def test_settings_ignores_unknown_env_vars(monkeypatch):
     """Unknown env vars should not cause validation failure."""
     monkeypatch.setenv("GARMIN_EMAIL", "user@example.com")
     monkeypatch.setenv("GARMIN_PASSWORD", "secret")
-    monkeypatch.setenv("BIOSIGNAL_DATA_DIR", "/home/ben/docker/biosignal/data")
+    monkeypatch.setenv("UNRELATED_SETTING", "ignored")
 
     settings = Settings(_env_file=None)
 
     assert settings.garmin_email == "user@example.com"
+
+
+def test_settings_default_to_repository_data_directory(monkeypatch):
+    """Direct runs should work without container-specific filesystem paths."""
+    monkeypatch.setenv("GARMIN_EMAIL", "user@example.com")
+    monkeypatch.setenv("GARMIN_PASSWORD", "secret")
+    monkeypatch.delenv("DB_PATH", raising=False)
+    monkeypatch.delenv("GARMIN_TOKEN_DIR", raising=False)
+
+    settings = Settings(_env_file=None)
+
+    assert settings.db_path == "./data/energy_tracker.db"
+    assert settings.garmin_token_dir == "./data/.garmin_tokens"
 
 
 def test_settings_parses_environment_location(monkeypatch):

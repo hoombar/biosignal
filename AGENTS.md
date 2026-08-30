@@ -83,9 +83,9 @@ Architecture:
 - `tests` for test coverage
 
 Deployment/data safety:
-- Container startup should run `alembic upgrade head`.
-- Production deploys should use pinned image tags, not implicit floating behavior.
-- Persistent DB data must remain on mounted host storage.
+- Run `alembic upgrade head` before starting the direct Uvicorn process.
+- Treat `LOCAL.md` and `/tmp/biosignal-uvicorn.log` as the authoritative runtime instructions and log source.
+- Persistent DB data must remain under the configured host data directory.
 
 Timezone/date safety:
 - Use configured app timezone for "today/yesterday" logic.
@@ -105,10 +105,11 @@ alembic revision --autogenerate -m "description"
 ./scripts/check_migrations.sh
 ```
 
-Docker deploy (pinned tag):
+Direct server:
 ```bash
-docker compose pull
-docker compose up -d
+alembic upgrade head
+nohup uvicorn app.main:app --host 0.0.0.0 --port 8234 \
+  > /tmp/biosignal-uvicorn.log 2>&1 &
 ```
 
 ## Definition of Done

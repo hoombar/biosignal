@@ -89,7 +89,7 @@ Abstract, transferable thinking patterns from mistakes made during development.
 
 **Applies To**:
 - Any interpreted language without hot-reload enabled
-- Docker containers with cached layers
+- Long-running processes serving stale code
 - Any system with caching (bytecode, config, memoization)
 
 ---

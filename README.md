@@ -10,13 +10,13 @@ A self-hosted analysis dashboard that correlates Garmin biometric data with life
 - **Statistical Analysis**: Pearson correlations, pattern detection, conditional probabilities
 - **Interactive Dashboard**: 5 views (Overview, Daily, Correlations, Trends, Insights)
 - **Data Export**: CSV/JSON export for external analysis
-- **Self-Hosted**: Runs on your own infrastructure (Docker on Synology NAS)
+- **Self-Hosted**: Runs directly on your own infrastructure
 
 ## Quick Start
 
 ### Prerequisites
 
-- Docker and Docker Compose
+- Python 3.11+
 - Garmin Connect account with a compatible device (e.g., Garmin Venu 3)
 
 ### 1. Clone and Configure
@@ -32,10 +32,14 @@ cp .env.example .env
 nano .env
 ```
 
-### 2. Start the Application
+### 2. Prepare and Start the Application
 
 ```bash
-docker compose up -d
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --host 0.0.0.0 --port 8234
 ```
 
 The dashboard will be available at `http://localhost:8234`
@@ -49,11 +53,9 @@ Navigate to the Overview page and click "Run Manual Sync" to perform the first d
 All configuration is done via environment variables in `.env`:
 
 ```bash
-# Docker host storage path (set per machine; keep in untracked .env)
-BIOSIGNAL_DATA_DIR=./data
-
-# Docker image tag to deploy (use immutable tag in production)
-BIOSIGNAL_IMAGE_TAG=latest
+# Local data paths
+DB_PATH=./data/energy_tracker.db
+GARMIN_TOKEN_DIR=./data/.garmin_tokens
 
 # Garmin credentials
 GARMIN_EMAIL=your@email.com
@@ -89,13 +91,13 @@ Log habits in **Daily**: pick any date — including past days for retrospective
 If you previously fed habit data into biosignal from a separate HabitSync instance, run the one-shot import once after upgrading:
 
 ```bash
-docker compose exec biosignal python -m scripts.import_habitsync_history \
+python -m scripts.import_habitsync_history \
     --from 2025-01-01 --to 2026-04-26 \
     --binary pm_slump,healthy_lunch,carb_heavy_lunch \
     --counter coffee,alcohol
 ```
 
-Set `HABITSYNC_URL` and `HABITSYNC_API_KEY` in the environment for the duration of that one command. After the import succeeds and you've spot-checked the data, the external HabitSync container can be removed.
+Set `HABITSYNC_URL` and `HABITSYNC_API_KEY` in the environment for the duration of that one command. After the import succeeds and you've spot-checked the data, the external HabitSync service is no longer needed.
 
 ## API Endpoints
 
@@ -173,7 +175,7 @@ Set `HABITSYNC_URL` and `HABITSYNC_API_KEY` in the environment for the duration 
            ▼
    ┌────────────────────┐
    │  Energy Tracker    │
-   │  (Docker container)│
+   │  (Uvicorn process) │
    │                    │
    │  - FastAPI backend │
    │  - SQLite database │
@@ -207,8 +209,8 @@ cp -r data/.garmin_tokens data/.garmin_tokens_backup
 
 1. Check credentials in `.env`
 2. If MFA is enabled, tokens should persist after first login
-3. Check logs: `docker compose logs energy-tracker`
-4. Tokens are stored in `/data/.garmin_tokens`
+3. Check `/tmp/biosignal-uvicorn.log`
+4. Tokens are stored in `./data/.garmin_tokens`
 
 ### Rate Limiting (429 Error)
 
@@ -257,20 +259,10 @@ alembic upgrade head
 
 `./scripts/check_migrations.sh` verifies that a clean database upgraded to `head` has no model drift (`alembic check`).
 
-### Production Deploy (Pinned Image Tag)
+### Machine-Specific Startup
 
-Use an immutable image tag (for example a Git SHA) in `.env`:
-
-```bash
-BIOSIGNAL_IMAGE_TAG=<git-sha-tag>
-```
-
-Then redeploy:
-
-```bash
-docker compose pull
-docker compose up -d
-```
+See `LOCAL.md` for the direct Uvicorn command, port, log path, and local proxy
+address used by this installation.
 
 ## Computed Features
 

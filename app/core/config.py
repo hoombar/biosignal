@@ -13,12 +13,12 @@ class Settings(BaseSettings):
     )
 
     # Database
-    db_path: str = "/data/energy_tracker.db"
+    db_path: str = "./data/energy_tracker.db"
 
     # Garmin credentials
     garmin_email: str
     garmin_password: str
-    garmin_token_dir: str = "/data/.garmin_tokens"
+    garmin_token_dir: str = "./data/.garmin_tokens"
 
     # Optional settings
     tz: str = "Europe/London"

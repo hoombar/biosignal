@@ -10,7 +10,7 @@ Idempotent: re-running on the same range overwrites existing values for
 those (date, habit) cells but doesn't duplicate rows.
 
 Usage:
-    docker compose exec biosignal python -m scripts.import_habitsync_history \\
+    python -m scripts.import_habitsync_history \\
         --from 2025-01-01 --to 2026-04-26 \\
         --binary pm_slump,healthy_lunch,carb_heavy_lunch \\
         --counter coffee,alcohol \\

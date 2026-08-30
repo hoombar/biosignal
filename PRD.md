@@ -1,7 +1,7 @@
 # Product Requirements Document: Energy Correlation Tracker
 
 > **2026-04-27 update — habits are now native.** The original design pulled
-> habit data from a separate HabitSync container via REST. That dependency
+> habit data from a separate HabitSync service via REST. That dependency
 > was removed: habits are now first-class entities in biosignal's own
 > database, with creation/edit/archive UI under Settings → Habits and
 > retrospective per-day logging on the Daily view. The HabitSync-shaped
@@ -29,8 +29,8 @@ A self-hosted analysis dashboard that correlates Garmin biometric data with life
 
 ```
 ┌─────────────────────┐     ┌─────────────────────┐
-│     HabitSync       │     │   Garmin Connect    │
-│  (Docker container) │     │   (Cloud API)       │
+│     Native habits   │     │   Garmin Connect    │
+│  (SQLite database)  │     │   (Cloud API)       │
 │                     │     │                     │
 │  - PM slump Y/N     │     │  - Sleep data       │
 │  - Coffee count     │     │  - HRV              │
@@ -45,7 +45,7 @@ A self-hosted analysis dashboard that correlates Garmin biometric data with life
          │    ┌────────────────────┐   │
          │    │                    │   │
          └───►│  Energy Tracker    │◄──┘
-              │  (Docker container)│
+              │  (Uvicorn process) │
               │                    │
               │  - Data collection │
               │  - Correlation     │
@@ -54,7 +54,7 @@ A self-hosted analysis dashboard that correlates Garmin biometric data with life
               └────────────────────┘
 ```
 
-**Deployment:** Docker containers on Synology NAS
+**Deployment:** Direct Uvicorn process exposed through the local Synology proxy
 
 ---
 
@@ -275,7 +275,7 @@ Features are derived from raw time-series data at export time. Initial feature s
 **FR5.1 - Environment Variables**
 ```
 # Database
-DB_PATH=/data/energy_tracker.db
+DB_PATH=./data/energy_tracker.db
 
 # Garmin credentials
 GARMIN_EMAIL=user@example.com
@@ -299,9 +299,9 @@ SYNC_HOUR=6
 ## Non-Functional Requirements
 
 ### NFR1: Deployment
-- Application shall be deployable via Docker Compose
-- Single container (no external database service required)
-- Compatible with Synology Container Manager / Docker
+- Application shall run directly as a Uvicorn process
+- No external database service is required
+- Compatible with the local Synology reverse proxy
 - Memory usage shall not exceed 256MB under normal operation
 
 ### NFR2: Performance
@@ -340,7 +340,7 @@ SYNC_HOUR=6
 | Garmin Integration | garminconnect library | Most maintained unofficial Garmin library |
 | HTTP Client | httpx | Async support for HabitSync API calls |
 | Scheduling | APScheduler or cron | In-process scheduling for daily sync |
-| Containerisation | Docker | Standard deployment on Synology |
+| Process hosting | Uvicorn | Direct local deployment behind Synology proxy |
 
 ### API Endpoints
 
@@ -608,41 +608,6 @@ HabitSync allows you to create and modify habits dynamically through its UI - no
 | Carb-Heavy Lunch | Yes/No (negative) | Was lunch predominantly carbs? |
 
 The Energy Tracker will dynamically discover and import whatever habits exist in HabitSync - you can add, remove, or rename habits at any time and the system will adapt.
-
-### HabitSync Docker Compose Addition
-
-```yaml
-services:
-  habitsync:
-    image: ghcr.io/jofoerster/habitsync:latest
-    environment:
-      - BASE_URL=http://your-nas-ip:6842
-      - APP_SECURITY_BASIC-AUTH-USERS_admin=$2y$10$... # bcrypt hash
-    volumes:
-      - /volume1/docker/habitsync/data:/data
-    ports:
-      - "6842:6842"
-    restart: unless-stopped
-
-  energy-tracker:
-    image: energy-tracker:latest  # Built from this project
-    environment:
-      - DB_PATH=/data/energy_tracker.db
-      - GARMIN_EMAIL=${GARMIN_EMAIL}
-      - GARMIN_PASSWORD=${GARMIN_PASSWORD}
-      - HABITSYNC_URL=http://habitsync:6842
-      - HABITSYNC_API_KEY=${HABITSYNC_API_KEY}
-      - TZ=Europe/London
-    volumes:
-      - /volume1/docker/energy-tracker/data:/data
-    ports:
-      - "8000:8000"
-    depends_on:
-      - habitsync
-    restart: unless-stopped
-```
-
----
 
 ## Success Criteria
 
