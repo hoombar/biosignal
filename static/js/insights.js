@@ -1,6 +1,7 @@
 // Insights page JavaScript
 
 let habitSettings = [];
+let analysisController = null;
 
 function getHabitLabel(habitName) {
     const setting = habitSettings.find(h => h.habit_name === habitName);
@@ -34,8 +35,7 @@ function getTargetHabit() {
     return document.getElementById('target-habit').value || null;
 }
 
-async function loadInsights() {
-    const targetHabit = getTargetHabit();
+async function loadInsights(targetHabit, signal) {
     const container = document.getElementById('insights-list');
     container.innerHTML = '<p class="loading loading--with-spinner">Loading insights...</p>';
 
@@ -45,8 +45,15 @@ async function loadInsights() {
     }
 
     try {
-        const resp = await fetch(`/api/insights?target_habit=${encodeURIComponent(targetHabit)}`);
+        const resp = await fetch(
+            `/api/insights?target_habit=${encodeURIComponent(targetHabit)}`,
+            { signal },
+        );
+        if (!resp.ok) {
+            throw new Error(`HTTP ${resp.status}`);
+        }
         const insights = await resp.json();
+        if (signal.aborted) return;
 
         if (insights.length === 0) {
             const select = document.getElementById('target-habit');
@@ -79,13 +86,13 @@ async function loadInsights() {
         }).join('');
 
     } catch (error) {
+        if (signal.aborted || error.name === 'AbortError') return;
         console.error('Error loading insights:', error);
         container.innerHTML = '<p class="error">Failed to load insights</p>';
     }
 }
 
-async function loadPatterns() {
-    const targetHabit = getTargetHabit();
+async function loadPatterns(targetHabit, signal) {
     const container = document.getElementById('patterns-list');
     container.innerHTML = '<p class="loading loading--with-spinner">Loading patterns...</p>';
 
@@ -95,8 +102,15 @@ async function loadPatterns() {
     }
 
     try {
-        const resp = await fetch(`/api/patterns?target_habit=${encodeURIComponent(targetHabit)}`);
+        const resp = await fetch(
+            `/api/patterns?target_habit=${encodeURIComponent(targetHabit)}`,
+            { signal },
+        );
+        if (!resp.ok) {
+            throw new Error(`HTTP ${resp.status}`);
+        }
         const patterns = await resp.json();
+        if (signal.aborted) return;
 
         if (patterns.length === 0) {
             container.innerHTML = '<p>No patterns detected yet.</p>';
@@ -125,6 +139,7 @@ async function loadPatterns() {
             '</tbody></table>';
 
     } catch (error) {
+        if (signal.aborted || error.name === 'AbortError') return;
         console.error('Error loading patterns:', error);
         container.innerHTML = '<p class="error">Failed to load patterns</p>';
     }
@@ -135,7 +150,15 @@ function exportData(format, days) {
 }
 
 async function loadAll() {
-    await Promise.all([loadInsights(), loadPatterns()]);
+    if (analysisController) analysisController.abort();
+    analysisController = new AbortController();
+
+    const targetHabit = getTargetHabit();
+    const { signal } = analysisController;
+    await Promise.all([
+        loadInsights(targetHabit, signal),
+        loadPatterns(targetHabit, signal),
+    ]);
 }
 
 // Load on page load

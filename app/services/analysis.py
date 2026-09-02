@@ -936,6 +936,7 @@ async def compute_patterns(
     session: AsyncSession,
     timezone: str = "Europe/London",
     target_habit: str | None = None,
+    features_list: list[dict] | None = None,
 ) -> list[dict]:
     """
     Detect specific patterns using conditional probabilities.
@@ -954,11 +955,10 @@ async def compute_patterns(
         if not target_habit:
             return []
 
-    # Get all available data
-    end_date = date.today()
-    start_date = end_date - timedelta(days=365)
-
-    features_list = await compute_features_range(session, start_date, end_date, timezone)
+    if features_list is None:
+        end_date = date.today()
+        start_date = end_date - timedelta(days=365)
+        features_list = await compute_features_range(session, start_date, end_date, timezone)
 
     # Filter to days with target habit data
     target_data = [
@@ -1086,8 +1086,21 @@ async def generate_insights(
         if not target_habit:
             return []
 
-    correlations = await compute_correlations(session, timezone, target_habit=target_habit)
-    patterns = await compute_patterns(session, timezone, target_habit=target_habit)
+    end_date = date.today()
+    start_date = end_date - timedelta(days=365)
+    features_list = await compute_features_range(session, start_date, end_date, timezone)
+    correlations = await compute_correlations(
+        session,
+        timezone,
+        target_habit=target_habit,
+        features_list=features_list,
+    )
+    patterns = await compute_patterns(
+        session,
+        timezone,
+        target_habit=target_habit,
+        features_list=features_list,
+    )
 
     habit_label = target_habit.replace("_", " ")
     insights = []

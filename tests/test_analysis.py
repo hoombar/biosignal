@@ -726,6 +726,23 @@ class TestComputePatterns:
 class TestGenerateInsights:
 
     @pytest.mark.asyncio
+    async def test_reuses_features_for_correlations_and_patterns(self, async_session, monkeypatch):
+        """Insights should not build the expensive 365-day feature set twice."""
+        calls = 0
+
+        async def fake_compute_features_range(*args, **kwargs):
+            nonlocal calls
+            calls += 1
+            return []
+
+        monkeypatch.setattr(analysis_service, "compute_features_range", fake_compute_features_range)
+
+        result = await generate_insights(async_session, target_habit="coffee")
+
+        assert result == []
+        assert calls == 1
+
+    @pytest.mark.asyncio
     async def test_returns_list(self, async_session):
         """generate_insights always returns a list."""
         result = await generate_insights(async_session)
