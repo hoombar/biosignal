@@ -8,6 +8,9 @@
         session: null,
     };
 
+    const pendingSaves = new Map();
+    const PENDING_RETRY_MS = 5000;
+
     const els = {};
 
     function todayIso() {
@@ -152,12 +155,21 @@
         els.start.style.display = 'none';
         try {
             await Promise.all([loadTemplates(), loadActivities(), loadSession()]);
+            applyPendingSavesToState();
             render();
             setStatus('');
         } catch (err) {
             console.error('Failed to load gym page', err);
             setStatus('Could not load gym session data.', true);
         }
+    }
+
+    function applyPendingSavesToState() {
+        if (!state.session) return;
+        state.session.activities.forEach(activity => {
+            const pending = pendingSaves.get(activity.id);
+            if (pending) Object.assign(activity, pending.patch);
+        });
     }
 
     function render() {
@@ -196,6 +208,11 @@
         const completed = activities.filter(activity => activity.completed).length;
         const finished = session.completed_at != null;
         els.session.innerHTML = `
+            ${pendingSaves.size ? `
+                <div class="gym-unsaved-banner" role="status">
+                    You have unsaved changes. Retrying in the background…
+                </div>
+            ` : ''}
             <div class="gym-session-header">
                 <div>
                     <p class="gym-kicker">${finished ? 'Finished session' : 'Active session'}</p>
@@ -350,15 +367,16 @@
     function renderActivity(activity) {
         const checked = activity.completed ? 'checked' : '';
         const doneClass = activity.completed ? ' gym-activity--done' : '';
+        const unsavedClass = pendingSaves.has(activity.id) ? ' gym-activity--unsaved' : '';
         const performed = activity.substitution_name_snapshot
             ? {...activity, activity_type: activity.substitution_activity_type, name_snapshot: activity.substitution_name_snapshot}
             : activity;
         return `
-            <article class="gym-activity${doneClass}" data-activity-id="${activity.id}">
+            <article class="gym-activity${doneClass}${unsavedClass}" data-activity-id="${activity.id}">
                 <label class="gym-activity-main">
                     <input type="checkbox" data-action="toggle-activity" ${checked}>
                     <span>
-                        <span class="gym-activity-name">${escapeHtml(performed.name_snapshot)}</span>
+                        <span class="gym-activity-name">${escapeHtml(performed.name_snapshot)}${pendingSaves.has(activity.id) ? ' <span class="gym-unsaved-chip">Unsaved</span>' : ''}</span>
                         ${activity.substitution_name_snapshot ? `<span class="gym-activity-plan">Instead of ${escapeHtml(activity.name_snapshot)}</span>` : ''}
                         <span class="gym-activity-plan">${escapeHtml(activitySummary(performed))}</span>
                         ${previousPerformanceLine(activity)}
@@ -533,7 +551,8 @@
     }
 
     async function updateActivity(activityId, patch, options = {}) {
-        const activity = state.session.activities.find(item => item.id === Number(activityId));
+        const numericId = Number(activityId);
+        const activity = state.session.activities.find(item => item.id === numericId);
         if (!activity) return;
         Object.assign(activity, patch);
         renderSession();
@@ -551,9 +570,67 @@
             if (options.promptTemplateUpdate) await maybeUpdateTemplateFromActivity(activity);
         } catch (err) {
             console.error('Failed to update gym activity', err);
-            setStatus('Could not save activity update after retrying. Check your connection and try again.', true);
+            const transient = err instanceof TypeError || err.name === 'TypeError' || err.retryable;
+            if (transient) {
+                markPendingSave(numericId, patch);
+                return;
+            }
+            setStatus('Could not save activity update. Check your connection and try again.', true);
             try {
                 await loadSession();
+                applyPendingSavesToState();
+                render();
+            } catch (reloadError) {
+                console.error('Failed to reload gym session after save error', reloadError);
+            }
+        }
+    }
+
+    function markPendingSave(activityId, patch) {
+        const existing = pendingSaves.get(activityId);
+        const entry = existing || {patch: {}, timer: null};
+        entry.patch = {...entry.patch, ...patch};
+        pendingSaves.set(activityId, entry);
+        renderSession();
+        setStatus('Could not save yet. Your edit is kept and will retry in the background.', true);
+        schedulePendingRetry(activityId);
+    }
+
+    function schedulePendingRetry(activityId) {
+        const entry = pendingSaves.get(activityId);
+        if (!entry || entry.timer) return;
+        entry.timer = setTimeout(() => {
+            entry.timer = null;
+            retryPendingSave(activityId);
+        }, PENDING_RETRY_MS);
+    }
+
+    async function retryPendingSave(activityId) {
+        const entry = pendingSaves.get(activityId);
+        if (!entry || !state.session) return;
+        try {
+            const updated = await fetchJson(`/api/gym/session-activities/${activityId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(entry.patch),
+            });
+            const activity = state.session.activities.find(item => item.id === activityId);
+            if (activity) Object.assign(activity, updated);
+            pendingSaves.delete(activityId);
+            if (!pendingSaves.size) setStatus('Pending changes saved.');
+            renderSession();
+        } catch (err) {
+            console.error('Background save retry failed', err);
+            const transient = err instanceof TypeError || err.name === 'TypeError' || err.retryable;
+            if (transient) {
+                schedulePendingRetry(activityId);
+                return;
+            }
+            pendingSaves.delete(activityId);
+            setStatus('Could not save activity update. Check your connection and try again.', true);
+            try {
+                await loadSession();
+                applyPendingSavesToState();
                 render();
             } catch (reloadError) {
                 console.error('Failed to reload gym session after save error', reloadError);
@@ -608,6 +685,7 @@
         setStatus(finished ? 'Discarding session…' : 'Cancelling session…');
         try {
             await fetchJson(`/api/gym/sessions/${state.session.id}`, {method: 'DELETE'});
+            pendingSaves.clear();
             state.session = null;
             render();
             setStatus('');
@@ -668,6 +746,12 @@
 
         els.previous.addEventListener('click', () => {
             goToPreviousSession();
+        });
+
+        window.addEventListener('beforeunload', (event) => {
+            if (!pendingSaves.size) return;
+            event.preventDefault();
+            event.returnValue = '';
         });
 
         els.session.addEventListener('click', (event) => {

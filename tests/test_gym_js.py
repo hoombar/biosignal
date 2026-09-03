@@ -121,6 +121,9 @@ def run_gym_scenario(
         const elements = {};
         const confirmCalls = [];
         const fetchCalls = [];
+        const pendingTimers = [];
+        const routeCallCounts = {};
+        const errorLog = [];
 
         function makeElement(id) {
             return {
@@ -138,7 +141,11 @@ def run_gym_scenario(
         }
 
         const context = {
-            console: {error() {}},
+            console: {
+                error(...args) {
+                    errorLog.push(args.map(a => (a && a.message) ? a.message : String(a)).join(' '));
+                },
+            },
             document: {
                 addEventListener(type, handler) {
                     this.domReady = handler;
@@ -153,8 +160,14 @@ def run_gym_scenario(
                     confirmCalls.push(message);
                     return true;
                 },
+                listeners: {},
+                addEventListener(type, handler) {
+                    this.listeners[type] = handler;
+                },
             },
-            setTimeout(callback) { callback(); },
+            setTimeout(callback) {
+                pendingTimers.push(callback);
+            },
             fetch: async (url, options) => {
                 const method = (options && options.method) || 'GET';
                 const call = {url: String(url), method};
@@ -163,8 +176,14 @@ def run_gym_scenario(
                 if (method === 'DELETE') {
                     return {ok: true, status: 204, text: async () => '', json: async () => null};
                 }
-                const route = routes.find(r => String(url).startsWith(r.match));
-                if (route) {
+                const routeIndex = routes.findIndex(r => String(url).startsWith(r.match));
+                if (routeIndex !== -1) {
+                    const route = routes[routeIndex];
+                    const key = `${method} ${route.match}`;
+                    routeCallCounts[key] = (routeCallCounts[key] || 0) + 1;
+                    if (route.failCount && routeCallCounts[key] <= route.failCount) {
+                        throw new TypeError('Failed to fetch');
+                    }
                     return {ok: true, status: 200, text: async () => 'route', json: async () => route.payload};
                 }
                 if (String(url).startsWith('/api/gym/session')) {
@@ -176,13 +195,21 @@ def run_gym_scenario(
         vm.createContext(context);
         vm.runInContext(source, context);
 
+        const drainTimers = async () => {
+            for (let guard = 0; guard < 50 && pendingTimers.length; guard += 1) {
+                pendingTimers.shift()();
+                for (let micro = 0; micro < 5; micro++) await Promise.resolve();
+            }
+        };
+
         (async () => {
             await context.document.domReady();
             context.__gymTest.state.date = '2026-07-16';
             await context.__gymTest.refresh();
             if (action === 'delete') await context.__gymTest.deleteSession();
             if (action === 'previous') await context.__gymTest.goToPreviousSession();
-            if (action === 'save-activity' || action === 'rate-activity') {
+            if (action.startsWith('save-activity') || action === 'rate-activity') {
+                const effectiveAction = action === 'rate-activity' ? 'rate-activity' : 'save-activity';
                 const weightInput = {dataset: {field: 'actual_weight'}, type: 'number', value: '55'};
                 const card = {
                     dataset: {activityId: '3'},
@@ -193,7 +220,7 @@ def run_gym_scenario(
                     target: {
                         closest: (sel) => sel === '[data-action]'
                             ? {
-                                dataset: {action, rating: 'hard'},
+                                dataset: {action: effectiveAction, rating: 'hard'},
                                 closest: (inner) => inner === '[data-activity-id]' ? card : null,
                             }
                             : (sel === '[data-activity-id]' ? card : null),
@@ -201,6 +228,7 @@ def run_gym_scenario(
                 });
                 for (let i = 0; i < 25; i++) await Promise.resolve();
             }
+            if (action === 'save-activity-fail' || action === 'save-activity-recover') await drainTimers();
             if (addTypeChange) {
                 const fieldsEl = makeElement('add-fields');
                 elements['gym-session'].listeners.change({
@@ -225,6 +253,9 @@ def run_gym_scenario(
                 fetchCalls,
                 dateValue: elements['gym-date'].value,
                 statusText: elements['gym-status'].textContent,
+                sessionGetCount: fetchCalls.filter(c => c.url.startsWith('/api/gym/session?')).length,
+                hasBeforeunload: Boolean(context.window.listeners.beforeunload),
+                errorLog,
             }));
         })();
         """
@@ -363,6 +394,7 @@ def test_gym_weight_edit_offers_template_update_without_completion():
 
     result = run_gym_scenario(make_session_payload(None, activities=[activity]), action="save-activity", routes=routes)
 
+    assert result["errorLog"] == []
     assert "Update the template with these completed values?" in result["confirmCalls"]
     template_puts = [c for c in result["fetchCalls"] if c["url"] == "/api/gym/templates/1" and c["method"] == "PUT"]
     assert template_puts and '"target_weight":55' in template_puts[0]["body"]
@@ -447,3 +479,41 @@ def test_gym_incomplete_activity_hides_previous_performance():
     result = run_gym_scenario(make_session_payload(None, activities=[make_activity_with_previous_performance(False)]))
 
     assert "Last time (2026-06-01)" not in result["html"]
+
+
+def test_gym_failed_save_keeps_edit_and_shows_durable_unsaved_warning():
+    activity = make_strength_session_activity()
+    updated_activity = {**activity, "actual_weight": 55}
+    routes = [
+        {"match": "/api/gym/session-activities/3", "payload": updated_activity, "failCount": 99},
+        {"match": "/api/gym/templates", "payload": [make_matching_template_payload(weight=50)]},
+    ]
+
+    result = run_gym_scenario(make_session_payload(None, activities=[activity]), action="save-activity-fail", routes=routes)
+
+    assert result["sessionGetCount"] == 2
+    assert "55 kg · 3 x 12" in result["html"]
+    assert "gym-activity--unsaved" in result["html"]
+    assert "Retrying in the background" in result["html"]
+
+
+def test_gym_pending_save_retries_in_background_and_clears_warning():
+    activity = make_strength_session_activity()
+    updated_activity = {**activity, "actual_weight": 55}
+    routes = [
+        {"match": "/api/gym/session-activities/3", "payload": updated_activity, "failCount": 2},
+        {"match": "/api/gym/templates", "payload": [make_matching_template_payload(weight=50)]},
+    ]
+
+    result = run_gym_scenario(make_session_payload(None, activities=[activity]), action="save-activity-recover", routes=routes)
+
+    put_calls = [c for c in result["fetchCalls"] if c["url"] == "/api/gym/session-activities/3" and c["method"] == "PUT"]
+    assert len(put_calls) == 3
+    assert "gym-activity--unsaved" not in result["html"]
+    assert "55 kg · 3 x 12" in result["html"]
+
+
+def test_gym_page_warns_before_leaving_with_pending_saves():
+    result = run_gym_scenario(make_session_payload(None))
+
+    assert result["hasBeforeunload"] is True
