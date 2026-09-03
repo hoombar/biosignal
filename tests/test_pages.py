@@ -13,9 +13,20 @@ def test_settings_page_renders_backup_controls():
     assert resp.status_code == 200
     html = resp.text
     assert "Export habits" in html
+    assert 'href="/api/export/full"' in html
+    assert "Export all data" in html
     assert 'id="habit-import-file"' in html
     assert 'id="habit-import-btn"' in html
     assert 'id="habit-import-file-name"' in html
+
+
+def test_insights_page_links_to_full_data_export():
+    with TestClient(app) as client:
+        resp = client.get("/insights")
+
+    assert resp.status_code == 200
+    assert 'href="/api/export/full"' in resp.text
+    assert "Export All Data (ZIP)" in resp.text
 
 
 def test_habit_settings_editor_prioritizes_display_label_cards():
@@ -128,6 +139,26 @@ def test_gym_settings_activity_editor_avoids_horizontal_scroller():
     assert "gym-settings-activity-details" in js_resp.text
 
 
+def test_habit_add_form_wraps_inside_settings_card():
+    with TestClient(app) as client:
+        resp = client.get("/static/css/style.css")
+
+    assert resp.status_code == 200
+    css = resp.text
+    details_block = re.search(r"\.add-habit-details\s*\{(?P<body>[^}]+)\}", css)
+    assert details_block is not None
+    assert "container-type: inline-size;" in details_block.group("body")
+
+    form_block = re.search(r"\.add-habit-form\s*\{(?P<body>[^}]+)\}", css)
+    assert form_block is not None
+    assert "grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));" in form_block.group("body")
+    assert "align-items: end;" in form_block.group("body")
+
+    name_block = re.search(r"\.add-habit-form > input\[name=\"name\"\]\s*\{(?P<body>[^}]+)\}", css)
+    assert name_block is not None
+    assert "grid-column: span 2;" in name_block.group("body")
+
+
 def test_gym_settings_activity_editor_supports_reordering():
     with TestClient(app) as client:
         resp = client.get("/static/js/gym-settings.js")
@@ -206,9 +237,9 @@ def test_gym_session_completion_can_update_template():
     assert resp.status_code == 200
     script = resp.text
     assert "promptTemplateUpdate: event.target.checked" in script
-    assert "promptTemplateUpdate: Boolean(card.querySelector('[data-action=\"toggle-activity\"]')?.checked)" in script
+    assert "promptTemplateUpdate: true" in script
     assert "Update the template with these completed values?" in script
-    assert "function updateTemplateFromCompletedActivity(activity)" in script
+    assert "function maybeUpdateTemplateFromActivity(activity)" in script
     assert "`/api/gym/templates/${template.id}`" in script
 
 
@@ -217,7 +248,7 @@ def test_gym_page_cache_busts_session_script():
         resp = client.get("/gym")
 
     assert resp.status_code == 200
-    assert "/static/js/gym.js?v=20260809-compact-activities" in resp.text
+    assert "/static/js/gym.js?v=20260903-previous-session" in resp.text
 
 
 def test_gym_settings_template_list_supports_unarchive():
@@ -498,3 +529,36 @@ def test_mobile_nav_script_toggles_menu_state():
     assert "data-nav-open" in script
     assert "aria-expanded" in script
     assert "matchMedia" in script
+
+
+def test_signal_field_daily_detail_has_panel_inset():
+    with TestClient(app) as client:
+        resp = client.get("/static/css/style.css")
+
+    assert resp.status_code == 200
+    css = resp.text
+    assert "padding: clamp(1rem, 2vw, 1.5rem);" in css
+    assert "grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);" in css
+
+
+def test_signal_field_settings_habit_cards_use_light_surface():
+    with TestClient(app) as client:
+        resp = client.get("/static/css/style.css")
+
+    assert resp.status_code == 200
+    css = resp.text
+    assert "background: rgba(26, 26, 36, 0.68);" not in css
+    assert "background: color-mix(in srgb, var(--surface) 92%, var(--surface-warm));" in css
+    assert "color: var(--fg);" in css
+    assert "color: var(--accent-on);" in css
+
+
+def test_signal_field_mobile_nav_wraps_and_daily_stacks():
+    with TestClient(app) as client:
+        resp = client.get("/static/css/style.css")
+
+    assert resp.status_code == 200
+    css = resp.text
+    assert "overflow-x: visible;" in css
+    assert "flex-wrap: wrap;" in css
+    assert "grid-template-columns: minmax(0, 1fr);" in css
