@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date as DateType, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +17,7 @@ from app.models.database import (
     GymTemplateActivity,
 )
 from app.schemas.responses import (
+    GymActivityPreviousPerformance,
     GymPreviousSessionResponse,
     GymSessionActivityResponse,
     GymSessionActivityCreateRequest,
@@ -114,7 +115,52 @@ async def _template_response(db: AsyncSession, template: GymSessionTemplate) -> 
     )
 
 
-def _activity_response(activity: GymSessionActivityLog) -> GymSessionActivityResponse:
+async def _previous_performance(
+    db: AsyncSession,
+    activity: GymSessionActivityLog,
+    session_date: DateType,
+) -> GymActivityPreviousPerformance | None:
+    conditions = []
+    if activity.activity_id is not None:
+        conditions.append(GymSessionActivityLog.activity_id == activity.activity_id)
+    conditions.append(GymSessionActivityLog.name_snapshot == activity.name_snapshot)
+    row = (await db.execute(
+        select(GymSessionActivityLog, GymSessionLog.date)
+        .join(GymSessionLog, GymSessionActivityLog.session_log_id == GymSessionLog.id)
+        .where(
+            GymSessionLog.date < session_date,
+            GymSessionActivityLog.completed.is_(True),
+            or_(*conditions),
+        )
+        .order_by(GymSessionLog.date.desc(), GymSessionActivityLog.id.desc())
+        .limit(1)
+    )).first()
+    if row is None:
+        return None
+    prior, prior_date = row
+    return GymActivityPreviousPerformance(
+        date=prior_date,
+        sets=prior.actual_sets,
+        reps=prior.actual_reps,
+        weight=prior.actual_weight,
+        weight_unit=prior.actual_weight_unit,
+        duration_minutes=prior.actual_duration_minutes,
+        intensity=prior.actual_intensity,
+        speed=prior.actual_speed,
+        rating=prior.rating,
+    )
+
+
+async def _activity_response(
+    db: AsyncSession,
+    activity: GymSessionActivityLog,
+    session_date: DateType | None = None,
+) -> GymSessionActivityResponse:
+    if session_date is None:
+        session_date = (await db.execute(
+            select(GymSessionLog.date).where(GymSessionLog.id == activity.session_log_id)
+        )).scalar_one()
+    previous = await _previous_performance(db, activity, session_date)
     return GymSessionActivityResponse(
         id=activity.id,
         activity_id=activity.activity_id,
@@ -145,6 +191,7 @@ def _activity_response(activity: GymSessionActivityLog) -> GymSessionActivityRes
         completed=activity.completed,
         rating=activity.rating,
         notes=activity.notes,
+        previous_performance=previous,
     )
 
 
@@ -169,6 +216,7 @@ def _gym_activity_response(activity: GymActivity) -> GymActivityResponse:
 
 async def _session_response(db: AsyncSession, session: GymSessionLog) -> GymSessionResponse:
     activities = await _session_activities(db, session.id)
+    activity_responses = [await _activity_response(db, activity, session.date) for activity in activities]
     return GymSessionResponse(
         id=session.id,
         template_id=session.template_id,
@@ -177,7 +225,7 @@ async def _session_response(db: AsyncSession, session: GymSessionLog) -> GymSess
         started_at=session.started_at,
         completed_at=session.completed_at,
         notes=session.notes,
-        activities=[_activity_response(activity) for activity in activities],
+        activities=activity_responses,
     )
 
 
@@ -543,7 +591,7 @@ async def add_session_activity(
     except IntegrityError as exc:
         await db.rollback()
         raise HTTPException(status_code=409, detail="gym session activity already exists at this order") from exc
-    return _activity_response(activity)
+    return await _activity_response(db, activity, session.date)
 
 
 @router.put("/sessions/{session_id}", response_model=GymSessionResponse)
@@ -596,7 +644,7 @@ async def update_session_activity(
     await db.flush()
     await _auto_finish_session(db, activity.session_log_id)
     await db.commit()
-    return _activity_response(activity)
+    return await _activity_response(db, activity)
 
 
 async def _auto_finish_session(db: AsyncSession, session_id: int) -> None:
@@ -648,4 +696,4 @@ async def substitute_session_activity(
     activity.completed = False
     activity.rating = None
     await db.commit()
-    return _activity_response(activity)
+    return await _activity_response(db, activity)

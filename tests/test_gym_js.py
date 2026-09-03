@@ -414,3 +414,36 @@ def test_gym_previous_session_without_history_shows_message():
 
     assert result["statusText"] == "No previous session."
     assert result["dateValue"] != "2026-07-14"
+
+
+def make_activity_with_previous_performance(completed: bool) -> dict:
+    return {
+        **make_strength_session_activity(),
+        "id": 4,
+        "completed": completed,
+        "previous_performance": {
+            "date": "2026-06-01",
+            "sets": 3,
+            "reps": 12,
+            "weight": 52.5,
+            "weight_unit": "kg",
+            "duration_minutes": None,
+            "intensity": None,
+            "speed": None,
+            "rating": "normal",
+        },
+    }
+
+
+def test_gym_completed_activity_shows_previous_performance():
+    result = run_gym_scenario(make_session_payload(None, activities=[make_activity_with_previous_performance(True)]))
+
+    assert "Last time (2026-06-01)" in result["html"]
+    assert "52.5 kg · 3 x 12" in result["html"]
+    assert "felt normal" in result["html"]
+
+
+def test_gym_incomplete_activity_hides_previous_performance():
+    result = run_gym_scenario(make_session_payload(None, activities=[make_activity_with_previous_performance(False)]))
+
+    assert "Last time (2026-06-01)" not in result["html"]

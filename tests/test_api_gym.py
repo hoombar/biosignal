@@ -571,6 +571,69 @@ class TestGymSessions:
         assert none.json() is None
 
     @pytest.mark.asyncio
+    async def test_session_activity_includes_previous_completed_performance(self, async_session):
+        app = _make_app(async_session)
+
+        with TestClient(app) as client:
+            template = client.post("/api/gym/templates", json=_template_payload()).json()
+            first = client.post(
+                "/api/gym/sessions",
+                json={"date": "2026-06-01", "template_id": template["id"]},
+            ).json()
+            low_row_first = first["activities"][1]
+            client.put(
+                f"/api/gym/session-activities/{low_row_first['id']}",
+                json={"completed": True, "rating": "normal", "actual_weight": 52.5},
+            )
+            client.post(
+                "/api/gym/sessions",
+                json={"date": "2026-06-05", "template_id": template["id"]},
+            )
+            resp = client.get("/api/gym/session", params={"date": "2026-06-05"})
+
+        body = resp.json()
+        elliptical, low_row = body["activities"]
+        previous = low_row["previous_performance"]
+
+        assert previous is not None
+        assert previous["date"] == "2026-06-01"
+        assert previous["sets"] == 3
+        assert previous["reps"] == 12
+        assert previous["weight"] == 52.5
+        assert previous["weight_unit"] == "kg"
+        assert previous["rating"] == "normal"
+        assert elliptical["previous_performance"] is None
+
+    @pytest.mark.asyncio
+    async def test_activity_update_response_includes_previous_performance(self, async_session):
+        app = _make_app(async_session)
+
+        with TestClient(app) as client:
+            template = client.post("/api/gym/templates", json=_template_payload()).json()
+            first = client.post(
+                "/api/gym/sessions",
+                json={"date": "2026-06-01", "template_id": template["id"]},
+            ).json()
+            client.put(
+                f"/api/gym/session-activities/{first['activities'][1]['id']}",
+                json={"completed": True, "rating": "hard"},
+            )
+            second = client.post(
+                "/api/gym/sessions",
+                json={"date": "2026-06-05", "template_id": template["id"]},
+            ).json()
+            resp = client.put(
+                f"/api/gym/session-activities/{second['activities'][1]['id']}",
+                json={"completed": True, "rating": "normal"},
+            )
+
+        assert resp.status_code == 200
+        previous = resp.json()["previous_performance"]
+        assert previous is not None
+        assert previous["date"] == "2026-06-01"
+        assert previous["rating"] == "hard"
+
+    @pytest.mark.asyncio
     async def test_delete_session_removes_session_and_activity_logs(self, async_session):
         app = _make_app(async_session)
 

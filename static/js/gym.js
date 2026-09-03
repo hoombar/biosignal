@@ -330,6 +330,23 @@
         `;
     }
 
+    function previousPerformanceLine(activity) {
+        if (!activity.completed || !activity.previous_performance) return '';
+        const previous = activity.previous_performance;
+        const summary = activitySummary({
+            activity_type: activity.substitution_activity_type || activity.activity_type,
+            actual_sets: previous.sets,
+            actual_reps: previous.reps,
+            actual_weight: previous.weight,
+            actual_weight_unit: previous.weight_unit,
+            actual_duration_minutes: previous.duration_minutes,
+            actual_intensity: previous.intensity,
+            actual_speed: previous.speed,
+        });
+        const felt = previous.rating ? ` · felt ${previous.rating}` : '';
+        return `<span class="gym-activity-previous">Last time (${escapeHtml(previous.date)}): ${escapeHtml(summary)}${escapeHtml(felt)}</span>`;
+    }
+
     function renderActivity(activity) {
         const checked = activity.completed ? 'checked' : '';
         const doneClass = activity.completed ? ' gym-activity--done' : '';
@@ -344,6 +361,7 @@
                         <span class="gym-activity-name">${escapeHtml(performed.name_snapshot)}</span>
                         ${activity.substitution_name_snapshot ? `<span class="gym-activity-plan">Instead of ${escapeHtml(activity.name_snapshot)}</span>` : ''}
                         <span class="gym-activity-plan">${escapeHtml(activitySummary(performed))}</span>
+                        ${previousPerformanceLine(activity)}
                     </span>
                 </label>
                 <div class="gym-rating" aria-label="Exercise rating">

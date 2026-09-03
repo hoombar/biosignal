@@ -3748,6 +3748,13 @@ input:focus {
     display: block;
 }
 
+.gym-activity-previous {
+    display: block;
+    margin-top: 2px;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+}
+
 .gym-rating {
     display: grid;
     grid-template-columns: repeat(3, 1fr);

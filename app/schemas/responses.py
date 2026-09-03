@@ -279,6 +279,18 @@ class GymSessionActivityCreateRequest(BaseModel):
         return self
 
 
+class GymActivityPreviousPerformance(BaseModel):
+    date: date
+    sets: int | None = None
+    reps: int | None = None
+    weight: float | None = None
+    weight_unit: str | None = None
+    duration_minutes: float | None = None
+    intensity: str | None = None
+    speed: float | None = None
+    rating: ActivityRating | None = None
+
+
 class GymSessionActivityResponse(BaseModel):
     id: int
     activity_id: int | None = None
@@ -306,6 +318,7 @@ class GymSessionActivityResponse(BaseModel):
     completed: bool
     rating: ActivityRating | None = None
     notes: str | None = None
+    previous_performance: GymActivityPreviousPerformance | None = None
 
 
 class GymSessionResponse(BaseModel):
