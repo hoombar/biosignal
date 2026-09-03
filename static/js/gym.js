@@ -183,7 +183,7 @@
                 </div>
                 <div class="gym-session-actions">
                     <button type="button" class="btn-secondary" data-action="delete-session">
-                        Cancel session
+                        ${finished ? 'Discard session' : 'Cancel session'}
                     </button>
                     <button type="button" class="gym-finish-btn" data-action="finish-session" ${finished ? 'disabled' : ''}>
                         ${finished ? 'Finished' : 'Finish'}
@@ -545,16 +545,20 @@
 
     async function deleteSession() {
         if (!state.session) return;
-        if (!window.confirm('Cancel this gym session? This will delete the session log for this date.')) return;
-        setStatus('Cancelling session…');
+        const finished = state.session.completed_at != null;
+        const message = finished
+            ? 'Discard this finished gym session? This will permanently delete the session log and all activity details for this date.'
+            : 'Cancel this gym session? This will delete the session log for this date.';
+        if (!window.confirm(message)) return;
+        setStatus(finished ? 'Discarding session…' : 'Cancelling session…');
         try {
             await fetchJson(`/api/gym/sessions/${state.session.id}`, {method: 'DELETE'});
             state.session = null;
             render();
             setStatus('');
         } catch (err) {
-            console.error('Failed to cancel gym session', err);
-            setStatus('Could not cancel session.', true);
+            console.error('Failed to discard gym session', err);
+            setStatus(finished ? 'Could not discard session.' : 'Could not cancel session.', true);
         }
     }
 

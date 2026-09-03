@@ -84,3 +84,135 @@ def test_gym_create_is_not_automatically_retried():
 
     assert result["calls"] == 1
     assert result["error"] == "Failed to fetch"
+
+
+def make_session_payload(completed_at: str | None) -> dict:
+    return {
+        "id": 7,
+        "date": "2026-07-16",
+        "template_id": 1,
+        "template_name_snapshot": "Standard upper/back and arms",
+        "started_at": "2026-07-16T09:00:00+00:00",
+        "completed_at": completed_at,
+        "activities": [],
+    }
+
+
+def run_gym_scenario(session_payload: dict, action: str | None = None) -> dict:
+    script = textwrap.dedent(
+        """
+        const fs = require('fs');
+        const vm = require('vm');
+
+        let source = fs.readFileSync('static/js/gym.js', 'utf8');
+        source = source.replace(
+            "document.addEventListener('DOMContentLoaded', init);",
+            "globalThis.__gymTest = {deleteSession, refresh}; document.addEventListener('DOMContentLoaded', init);",
+        );
+        const sessionPayload = JSON.parse(process.argv[1]);
+        const action = process.argv[2] || '';
+        const elements = {};
+        const confirmCalls = [];
+        const fetchCalls = [];
+
+        function makeElement(id) {
+            return {
+                id,
+                textContent: '',
+                innerHTML: '',
+                style: { display: '' },
+                value: '',
+                listeners: {},
+                classList: { toggle() {}, add() {}, remove() {} },
+                addEventListener(type, handler) {
+                    this.listeners[type] = handler;
+                },
+            };
+        }
+
+        const context = {
+            console: {error() {}},
+            document: {
+                addEventListener(type, handler) {
+                    this.domReady = handler;
+                },
+                getElementById(id) {
+                    if (!elements[id]) elements[id] = makeElement(id);
+                    return elements[id];
+                },
+            },
+            window: {
+                confirm(message) {
+                    confirmCalls.push(message);
+                    return true;
+                },
+            },
+            setTimeout(callback) { callback(); },
+            fetch: async (url, options) => {
+                const method = (options && options.method) || 'GET';
+                fetchCalls.push({url: String(url), method});
+                if (method === 'DELETE') {
+                    return {ok: true, status: 204, text: async () => '', json: async () => null};
+                }
+                if (String(url).startsWith('/api/gym/session')) {
+                    return {ok: true, status: 200, text: async () => 'session', json: async () => sessionPayload};
+                }
+                return {ok: true, status: 200, text: async () => 'ok', json: async () => []};
+            },
+        };
+        vm.createContext(context);
+        vm.runInContext(source, context);
+
+        (async () => {
+            await context.document.domReady();
+            await context.__gymTest.refresh();
+            if (action === 'delete') await context.__gymTest.deleteSession();
+            console.log(JSON.stringify({
+                html: elements['gym-session'].innerHTML,
+                confirmCalls,
+                fetchCalls,
+            }));
+        })();
+        """
+    )
+    result = subprocess.run(
+        ["node", "-e", script, json.dumps(session_payload), action or ""],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return json.loads(result.stdout)
+
+
+def test_gym_active_session_keeps_cancel_label():
+    result = run_gym_scenario(make_session_payload(None))
+
+    assert "Cancel session" in result["html"]
+    assert "Discard session" not in result["html"]
+
+
+def test_gym_finished_session_uses_discard_label():
+    result = run_gym_scenario(make_session_payload("2026-07-16T10:30:00+00:00"))
+
+    assert "Discard session" in result["html"]
+    assert "Cancel session" not in result["html"]
+
+
+def test_gym_discard_confirm_states_permanent_deletion():
+    result = run_gym_scenario(make_session_payload("2026-07-16T10:30:00+00:00"), action="delete")
+
+    assert len(result["confirmCalls"]) == 1
+    message = result["confirmCalls"][0]
+    assert "Discard" in message
+    assert "permanently delete" in message
+    assert {"url": "/api/gym/sessions/7", "method": "DELETE"} in result["fetchCalls"]
+
+
+def test_gym_active_session_cancel_confirm_unchanged():
+    result = run_gym_scenario(make_session_payload(None), action="delete")
+
+    assert len(result["confirmCalls"]) == 1
+    message = result["confirmCalls"][0]
+    assert "Cancel this gym session?" in message
+    assert {"url": "/api/gym/sessions/7", "method": "DELETE"} in result["fetchCalls"]
