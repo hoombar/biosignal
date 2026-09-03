@@ -5,7 +5,10 @@ ideas and status updates here rather than maintaining a separate backlog in
 the Obsidian vault.
 
 Items below were migrated from the vault backlog on 2026-08-23. They are
-product direction, not commitments or a delivery schedule.
+product direction, not commitments or a delivery schedule. The migration was
+reconciled against the vault snapshot and retro notes on 2026-09-03: weather
+completion, daily layout persistence, and impromptu substitutions were
+restored, and context range editing was recorded as done.
 
 ## Analysis And Data Quality
 
@@ -18,7 +21,10 @@ product direction, not commitments or a delivery schedule.
 - [ ] Add feedback for surfaced correlation suggestions: interesting,
   obvious, not useful, or hidden. Retain the underlying correlations.
 - [ ] Model sustained environmental exposure, including multi-day pollen and
-  heat windows, rather than only point-in-time highs.
+  heat windows, rather than only point-in-time highs. Original driver
+  (2026-07-02): sustained high pollen across 80+ hours, or heat holding
+  around 28 C for five days with nights not cooling down, signals
+  differently than brief spikes.
 - [ ] Add forecasts and proactive insights after sync gaps, weather, context
   baselines, and signal relevance are reliable.
 
@@ -29,6 +35,19 @@ product direction, not commitments or a delivery schedule.
   useful while retaining general observations.
 - [ ] Add on-load catch-up sync for small recent Garmin and environment gaps,
   with a clear banner or automatic yesterday sync. Prompt before large gaps.
+
+- [ ] Complete weather metric coverage: add surface pressure and weather
+  condition summaries to the existing Open-Meteo weather sync. The rest of
+  the original weather item (temperature, apparent temperature, humidity,
+  dew point, precipitation, wind, cloud cover) already syncs with Daily UI,
+  export, and test coverage.
+
+## Daily View
+
+- [ ] Persist expanded/collapsed preferences for Daily metric detail sections
+  so the page reopens the way the user left it, while keeping cards collapsed
+  by default with summary values for scannability. Current: detail state is
+  not remembered between visits.
 
 ## Context And Activity
 
@@ -41,6 +60,13 @@ product direction, not commitments or a delivery schedule.
   so reviewed absence is distinct from missing data.
 - [ ] Review the data model for strength and mobility exercises that do not fit
   the current activity or habit model, such as dead bugs.
+
+### Done
+
+- [x] Context range editing: editing an existing context event prefills the
+  saved start/end dates rather than the viewed day and submits through the
+  PATCH endpoint. Covered by API and UI regression tests (completed
+  2026-08-15).
 
 ## Gym Workflow
 
