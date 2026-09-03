@@ -112,7 +112,7 @@ def run_gym_scenario(
         let source = fs.readFileSync('static/js/gym.js', 'utf8');
         source = source.replace(
             "document.addEventListener('DOMContentLoaded', init);",
-            "globalThis.__gymTest = {deleteSession, refresh}; document.addEventListener('DOMContentLoaded', init);",
+            "globalThis.__gymTest = {deleteSession, refresh, state, goToPreviousSession}; document.addEventListener('DOMContentLoaded', init);",
         );
         const sessionPayload = JSON.parse(process.argv[1]);
         const action = process.argv[2] || '';
@@ -178,8 +178,10 @@ def run_gym_scenario(
 
         (async () => {
             await context.document.domReady();
+            context.__gymTest.state.date = '2026-07-16';
             await context.__gymTest.refresh();
             if (action === 'delete') await context.__gymTest.deleteSession();
+            if (action === 'previous') await context.__gymTest.goToPreviousSession();
             if (action === 'save-activity' || action === 'rate-activity') {
                 const weightInput = {dataset: {field: 'actual_weight'}, type: 'number', value: '55'};
                 const card = {
@@ -221,6 +223,8 @@ def run_gym_scenario(
                 html: elements['gym-session'].innerHTML,
                 confirmCalls,
                 fetchCalls,
+                dateValue: elements['gym-date'].value,
+                statusText: elements['gym-status'].textContent,
             }));
         })();
         """
@@ -390,3 +394,23 @@ def test_gym_rating_save_does_not_offer_template_update():
 
     assert result["confirmCalls"] == []
     assert not [c for c in result["fetchCalls"] if c["url"].startswith("/api/gym/templates/")]
+
+
+def test_gym_previous_session_button_loads_earlier_session():
+    routes = [{"match": "/api/gym/sessions/previous", "payload": {"date": "2026-07-14"}}]
+
+    result = run_gym_scenario(make_session_payload(None), action="previous", routes=routes)
+
+    previous_calls = [c for c in result["fetchCalls"] if c["url"].startswith("/api/gym/sessions/previous")]
+    assert previous_calls and "before=2026-07-16" in previous_calls[0]["url"]
+    assert "date=2026-07-14" in result["fetchCalls"][-1]["url"]
+    assert result["dateValue"] == "2026-07-14"
+
+
+def test_gym_previous_session_without_history_shows_message():
+    routes = [{"match": "/api/gym/sessions/previous", "payload": None}]
+
+    result = run_gym_scenario(make_session_payload(None), action="previous", routes=routes)
+
+    assert result["statusText"] == "No previous session."
+    assert result["dateValue"] != "2026-07-14"

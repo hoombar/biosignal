@@ -552,6 +552,25 @@ class TestGymSessions:
         assert second.status_code == 409
 
     @pytest.mark.asyncio
+    async def test_previous_session_returns_latest_before_date(self, async_session):
+        app = _make_app(async_session)
+
+        with TestClient(app) as client:
+            template = client.post("/api/gym/templates", json=_template_payload()).json()
+            for day in ("2026-06-01", "2026-06-05"):
+                client.post("/api/gym/sessions", json={"date": day, "template_id": template["id"]})
+            latest = client.get("/api/gym/sessions/previous", params={"before": "2026-06-14"})
+            adjacent = client.get("/api/gym/sessions/previous", params={"before": "2026-06-05"})
+            none = client.get("/api/gym/sessions/previous", params={"before": "2026-06-01"})
+
+        assert latest.status_code == 200
+        assert latest.json() == {"date": "2026-06-05"}
+        assert adjacent.status_code == 200
+        assert adjacent.json() == {"date": "2026-06-01"}
+        assert none.status_code == 200
+        assert none.json() is None
+
+    @pytest.mark.asyncio
     async def test_delete_session_removes_session_and_activity_logs(self, async_session):
         app = _make_app(async_session)
 

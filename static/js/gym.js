@@ -129,6 +129,23 @@
         state.session = await fetchJson(`/api/gym/session?date=${encodeURIComponent(state.date)}`);
     }
 
+    async function goToPreviousSession() {
+        setStatus('Finding previous session…');
+        try {
+            const previous = await fetchJson(`/api/gym/sessions/previous?before=${encodeURIComponent(state.date)}`);
+            if (!previous || !previous.date) {
+                setStatus('No previous session.');
+                return;
+            }
+            state.date = previous.date;
+            els.date.value = previous.date;
+            await refresh();
+        } catch (err) {
+            console.error('Failed to find previous gym session', err);
+            setStatus('Could not find previous session.', true);
+        }
+    }
+
     async function refresh() {
         setStatus('Loading gym session…', false, true);
         els.session.style.display = 'none';
@@ -631,6 +648,10 @@
             startSession(card.dataset.templateId);
         });
 
+        els.previous.addEventListener('click', () => {
+            goToPreviousSession();
+        });
+
         els.session.addEventListener('click', (event) => {
             const actionEl = event.target.closest('[data-action]');
             if (!actionEl) return;
@@ -690,7 +711,8 @@
         els.session = document.getElementById('gym-session');
         els.start = document.getElementById('gym-start');
         els.templateList = document.getElementById('gym-template-list');
-        if (!els.date || !els.status || !els.session || !els.start || !els.templateList) return;
+        els.previous = document.getElementById('gym-previous');
+        if (!els.date || !els.status || !els.session || !els.start || !els.templateList || !els.previous) return;
         state.date = todayIso();
         els.date.value = state.date;
         bindEvents();

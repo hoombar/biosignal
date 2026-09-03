@@ -17,6 +17,7 @@ from app.models.database import (
     GymTemplateActivity,
 )
 from app.schemas.responses import (
+    GymPreviousSessionResponse,
     GymSessionActivityResponse,
     GymSessionActivityCreateRequest,
     GymSessionActivityUpdateRequest,
@@ -465,6 +466,19 @@ async def get_session(date: DateType, db: AsyncSession = Depends(get_db)):
     if session is None:
         return None
     return await _session_response(db, session)
+
+
+@router.get("/sessions/previous", response_model=GymPreviousSessionResponse | None)
+async def get_previous_session(before: DateType, db: AsyncSession = Depends(get_db)):
+    session = (await db.execute(
+        select(GymSessionLog)
+        .where(GymSessionLog.date < before)
+        .order_by(GymSessionLog.date.desc())
+        .limit(1)
+    )).scalar_one_or_none()
+    if session is None:
+        return None
+    return GymPreviousSessionResponse(date=session.date)
 
 
 @router.post("/sessions", response_model=GymSessionResponse, status_code=status.HTTP_201_CREATED)

@@ -2210,22 +2210,22 @@ input:focus {
     margin-bottom: var(--space-lg);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
-    background: var(--bg-secondary);
+    background: color-mix(in srgb, var(--surface) 92%, var(--surface-warm));
 }
 
 .settings-tab-label {
     padding: var(--space-sm) var(--space-md);
     border-radius: var(--radius-md);
-    color: var(--text-secondary);
+    color: var(--fg-2);
     font-size: 0.875rem;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
     transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .settings-tab-label:hover {
-    color: var(--text-primary);
-    background: var(--bg-hover);
+    color: var(--fg);
+    background: var(--surface-warm);
 }
 
 .settings-tab-panel {
@@ -2237,8 +2237,8 @@ input:focus {
 #settings-tab-preferences:checked ~ .settings-tab-list label[for="settings-tab-preferences"],
 #settings-tab-gym:checked ~ .settings-tab-list label[for="settings-tab-gym"],
 #settings-tab-habits:checked ~ .settings-tab-list label[for="settings-tab-habits"] {
-    color: var(--text-primary);
-    background: var(--primary-color);
+    color: var(--accent-on);
+    background: var(--accent);
 }
 
 #settings-tab-sync:focus-visible ~ .settings-tab-list label[for="settings-tab-sync"],
@@ -2271,6 +2271,7 @@ input:focus {
 #settings-tab-data:checked ~ #settings-panel-data {
     display: block;
 }
+
 .settings-section {
     background: var(--bg-secondary);
     border: 1px solid var(--border-subtle);
@@ -2627,15 +2628,16 @@ input:focus {
     grid-template-columns: 1fr;
     gap: var(--space-sm);
     align-items: end;
-    padding: var(--space-sm) var(--space-md);
-    border: 1px solid var(--border-subtle);
+    padding: var(--space-md);
+    border: 1px solid var(--border-soft);
     border-radius: var(--radius-md);
-    background: rgba(26, 26, 36, 0.68);
+    background: color-mix(in srgb, var(--surface) 92%, var(--surface-warm));
+    box-shadow: 0 10px 24px rgba(20, 34, 28, 0.04);
 }
 
 .habit-card:hover {
-    background: var(--bg-tertiary);
-    border-color: var(--border-strong);
+    background: var(--surface);
+    border-color: var(--border);
 }
 
 .habit-card-main {
@@ -2660,13 +2662,13 @@ input:focus {
 }
 
 .habit-internal-name {
-    color: var(--text-muted);
+    color: var(--muted);
     font-size: 0.75rem;
 }
 
 .habit-internal-name code {
     font-family: var(--font-mono);
-    color: var(--text-secondary);
+    color: var(--fg-2);
 }
 
 .habit-card-fields {
@@ -2698,7 +2700,7 @@ input:focus {
     line-height: 1.2;
     text-transform: uppercase !important;
     letter-spacing: 0.06em;
-    color: var(--text-muted) !important;
+    color: var(--muted) !important;
 }
 
 .settings-field--checkbox {
@@ -2706,7 +2708,7 @@ input:focus {
     flex-direction: row;
     align-items: center;
     gap: 6px;
-    color: var(--text-secondary);
+    color: var(--fg-2);
     font-size: 0.8125rem;
 }
 
@@ -2926,6 +2928,7 @@ input:focus {
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
     background: var(--bg-tertiary);
+    container-type: inline-size;
 }
 
 .add-habit-details summary {
@@ -2944,13 +2947,22 @@ input:focus {
 .add-habit-form {
     padding: var(--space-md);
     display: grid;
-    grid-template-columns: minmax(14rem, 1.4fr) minmax(11rem, 1fr) minmax(8rem, 0.8fr) minmax(8rem, 0.7fr) minmax(9rem, 0.9fr) minmax(5rem, 0.5fr) minmax(13rem, 1fr) auto;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
     gap: var(--space-sm);
-    align-items: center;
+    align-items: end;
+}
+
+.add-habit-form > input[name="name"] {
+    grid-column: span 2;
 }
 
 .add-habit-form .settings-input {
     width: 100%;
+    min-width: 0;
+}
+
+.add-habit-form .archived-toggle,
+.add-habit-form .color-field {
     min-width: 0;
 }
 
@@ -2968,12 +2980,14 @@ input:focus {
 }
 
 @media (max-width: 1100px) {
-    .add-habit-form {
-        grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-    }
-
     .add-habit-form .btn-primary {
         justify-self: start;
+    }
+}
+
+@container (max-width: 46rem) {
+    .add-habit-form > input[name="name"] {
+        grid-column: 1 / -1;
     }
 }
 
@@ -3400,10 +3414,11 @@ input:focus {
 }
 
 .supplement-slot {
+    --supplement-slot-color: var(--muted);
     min-height: 96px;
     padding: var(--space-md);
     border: 1px solid var(--border-subtle);
-    border-left: 3px solid var(--text-muted);
+    border-left: 3px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--bg-secondary);
     color: var(--text-secondary);
@@ -3418,15 +3433,47 @@ input:focus {
     border-color: var(--border-strong);
 }
 
-.supplement-slot--done {
-    border-left-color: var(--color-positive);
-    background: color-mix(in srgb, var(--color-positive) 9%, var(--bg-secondary));
+.supplement-slot.supplement-slot--done,
+.supplement-slot[aria-pressed="true"] {
+    border-color: color-mix(in srgb, var(--supplement-slot-color) 36%, var(--border));
+    border-left-color: var(--supplement-slot-color);
+    background: color-mix(in srgb, var(--supplement-slot-color) 18%, var(--surface));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--supplement-slot-color) 20%, transparent);
+}
+
+.supplement-slot--morning {
+    --supplement-slot-color: var(--recovery);
+}
+
+.supplement-slot--midday {
+    --supplement-slot-color: var(--environment);
+}
+
+.supplement-slot--evening {
+    --supplement-slot-color: var(--sleep);
 }
 
 .supplement-slot-title {
     color: var(--text-primary);
     font-size: 0.875rem;
     font-weight: 700;
+}
+
+.supplement-slot-state {
+    align-self: flex-start;
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 0.6875rem;
+    font-weight: 700;
+}
+
+.supplement-slot[aria-pressed="true"] .supplement-slot-state {
+    border-color: var(--supplement-slot-color);
+    background: var(--supplement-slot-color);
+    color: var(--accent-on);
 }
 
 .supplement-slot-count {
@@ -3568,6 +3615,12 @@ input:focus {
     color: var(--text-secondary);
     font-size: 0.75rem;
     font-weight: 700;
+}
+
+.gym-header-actions {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-sm);
 }
 
 .gym-date-label input,
@@ -3802,9 +3855,14 @@ input:focus {
     }
 
     .gym-date-label,
+    .gym-header-actions,
     .gym-session-actions,
     .gym-finish-btn {
         width: 100%;
+    }
+
+    .gym-header-actions {
+        flex-direction: column;
     }
 
     .gym-session-actions {
@@ -4112,6 +4170,32 @@ textarea {
     box-shadow: inset 0 -3px 0 var(--accent), 0 8px 22px rgba(23, 109, 98, 0.12);
 }
 
+.daily-layout {
+    grid-template-columns: minmax(360px, 380px) minmax(0, 1fr);
+}
+
+.detail-section {
+    padding: clamp(1rem, 2vw, 1.5rem);
+}
+
+.detail-header {
+    margin-bottom: clamp(1rem, 2vw, 1.5rem);
+}
+
+.detail-content {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+    gap: clamp(1rem, 2vw, 1.5rem);
+    min-width: 0;
+}
+
+.metrics-grid {
+    min-width: 0;
+}
+
+.habits-panel {
+    min-width: 0;
+}
+
 /* Shared Signal Field primitives for current and next migrated surfaces. */
 .status-strip {
     display: flex;
@@ -4341,20 +4425,32 @@ textarea {
     }
 
     .site-nav {
-        overflow-x: auto;
-        flex-wrap: nowrap;
-        scrollbar-width: thin;
+        overflow-x: visible;
+        flex-wrap: wrap;
     }
 
     .site-nav a {
-        flex: 0 0 auto;
+        flex: 0 1 auto;
         white-space: nowrap;
+    }
+
+    .daily-layout,
+    .detail-content {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .daily-layout > *,
+    .detail-content > *,
+    .detail-section {
+        min-width: 0;
     }
 }
 
 @media (max-width: 768px) {
     .site-header {
         align-items: center;
+        width: 100%;
+        min-width: 0;
     }
 
     .nav-toggle {
@@ -4370,15 +4466,58 @@ textarea {
         padding-top: 0.25rem;
         flex-direction: row;
         align-items: center;
-        overflow-x: auto;
+        justify-content: flex-start;
+        overflow-x: visible;
+        flex-wrap: wrap;
     }
 
     .site-nav a {
         width: auto;
+        flex: 0 1 auto;
     }
 
     main {
+        width: 100%;
+        min-width: 0;
         padding: 0.75rem;
+    }
+
+    .year-heatmap-section,
+    .calendar-section,
+    .detail-section {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .year-heatmap-section {
+        overflow: hidden;
+    }
+
+    .year-heatmap {
+        overflow-x: auto;
+    }
+
+    .daily-layout {
+        gap: 1rem;
+    }
+
+    .detail-section {
+        padding: 0.875rem;
+    }
+
+    .detail-header {
+        align-items: flex-start;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .detail-date {
+        min-width: 0;
+        font-size: 1rem;
+    }
+
+    .month-tabs {
+        justify-content: flex-start;
     }
 
     .log-header {

@@ -319,6 +319,10 @@ class GymSessionResponse(BaseModel):
     activities: list[GymSessionActivityResponse] = []
 
 
+class GymPreviousSessionResponse(BaseModel):
+    date: date
+
+
 class HabitResponse(BaseModel):
     """Daily habits response."""
     date: str
