@@ -30,6 +30,7 @@ from app.models.database import (
 )
 from app.services.supplements import supplement_key
 from app.services.environmental import AstronomyProvider, location_key
+from app.services.habit_semantics import habit_activation, normalized_habit_value
 
 logger = logging.getLogger(__name__)
 
@@ -713,20 +714,28 @@ async def compute_habit_features(
     target_date: date
 ) -> dict:
     """Compute habit features as a list of habit objects."""
-    result = await session.execute(
-        select(DailyHabit, Habit)
-        .join(Habit, Habit.id == DailyHabit.habit_id)
-        .where(DailyHabit.date == target_date)
-    )
+    habits = (await session.execute(select(Habit).order_by(Habit.name))).scalars().all()
+    rows = (await session.execute(
+        select(DailyHabit).where(DailyHabit.date == target_date)
+    )).scalars().all()
+    rows_by_habit = {row.habit_id: row for row in rows}
+    all_rows = (await session.execute(select(DailyHabit))).scalars().all()
+    rows_by_id: dict[int, list[DailyHabit]] = {}
+    for row in all_rows:
+        rows_by_id.setdefault(row.habit_id, []).append(row)
 
-    habit_list = [
-        {
+    habit_list = []
+    for habit in habits:
+        activation, _ = habit_activation(habit, rows_by_id.get(habit.id, []))
+        value, value_state = normalized_habit_value(
+            habit, rows_by_habit.get(habit.id), target_date, activation
+        )
+        habit_list.append({
             "name": habit.name,
-            "value": daily.habit_value,
+            "value": value,
             "type": habit.habit_type,
-        }
-        for daily, habit in result.all()
-    ]
+            "value_state": value_state,
+        })
 
     return {"habits": habit_list}
 

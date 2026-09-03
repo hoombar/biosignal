@@ -90,6 +90,7 @@ async def list_habits(
             is_negative=habit.is_negative,
             target_value=habit.target_value,
             period=habit.period,
+            tracking_start_date=habit.tracking_start_date,
             display_name=cfg.display_name if cfg else None,
             emoji=cfg.emoji if cfg else None,
             color=cfg.color if cfg else None,
@@ -164,6 +165,7 @@ async def export_habits(
                 period=habit.period,
                 archived_at=habit.archived_at,
                 created_at=habit.created_at,
+                tracking_start_date=habit.tracking_start_date,
                 display=None if cfg_by_name.get(habit.name) is None else HabitExportDisplay(
                     display_name=cfg_by_name[habit.name].display_name,
                     emoji=cfg_by_name[habit.name].emoji,
@@ -262,7 +264,11 @@ async def import_habits(
             )
 
         if habit is None:
-            habit_kwargs = {"name": normalized_name, "habit_type": entry.habit_type}
+            habit_kwargs = {
+                "name": normalized_name,
+                "habit_type": entry.habit_type,
+                "tracking_start_date": entry.tracking_start_date,
+            }
             if entry_uuid is not None:
                 habit_kwargs["uuid"] = entry_uuid
             habit = Habit(**habit_kwargs)
@@ -274,6 +280,7 @@ async def import_habits(
             habit.uuid = entry_uuid
         habit.name = normalized_name
         habit.habit_type = entry.habit_type
+        habit.tracking_start_date = entry.tracking_start_date
         habit.is_negative = entry.is_negative
         habit.target_value = entry.target_value
         habit.period = entry.period
@@ -461,6 +468,7 @@ async def create_habit(
         is_negative=body.is_negative,
         target_value=body.target_value,
         period=body.period,
+        tracking_start_date=body.tracking_start_date,
     )
     db.add(habit)
     try:
@@ -498,6 +506,8 @@ async def update_habit(
         habit.is_negative = body.is_negative
     if body.period is not None:
         habit.period = body.period
+    if body.tracking_start_date is not None:
+        habit.tracking_start_date = body.tracking_start_date
     if body.clear_target:
         habit.target_value = None
     elif body.target_value is not None:

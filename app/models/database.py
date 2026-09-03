@@ -183,6 +183,7 @@ class Habit(Base):
     source = Column(String, nullable=False, server_default=text("'manual'"), default="manual")
     archived_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    tracking_start_date = Column(Date, nullable=True)
     # Generic-tracker fields. ``period`` defines the granularity of hit/miss
     # evaluation; ``target_value`` is the threshold; ``is_negative`` flips the
     # comparison ("≤ target" instead of "≥ target").

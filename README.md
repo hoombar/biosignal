@@ -82,6 +82,17 @@ Habits are logged natively in biosignal — no external service required. Two ty
 - **Binary** habits (yes/no): toggle once per day. Example: "PM Energy Slump", "Healthy Lunch".
 - **Counter** habits (0+): increment/decrement throughout the day. Example: "Coffee", "Alcohol".
 
+Habit logs are sparse positive-only events. An absent row in the raw database
+export is not an explicit zero. Analysis uses an activation window: an
+explicit `tracking_start_date`, or otherwise the first positive value; dates
+before activation remain missing, and archived habits stop receiving inferred
+zeros on the archive date. During active tracking, an absent binary/counter
+row is normalized to zero with `value_state: "inferred_zero"`; explicit zeros
+remain `explicit_zero`. Use `data/daily_habits.jsonl` to preserve raw history,
+or `analysis/daily_habit_matrix.jsonl` and `analysis/daily_features.jsonl` for
+effective values with provenance. Sensor, sleep, and environmental nulls are
+always missing and are never zero-filled.
+
 Manage habits in **Settings → Habits**: add new ones, customise display label/emoji/color, archive ones you no longer track. Archived habits keep their history (they still appear in correlations and trends for past dates) but are hidden from daily logging.
 
 Log habits in **Daily**: pick any date — including past days for retrospective entry — and the habits panel renders editable controls for every active habit.

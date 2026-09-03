@@ -206,6 +206,12 @@ def _with_flattened_habit_values(features: dict) -> dict:
         name = habit.get("name")
         if name:
             row[f"habit_{name}"] = habit.get("value")
+    # Keep the legacy export shape; the full export carries provenance in its
+    # normalized files and /api/daily exposes value_state for UI consumers.
+    row["habits"] = [
+        {key: value for key, value in habit.items() if key != "value_state"}
+        for habit in row.get("habits", []) or []
+    ]
     return row
 
 

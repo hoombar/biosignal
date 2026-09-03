@@ -684,6 +684,29 @@ class TestHabitFeatures:
         assert habit["value"] == 3
         assert habit["type"] == "counter"
 
+    @pytest.mark.asyncio
+    async def test_sparse_habit_states_preserve_missing_before_activation(self, async_session):
+        from datetime import date
+        from app.models.database import DailyHabit, Habit
+
+        habit = Habit(name="sparse", habit_type="binary")
+        async_session.add(habit)
+        await async_session.flush()
+        async_session.add_all([
+            DailyHabit(date=date(2025, 1, 3), habit_id=habit.id, habit_value=1),
+            DailyHabit(date=date(2025, 1, 4), habit_id=habit.id, habit_value=0),
+        ])
+        await async_session.commit()
+
+        before = await compute_habit_features(async_session, date(2025, 1, 2))
+        active_gap = await compute_habit_features(async_session, date(2025, 1, 5))
+        assert before["habits"][0]["value_state"] == "not_yet_tracked"
+        assert active_gap["habits"][0] == {
+            "name": "sparse", "value": 0, "type": "binary", "value_state": "inferred_zero"
+        }
+        explicit = await compute_habit_features(async_session, date(2025, 1, 4))
+        assert explicit["habits"][0]["value_state"] == "explicit_zero"
+
 
 class TestGymFeatures:
 

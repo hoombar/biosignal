@@ -897,7 +897,21 @@ async def compute_correlations(
         if target_is_binary and feature_name.startswith("habit_"):
             threshold_habit = habit_thresholds.get(feature_name[6:])
             if threshold_habit is not None:
-                summary = _threshold_summary(target_vals, feat_vals, threshold_habit)
+                # Threshold summaries describe explicitly recorded counter
+                # values; the correlation above still includes inferred
+                # active-window zeros in its denominator.
+                explicit_pairs = [
+                    (t, f)
+                    for t, f, source in zip(target_values, feature_values, target_features)
+                    if t is not None and f is not None
+                    and next((h for h in source.get("habits", []) if h["name"] == feature_name[6:]), {}).get("value_state")
+                    in {"explicit_positive", "explicit_zero"}
+                ]
+                summary = _threshold_summary(
+                    tuple(t for t, _ in explicit_pairs),
+                    tuple(f for _, f in explicit_pairs),
+                    threshold_habit,
+                )
                 if summary:
                     result.update(summary)
 
