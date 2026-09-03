@@ -44,20 +44,85 @@ product direction, not commitments or a delivery schedule.
 
 ## Gym Workflow
 
-- [ ] Preserve ad hoc exercise details such as kettlebell mason twists with
-  sets, reps, and weight.
-- [ ] Retry failed activity saves in the background and show a durable
-  unsaved-state warning.
-- [ ] Auto-finish a gym session when all activities and required effort levels
-  are complete.
-- [ ] Update the in-session summary immediately when exercise weight changes,
-  and offer to update the future template.
-- [ ] Allow jumping to the previous gym session without choosing a date
-  manually.
-- [ ] Show previous performance or effort annotations after completing the
-  current activity, without biasing the current rating.
-- [ ] Reframe post-finish cancellation as "discard session" so the destructive
-  intent is clearer.
+Items below were captured in braindumps on 2026-06-30, 2026-07-02,
+2026-07-14, and 2026-07-16 (vault daily notes; consolidated snapshot in the
+vault's `Machine/AI Workflows/Biosignal/biosignal-upcoming-features.md`).
+
+### Done
+
+- [x] Auto-finish a gym session when all activities are complete and all
+  effort levels are filled in.
+  - Intent: ticking the last activity should finish the session without an
+    explicit finish tap (2026-07-14).
+  - Current: implemented server-side and mirrored in the UI; covered by
+    `tests/test_api_gym.py` auto-finish tests.
+
+### Open
+
+- [ ] Preserve full detail for impromptu/ad hoc exercises: sets, reps,
+  weight, and notes regardless of exercise type. Original example: kettlebell
+  mason twist 3x10 @ 12 kg added mid-session (2026-07-02).
+  - Current: custom activities can be added, but mobility-typed entries
+    cannot record weight and their notes are dropped; the add panel has no
+    notes field.
+  - Done when: any custom exercise faithfully captures every detail the user
+    enters, including weight and notes.
+
+- [ ] Support impromptu substitutions inside a session (e.g. laid-back leg
+  press replacing an out-of-order leg press) without losing planned-session
+  context (2026-07-02).
+  - Current: substitution API endpoint exists and is tested; UI controls
+    were deliberately removed, so it is API-only.
+  - Done when: swaps are possible from the session UI while retaining the
+    planned activity for comparison.
+
+- [ ] Retry failed activity saves in the background with a durable
+  unsaved-state warning (2026-07-14).
+  - Intent: a save failed while the app appeared online; the transient
+    top-of-page error was easy to miss. Retry quietly and only surface a
+    warning if persistence truly cannot succeed.
+  - Current: single synchronous retry, then error banner plus reload that
+    discards unsaved input.
+  - Done when: failed edits are held locally and retried in the background;
+    a persistent indicator shows unsaved state until synced; navigation with
+    pending edits is warned (exact retry policy decided at implementation).
+
+- [ ] Offer to update the future template when an activity's weight (or
+  sets/reps) changes, not only on completion (2026-07-14).
+  - Intent: weight-change bug report plus "ask if you want to update it
+    moving forwards so it actually updates the template."
+  - Current: the in-session per-activity summary re-renders on save (bug
+    appears fixed); the template-update offer fires only when an activity is
+    marked complete.
+  - Done when: value edits during a session trigger the same offer, and the
+    summary reflects the change immediately (verify in browser).
+
+- [ ] Allow jumping to the previous gym session in one click instead of
+  picking a date (2026-07-16).
+  - Intent: "select previous rather than a date... jump to the last training
+    session to see what weights etc you did and how the effort was."
+  - Current: date input only; no history or link.
+  - Done when: a "previous" affordance loads the most recent earlier session,
+    showing its weights and effort ratings.
+
+- [ ] Show previous performance and effort for an activity only after the
+  current activity is completed (2026-07-16).
+  - Intent: "annotate the last time you did that activity with how it felt,
+    but only after you completed it so it doesn't bias the current rating."
+  - Current: no prior-performance display anywhere.
+  - Done when: completing an activity surfaces last time's numbers and
+    effort on the card; no prior performance is shown before completion.
+
+- [ ] Reframe post-finish cancellation as "discard session" (2026-07-16).
+  - Intent: "should not have a cancel session button [after you] tapped
+    finish; it should probably be a discard session."
+  - Current: "Cancel session" is always visible, including post-finish, and
+    hard-deletes the session after confirm.
+  - Done when: pre-finish Cancel stays; after finishing the destructive
+    action is labeled "Discard session" with confirm copy that states the
+    deletion explicitly.
+  - Open sub-question: whether finished sessions should become read-only
+    (toggles/ratings/adjust fields are currently still editable).
 
 ## Open Design Questions
 
