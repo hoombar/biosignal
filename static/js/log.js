@@ -269,10 +269,11 @@
                         const detail = itemNames.length ? itemNames.join(', ') : 'No supplements configured';
                         return `
                             <button type="button"
-                                    class="supplement-slot ${completed ? 'supplement-slot--done' : ''}"
+                                    class="supplement-slot supplement-slot--${slotDef.slot} ${completed ? 'supplement-slot--done' : ''}"
                                     data-slot="${slotDef.slot}"
                                     aria-pressed="${completed}">
                                 <span class="supplement-slot-title">${titleSlot(slotDef.slot)}</span>
+                                <span class="supplement-slot-state">${completed ? 'Taken' : 'Not taken'}</span>
                                 <span class="supplement-slot-count">${itemNames.length} item${itemNames.length === 1 ? '' : 's'}</span>
                                 <span class="supplement-slot-items">${detail}</span>
                             </button>
