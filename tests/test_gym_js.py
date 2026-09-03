@@ -102,6 +102,7 @@ def run_gym_scenario(
     session_payload: dict,
     action: str | None = None,
     fire_add_type_change: str | None = None,
+    routes: list[dict] | None = None,
 ) -> dict:
     script = textwrap.dedent(
         """
@@ -116,6 +117,7 @@ def run_gym_scenario(
         const sessionPayload = JSON.parse(process.argv[1]);
         const action = process.argv[2] || '';
         const addTypeChange = process.argv[3] || '';
+        const routes = JSON.parse(process.argv[4] || '[]');
         const elements = {};
         const confirmCalls = [];
         const fetchCalls = [];
@@ -155,9 +157,15 @@ def run_gym_scenario(
             setTimeout(callback) { callback(); },
             fetch: async (url, options) => {
                 const method = (options && options.method) || 'GET';
-                fetchCalls.push({url: String(url), method});
+                const call = {url: String(url), method};
+                if (options && options.body) call.body = String(options.body);
+                fetchCalls.push(call);
                 if (method === 'DELETE') {
                     return {ok: true, status: 204, text: async () => '', json: async () => null};
+                }
+                const route = routes.find(r => String(url).startsWith(r.match));
+                if (route) {
+                    return {ok: true, status: 200, text: async () => 'route', json: async () => route.payload};
                 }
                 if (String(url).startsWith('/api/gym/session')) {
                     return {ok: true, status: 200, text: async () => 'session', json: async () => sessionPayload};
@@ -172,6 +180,25 @@ def run_gym_scenario(
             await context.document.domReady();
             await context.__gymTest.refresh();
             if (action === 'delete') await context.__gymTest.deleteSession();
+            if (action === 'save-activity' || action === 'rate-activity') {
+                const weightInput = {dataset: {field: 'actual_weight'}, type: 'number', value: '55'};
+                const card = {
+                    dataset: {activityId: '3'},
+                    querySelectorAll: (sel) => sel === '[data-field]' ? [weightInput] : [],
+                    querySelector: () => null,
+                };
+                elements['gym-session'].listeners.click({
+                    target: {
+                        closest: (sel) => sel === '[data-action]'
+                            ? {
+                                dataset: {action, rating: 'hard'},
+                                closest: (inner) => inner === '[data-activity-id]' ? card : null,
+                            }
+                            : (sel === '[data-activity-id]' ? card : null),
+                    },
+                });
+                for (let i = 0; i < 25; i++) await Promise.resolve();
+            }
             if (addTypeChange) {
                 const fieldsEl = makeElement('add-fields');
                 elements['gym-session'].listeners.change({
@@ -199,7 +226,7 @@ def run_gym_scenario(
         """
     )
     result = subprocess.run(
-        ["node", "-e", script, json.dumps(session_payload), action or "", fire_add_type_change or ""],
+        ["node", "-e", script, json.dumps(session_payload), action or "", fire_add_type_change or "", json.dumps(routes or [])],
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,
@@ -281,3 +308,85 @@ def test_gym_add_activity_panel_mobility_type_offers_weight_and_unit():
     assert 'data-add-field="target_weight"' in result["addFieldsHtml"]
     assert 'data-add-field="target_weight_unit"' in result["addFieldsHtml"]
     assert 'data-add-field="target_sets"' in result["addFieldsHtml"]
+
+
+def make_strength_session_activity() -> dict:
+    return {
+        "id": 3,
+        "sort_order": 0,
+        "activity_type": "strength",
+        "name_snapshot": "Low row",
+        "planned_sets": 3,
+        "planned_reps": 12,
+        "planned_weight": 50,
+        "planned_weight_unit": "kg",
+        "actual_sets": 3,
+        "actual_reps": 12,
+        "actual_weight": 50,
+        "actual_weight_unit": "kg",
+        "completed": False,
+        "rating": None,
+        "notes": None,
+    }
+
+
+def make_matching_template_payload(weight: int) -> dict:
+    return {
+        "id": 1,
+        "name": "Standard upper/back and arms",
+        "description": None,
+        "activities": [{
+            "id": 11,
+            "sort_order": 0,
+            "activity_type": "strength",
+            "name": "Low row",
+            "target_sets": 3,
+            "target_reps": 12,
+            "target_weight": weight,
+            "target_weight_unit": "kg",
+        }],
+    }
+
+
+def test_gym_weight_edit_offers_template_update_without_completion():
+    activity = make_strength_session_activity()
+    updated_activity = {**activity, "actual_weight": 55}
+    routes = [
+        {"match": "/api/gym/session-activities/3", "payload": updated_activity},
+        {"match": "/api/gym/templates/1", "payload": make_matching_template_payload(weight=55)},
+        {"match": "/api/gym/templates", "payload": [make_matching_template_payload(weight=50)]},
+    ]
+
+    result = run_gym_scenario(make_session_payload(None, activities=[activity]), action="save-activity", routes=routes)
+
+    assert "Update the template with these completed values?" in result["confirmCalls"]
+    template_puts = [c for c in result["fetchCalls"] if c["url"] == "/api/gym/templates/1" and c["method"] == "PUT"]
+    assert template_puts and '"target_weight":55' in template_puts[0]["body"]
+
+
+def test_gym_weight_edit_summary_reflects_change_immediately():
+    activity = make_strength_session_activity()
+    updated_activity = {**activity, "actual_weight": 55}
+    routes = [
+        {"match": "/api/gym/session-activities/3", "payload": updated_activity},
+        {"match": "/api/gym/templates/1", "payload": make_matching_template_payload(weight=55)},
+        {"match": "/api/gym/templates", "payload": [make_matching_template_payload(weight=50)]},
+    ]
+
+    result = run_gym_scenario(make_session_payload(None, activities=[activity]), action="save-activity", routes=routes)
+
+    assert "55 kg · 3 x 12" in result["html"]
+
+
+def test_gym_rating_save_does_not_offer_template_update():
+    activity = make_strength_session_activity()
+    updated_activity = {**activity, "rating": "hard"}
+    routes = [
+        {"match": "/api/gym/session-activities/3", "payload": updated_activity},
+        {"match": "/api/gym/templates", "payload": [make_matching_template_payload(weight=50)]},
+    ]
+
+    result = run_gym_scenario(make_session_payload(None, activities=[activity]), action="rate-activity", routes=routes)
+
+    assert result["confirmCalls"] == []
+    assert not [c for c in result["fetchCalls"] if c["url"].startswith("/api/gym/templates/")]

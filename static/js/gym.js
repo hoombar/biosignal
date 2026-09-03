@@ -468,7 +468,7 @@
         return Object.entries(patch).some(([field, value]) => (templateActivity[field] ?? null) !== (value ?? null));
     }
 
-    async function updateTemplateFromCompletedActivity(activity) {
+    async function maybeUpdateTemplateFromActivity(activity) {
         const match = matchingTemplateActivity(activity);
         if (!match) return;
         const {template, templateActivity} = match;
@@ -513,7 +513,7 @@
                 && state.session.activities.every(item => item.completed && item.rating);
             if (allComplete && !state.session.completed_at) state.session.completed_at = new Date().toISOString();
             renderSession();
-            if (options.promptTemplateUpdate) await updateTemplateFromCompletedActivity(activity);
+            if (options.promptTemplateUpdate) await maybeUpdateTemplateFromActivity(activity);
         } catch (err) {
             console.error('Failed to update gym activity', err);
             setStatus('Could not save activity update after retrying. Check your connection and try again.', true);
@@ -658,7 +658,7 @@
                 updateActivity(
                     activityId,
                     collectActivityPatch(card),
-                    {promptTemplateUpdate: Boolean(card.querySelector('[data-action="toggle-activity"]')?.checked)},
+                    {promptTemplateUpdate: true},
                 );
             }
         });
