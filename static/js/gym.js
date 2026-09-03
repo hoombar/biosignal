@@ -61,8 +61,12 @@
         }
         if (activity.activity_type === 'mobility') {
             const parts = [];
+            const weight = activity.actual_weight ?? activity.planned_weight;
             const sets = activity.actual_sets ?? activity.planned_sets;
             const reps = activity.actual_reps ?? activity.planned_reps;
+            if (weight != null) {
+                parts.push(`${compactNumber(weight)} ${activity.actual_weight_unit || activity.planned_weight_unit || 'kg'}`);
+            }
             if (sets != null || reps != null) {
                 parts.push(`${sets ?? '-'} x ${reps ?? '-'}`);
             }
@@ -230,6 +234,10 @@
                     <div class="gym-add-session-fields" data-add-fields>
                         ${renderAddFields('strength')}
                     </div>
+                    <label class="gym-note-label">
+                        Note
+                        <textarea data-add-field="notes" rows="2" placeholder="Optional note"></textarea>
+                    </label>
                     <p class="gym-add-save-library">Custom activities are saved for later.</p>
                     <button type="button" class="gym-save-adjust" data-action="add-session-activity">Add activity</button>
                 </div>
@@ -255,6 +263,16 @@
                     ${textAddField('target_intensity', 'Intensity')}
                     ${numberAddField('target_speed', 'Speed/RPM')}
                     ${selectAddField('target_weight_unit', 'Unit', 'kph', ['kph', 'mph', 'rpm'])}
+                </div>
+            `;
+        }
+        if (type === 'mobility') {
+            return `
+                <div class="gym-adjust-grid">
+                    ${numberAddField('target_weight', 'Weight')}
+                    ${selectAddField('target_weight_unit', 'Unit', 'kg', ['kg', 'lbs'])}
+                    ${numberAddField('target_sets', 'Sets')}
+                    ${numberAddField('target_reps', 'Reps')}
                 </div>
             `;
         }
@@ -324,12 +342,10 @@
                 <details class="gym-adjust">
                     <summary>Adjust</summary>
                     ${renderAdjustFields(performed)}
-                    ${performed.activity_type === 'mobility' ? '' : `
-                        <label class="gym-note-label">
-                            Note
-                            <textarea data-field="notes" rows="2">${escapeHtml(activity.notes || '')}</textarea>
-                        </label>
-                    `}
+                    <label class="gym-note-label">
+                        Note
+                        <textarea data-field="notes" rows="2">${escapeHtml(activity.notes || '')}</textarea>
+                    </label>
                     <button type="button" class="gym-save-adjust" data-action="save-activity">Save changes</button>
                 </details>
             </article>
@@ -360,6 +376,8 @@
         if (activity.activity_type === 'mobility') {
             return `
                 <div class="gym-adjust-grid">
+                    ${numberField('actual_weight', 'Weight', activity.actual_weight)}
+                    ${selectField('actual_weight_unit', 'Unit', activity.actual_weight_unit || activity.planned_weight_unit || 'kg', ['kg', 'lbs'])}
                     ${numberField('actual_sets', 'Sets', activity.actual_sets)}
                     ${numberField('actual_reps', 'Reps', activity.actual_reps)}
                 </div>
@@ -441,6 +459,8 @@
         return {
             target_sets: activity.actual_sets,
             target_reps: activity.actual_reps,
+            target_weight: activity.actual_weight,
+            target_weight_unit: activity.actual_weight_unit || activity.planned_weight_unit,
         };
     }
 

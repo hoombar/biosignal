@@ -200,6 +200,7 @@ class TestGymActivities:
                         "target_duration_minutes": 5,
                         "target_intensity": "easy",
                         "target_speed": 5,
+                        "notes": "ankle mobility focus",
                     },
                 ],
             })
@@ -215,12 +216,12 @@ class TestGymActivities:
         assert cardio["target_weight_unit"] == "rpm"
         assert mobility["target_sets"] == 3
         assert mobility["target_reps"] == 12
-        assert mobility["target_weight"] is None
-        assert mobility["target_weight_unit"] is None
+        assert mobility["target_weight"] == 50
+        assert mobility["target_weight_unit"] == "kg"
         assert mobility["target_duration_minutes"] is None
         assert mobility["target_intensity"] is None
         assert mobility["target_speed"] is None
-        assert mobility["notes"] is None
+        assert mobility["notes"] == "ankle mobility focus"
 
     @pytest.mark.asyncio
     async def test_freeform_activity_type_is_rejected(self, async_session):
@@ -392,6 +393,49 @@ class TestGymSessions:
         assert added.status_code == 201
         assert added.json()["activity_id"] is not None
         assert "Laid-back leg press" in [activity["name"] for activity in library.json()]
+
+    @pytest.mark.asyncio
+    async def test_ad_hoc_mobility_activity_preserves_weight_and_notes(self, async_session):
+        app = _make_app(async_session)
+
+        with TestClient(app) as client:
+            template = client.post("/api/gym/templates", json=_template_payload()).json()
+            session = client.post(
+                "/api/gym/sessions",
+                json={"date": "2026-06-02", "template_id": template["id"]},
+            ).json()
+            resp = client.post(
+                f"/api/gym/sessions/{session['id']}/activities",
+                json={
+                    "activity_type": "mobility",
+                    "name": "Kettlebell mason twist",
+                    "target_sets": 3,
+                    "target_reps": 10,
+                    "target_weight": 12,
+                    "target_weight_unit": "kg",
+                    "notes": "very good",
+                    "save_to_library": True,
+                },
+            )
+            library = client.get("/api/gym/activities")
+
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["activity_type"] == "mobility"
+        assert body["name_snapshot"] == "Kettlebell mason twist"
+        assert body["planned_sets"] == 3
+        assert body["planned_reps"] == 10
+        assert body["planned_weight"] == 12
+        assert body["planned_weight_unit"] == "kg"
+        assert body["planned_notes"] == "very good"
+        assert body["actual_weight"] == 12
+
+        library_row = (await async_session.execute(
+            select(GymActivity).where(GymActivity.name == "Kettlebell mason twist")
+        )).scalar_one()
+        assert library_row.target_weight == 12
+        assert library_row.target_weight_unit == "kg"
+        assert library_row.notes == "very good"
 
     @pytest.mark.asyncio
     async def test_substitution_preserves_planned_activity_context(self, async_session):

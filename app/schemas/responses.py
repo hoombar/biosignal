@@ -81,8 +81,12 @@ class ActivitySessionSummary(BaseModel):
 class Habit(BaseModel):
     """Single habit entry."""
     name: str
-    value: int
+    value: int | None
     type: str
+    value_state: Literal[
+        "explicit_positive", "explicit_zero", "inferred_zero",
+        "not_yet_tracked", "no_longer_tracked"
+    ] = "explicit_positive"
 
 
 class SupplementDailyEntry(BaseModel):
@@ -148,12 +152,11 @@ class GymTemplateActivityInput(BaseModel):
             self.target_reps = None
             self.target_weight = None
         elif self.activity_type == "mobility":
-            self.target_weight = None
-            self.target_weight_unit = None
+            if self.target_weight_unit not in (None, "kg", "lbs"):
+                raise ValueError("mobility unit must be kg or lbs")
             self.target_duration_minutes = None
             self.target_intensity = None
             self.target_speed = None
-            self.notes = None
         return self
 
 
@@ -209,12 +212,11 @@ class GymActivityInput(BaseModel):
             self.target_reps = None
             self.target_weight = None
         elif self.activity_type == "mobility":
-            self.target_weight = None
-            self.target_weight_unit = None
+            if self.target_weight_unit not in (None, "kg", "lbs"):
+                raise ValueError("mobility unit must be kg or lbs")
             self.target_duration_minutes = None
             self.target_intensity = None
             self.target_speed = None
-            self.notes = None
         return self
 
 
@@ -541,6 +543,7 @@ class HabitListEntry(BaseModel):
     is_negative: bool = False
     target_value: int | None = None
     period: str = "day"
+    tracking_start_date: date | None = Field(default=None, exclude_if=lambda value: value is None)
     display_name: str | None = None
     emoji: str | None = None
     color: str | None = None
@@ -574,6 +577,7 @@ class HabitExportEntry(BaseModel):
     period: str = Field(default="day", pattern=r"^(day|week|month)$")
     archived_at: datetime | None = None
     created_at: datetime
+    tracking_start_date: date | None = Field(default=None, exclude_if=lambda value: value is None)
     display: HabitExportDisplay | None = None
     logs: list[HabitExportLog] = []
 
@@ -604,6 +608,7 @@ class HabitCreateRequest(BaseModel):
     is_negative: bool = False
     target_value: int | None = Field(default=None, ge=0)
     period: str = Field(default="day", pattern=r"^(day|week|month)$")
+    tracking_start_date: date | None = None
     display_name: str | None = None
     emoji: str | None = None
     color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
@@ -619,6 +624,7 @@ class HabitUpdateRequest(BaseModel):
     is_negative: bool | None = None
     target_value: int | None = Field(default=None, ge=0)
     period: str | None = Field(default=None, pattern=r"^(day|week|month)$")
+    tracking_start_date: date | None = None
     display_name: str | None = None
     emoji: str | None = None
     color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")

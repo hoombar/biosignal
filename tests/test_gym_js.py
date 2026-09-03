@@ -86,7 +86,7 @@ def test_gym_create_is_not_automatically_retried():
     assert result["error"] == "Failed to fetch"
 
 
-def make_session_payload(completed_at: str | None) -> dict:
+def make_session_payload(completed_at: str | None, activities: list[dict] | None = None) -> dict:
     return {
         "id": 7,
         "date": "2026-07-16",
@@ -94,11 +94,15 @@ def make_session_payload(completed_at: str | None) -> dict:
         "template_name_snapshot": "Standard upper/back and arms",
         "started_at": "2026-07-16T09:00:00+00:00",
         "completed_at": completed_at,
-        "activities": [],
+        "activities": activities or [],
     }
 
 
-def run_gym_scenario(session_payload: dict, action: str | None = None) -> dict:
+def run_gym_scenario(
+    session_payload: dict,
+    action: str | None = None,
+    fire_add_type_change: str | None = None,
+) -> dict:
     script = textwrap.dedent(
         """
         const fs = require('fs');
@@ -111,6 +115,7 @@ def run_gym_scenario(session_payload: dict, action: str | None = None) -> dict:
         );
         const sessionPayload = JSON.parse(process.argv[1]);
         const action = process.argv[2] || '';
+        const addTypeChange = process.argv[3] || '';
         const elements = {};
         const confirmCalls = [];
         const fetchCalls = [];
@@ -167,6 +172,24 @@ def run_gym_scenario(session_payload: dict, action: str | None = None) -> dict:
             await context.document.domReady();
             await context.__gymTest.refresh();
             if (action === 'delete') await context.__gymTest.deleteSession();
+            if (addTypeChange) {
+                const fieldsEl = makeElement('add-fields');
+                elements['gym-session'].listeners.change({
+                    target: {
+                        dataset: {addField: 'activity_type'},
+                        value: addTypeChange,
+                        closest: () => ({querySelector: () => fieldsEl}),
+                    },
+                });
+                await Promise.resolve();
+                console.log(JSON.stringify({
+                    html: elements['gym-session'].innerHTML,
+                    addFieldsHtml: fieldsEl.innerHTML,
+                    confirmCalls,
+                    fetchCalls,
+                }));
+                return;
+            }
             console.log(JSON.stringify({
                 html: elements['gym-session'].innerHTML,
                 confirmCalls,
@@ -176,7 +199,7 @@ def run_gym_scenario(session_payload: dict, action: str | None = None) -> dict:
         """
     )
     result = subprocess.run(
-        ["node", "-e", script, json.dumps(session_payload), action or ""],
+        ["node", "-e", script, json.dumps(session_payload), action or "", fire_add_type_change or ""],
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,
@@ -216,3 +239,45 @@ def test_gym_active_session_cancel_confirm_unchanged():
     message = result["confirmCalls"][0]
     assert "Cancel this gym session?" in message
     assert {"url": "/api/gym/sessions/7", "method": "DELETE"} in result["fetchCalls"]
+
+
+def make_mobility_session_payload() -> dict:
+    return make_session_payload(None, activities=[{
+        "id": 3,
+        "activity_type": "mobility",
+        "name_snapshot": "Kettlebell mason twist",
+        "planned_sets": 3,
+        "planned_reps": 10,
+        "planned_weight": 12,
+        "planned_weight_unit": "kg",
+        "planned_notes": "very good",
+        "actual_sets": None,
+        "actual_reps": None,
+        "actual_weight": None,
+        "actual_weight_unit": None,
+        "completed": False,
+        "rating": None,
+        "notes": None,
+    }])
+
+
+def test_gym_mobility_activity_card_offers_weight_and_note_fields():
+    result = run_gym_scenario(make_mobility_session_payload())
+
+    assert 'data-field="actual_weight"' in result["html"]
+    assert 'data-field="notes"' in result["html"]
+    assert "12 kg · 3 x 10" in result["html"]
+
+
+def test_gym_add_activity_panel_has_notes_field():
+    result = run_gym_scenario(make_session_payload(None))
+
+    assert 'data-add-field="notes"' in result["html"]
+
+
+def test_gym_add_activity_panel_mobility_type_offers_weight_and_unit():
+    result = run_gym_scenario(make_session_payload(None), fire_add_type_change="mobility")
+
+    assert 'data-add-field="target_weight"' in result["addFieldsHtml"]
+    assert 'data-add-field="target_weight_unit"' in result["addFieldsHtml"]
+    assert 'data-add-field="target_sets"' in result["addFieldsHtml"]
