@@ -400,8 +400,67 @@
                         <textarea data-field="notes" rows="2">${escapeHtml(activity.notes || '')}</textarea>
                     </label>
                     <button type="button" class="gym-save-adjust" data-action="save-activity">Save changes</button>
+                    ${state.session?.completed_at ? '' : renderSubstitutePanel()}
                 </details>
             </article>
+        `;
+    }
+
+    function renderSubstitutePanel() {
+        return `
+            <details class="gym-substitute">
+                <summary>Substitute exercise</summary>
+                <div class="gym-substitute-panel">
+                    <label>
+                        Saved activity
+                        <select data-substitute-field="activity_id">
+                            <option value="">Custom activity</option>
+                            ${state.activities.map(activity => `
+                                <option value="${activity.id}">${escapeHtml(activity.name)} (${typeLabel(activity.activity_type)})</option>
+                            `).join('')}
+                        </select>
+                    </label>
+                    <label>
+                        Type
+                        <select data-substitute-field="activity_type">
+                            <option value="strength">Strength</option>
+                            <option value="cardio">Cardio</option>
+                            <option value="mobility">Mobility</option>
+                        </select>
+                    </label>
+                    <label>
+                        Name
+                        <input type="text" data-substitute-field="name" placeholder="Substitute name">
+                    </label>
+                    <div class="gym-adjust-grid">
+                        ${substituteNumberField('target_weight', 'Weight')}
+                        ${substituteSelectField('target_weight_unit', 'Unit', 'kg', ['kg', 'lbs'])}
+                        ${substituteNumberField('target_sets', 'Sets')}
+                        ${substituteNumberField('target_reps', 'Reps')}
+                    </div>
+                    <button type="button" class="gym-save-adjust" data-action="substitute-activity">Swap in substitute</button>
+                </div>
+            </details>
+        `;
+    }
+
+    function substituteNumberField(field, label) {
+        return `
+            <label>
+                ${label}
+                <input type="number" step="0.5" min="0" data-substitute-field="${field}">
+            </label>
+        `;
+    }
+
+    function substituteSelectField(field, label, value, options) {
+        return `
+            <label>
+                ${label}
+                <select data-substitute-field="${field}">
+                    ${options.map(option => `<option value="${option}" ${value === option ? 'selected' : ''}>${option}</option>`).join('')}
+                </select>
+            </label>
         `;
     }
 
@@ -732,6 +791,53 @@
         return payload;
     }
 
+    function collectSubstitutePayload(panel) {
+        const payload = {};
+        panel.querySelectorAll('[data-substitute-field]').forEach(input => {
+            const field = input.dataset.substituteField;
+            if (field === 'activity_id') {
+                if (input.value) payload.activity_id = Number(input.value);
+                return;
+            }
+            const value = input.value.trim();
+            if (input.type === 'number') {
+                payload[field] = value === '' ? null : Number(value);
+            } else {
+                payload[field] = value === '' ? null : value;
+            }
+        });
+        if (payload.activity_id) {
+            delete payload.activity_type;
+            delete payload.name;
+        }
+        payload.save_to_library = true;
+        return payload;
+    }
+
+    async function substituteActivity(activityId, panel) {
+        if (!state.session) return;
+        const payload = collectSubstitutePayload(panel);
+        if (!payload.activity_id && !(payload.activity_type && payload.name)) {
+            setStatus('Pick a saved activity or enter a name for the substitute.', true);
+            return;
+        }
+        setStatus('Swapping in substitute…');
+        try {
+            const updated = await fetchJson(`/api/gym/session-activities/${activityId}/substitution`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload),
+            });
+            const index = state.session.activities.findIndex(item => item.id === Number(activityId));
+            if (index !== -1) state.session.activities[index] = updated;
+            renderSession();
+            setStatus('');
+        } catch (err) {
+            console.error('Failed to substitute gym activity', err);
+            setStatus('Could not substitute activity.', true);
+        }
+    }
+
     function bindEvents() {
         els.date.addEventListener('change', () => {
             state.date = els.date.value || todayIso();
@@ -774,6 +880,11 @@
             const card = actionEl.closest('[data-activity-id]');
             if (!card) return;
             const activityId = card.dataset.activityId;
+            if (action === 'substitute-activity') {
+                const panel = actionEl.closest('.gym-substitute-panel');
+                if (panel) substituteActivity(activityId, panel);
+                return;
+            }
             if (action === 'rate-activity') {
                 updateActivity(activityId, {rating: actionEl.dataset.rating});
             }

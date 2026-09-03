@@ -3783,6 +3783,23 @@ input:focus {
     opacity: 0.85;
 }
 
+.gym-substitute {
+    margin-top: var(--space-sm);
+}
+
+.gym-substitute summary {
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.gym-substitute-panel {
+    display: grid;
+    gap: var(--space-sm);
+    margin-top: var(--space-sm);
+}
+
 .gym-rating {
     display: grid;
     grid-template-columns: repeat(3, 1fr);

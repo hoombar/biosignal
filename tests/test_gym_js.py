@@ -7,11 +7,11 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_gym_activity_cards_do_not_render_substitution_controls():
+def test_gym_activity_cards_render_substitution_controls():
     source = (REPO_ROOT / "static/js/gym.js").read_text()
 
-    assert "renderSubstitution(activity)" not in source
-    assert 'data-action="substitute-activity"' not in source
+    assert "renderSubstitutePanel()" in source
+    assert 'data-action="substitute-activity"' in source
 
 
 def run_fetch_scenario(method: str, outcomes: list[str]) -> dict:
@@ -229,6 +229,28 @@ def run_gym_scenario(
                 for (let i = 0; i < 25; i++) await Promise.resolve();
             }
             if (action === 'save-activity-fail' || action === 'save-activity-recover') await drainTimers();
+            if (action === 'substitute-activity') {
+                const activityIdInput = {dataset: {substituteField: 'activity_id'}, value: '5'};
+                const panel = {querySelectorAll: (sel) => sel === '[data-substitute-field]' ? [activityIdInput] : []};
+                const card = {
+                    dataset: {activityId: '3'},
+                    querySelectorAll: () => [],
+                    querySelector: () => null,
+                };
+                elements['gym-session'].listeners.click({
+                    target: {
+                        closest: (sel) => sel === '[data-action]'
+                            ? {
+                                dataset: {action},
+                                closest: (inner) => inner === '[data-activity-id]'
+                                    ? card
+                                    : (inner === '.gym-substitute-panel' ? panel : null),
+                            }
+                            : (sel === '[data-activity-id]' ? card : null),
+                    },
+                });
+                for (let i = 0; i < 25; i++) await Promise.resolve();
+            }
             if (addTypeChange) {
                 const fieldsEl = makeElement('add-fields');
                 elements['gym-session'].listeners.change({
@@ -517,3 +539,40 @@ def test_gym_page_warns_before_leaving_with_pending_saves():
     result = run_gym_scenario(make_session_payload(None))
 
     assert result["hasBeforeunload"] is True
+
+
+def test_gym_activity_card_offers_substitution_form():
+    result = run_gym_scenario(make_session_payload(None, activities=[make_strength_session_activity()]))
+
+    assert 'data-action="substitute-activity"' in result["html"]
+    assert 'data-substitute-field="activity_id"' in result["html"]
+
+
+def test_gym_finished_session_hides_substitution_form():
+    payload = make_session_payload("2026-07-16T10:30:00+00:00", activities=[make_strength_session_activity()])
+    result = run_gym_scenario(payload)
+
+    assert 'data-action="substitute-activity"' not in result["html"]
+
+
+def test_gym_substitute_submit_keeps_planned_context():
+    activity = make_strength_session_activity()
+    substituted = {
+        **activity,
+        "substitution_activity_id": 5,
+        "substitution_name_snapshot": "Laid-back leg press",
+        "actual_weight": 80,
+        "completed": False,
+    }
+    routes = [
+        {"match": "/api/gym/session-activities/3/substitution", "payload": substituted},
+        {"match": "/api/gym/templates", "payload": [make_matching_template_payload(weight=50)]},
+    ]
+
+    result = run_gym_scenario(make_session_payload(None, activities=[activity]), action="substitute-activity", routes=routes)
+
+    assert result["errorLog"] == []
+    substitution_puts = [c for c in result["fetchCalls"] if c["url"].endswith("/substitution") and c["method"] == "PUT"]
+    assert substitution_puts and '"activity_id":5' in substitution_puts[0]["body"]
+    assert "Instead of Low row" in result["html"]
+    assert "Laid-back leg press" in result["html"]
