@@ -808,9 +808,53 @@ function _rerenderSelectedDay() {
     renderDayDetail(currentMonthData[selectedIndex]);
 }
 
-function renderMetricDetails(rows) {
+const METRIC_DETAILS_STORAGE_KEY = 'biosignal.daily.metricDetails';
+
+function _loadMetricDetailsState() {
+    try {
+        const raw = localStorage.getItem(METRIC_DETAILS_STORAGE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+        return parsed;
+    } catch (error) {
+        return {};
+    }
+}
+
+function _saveMetricDetailsState(state) {
+    try {
+        localStorage.setItem(METRIC_DETAILS_STORAGE_KEY, JSON.stringify(state));
+    } catch (error) {
+        // Storage unavailable (quota, private mode) - collapse state simply won't persist.
+    }
+}
+
+function _metricDetailsOpen(cardKey) {
+    return _loadMetricDetailsState()[cardKey] === true;
+}
+
+function _bindMetricDetailToggles(container) {
+    if (!container || typeof container.querySelectorAll !== 'function') return;
+    container.querySelectorAll('details.metric-details[data-details-key]').forEach(el => {
+        el.addEventListener('toggle', () => {
+            const state = _loadMetricDetailsState();
+            if (el.open) {
+                state[el.dataset.detailsKey] = true;
+            } else {
+                delete state[el.dataset.detailsKey];
+            }
+            _saveMetricDetailsState(state);
+        });
+    });
+}
+
+function renderMetricDetails(rows, cardKey) {
+    const openAttr = cardKey && _metricDetailsOpen(cardKey) ? ' open' : '';
+    const keyAttr = cardKey ? ` data-details-key="${cardKey}"` : '';
+
     return `
-            <details class="metric-details">
+            <details class="metric-details"${openAttr}${keyAttr}>
                 <summary class="metric-details-summary">Details</summary>
                 <div class="secondary-metrics">
                     ${rows}
@@ -849,7 +893,7 @@ function renderSleepCard(day) {
                     <span class="metric-label">Efficiency</span>
                     <span class="metric-value">${formatPct(day.sleep_efficiency)}</span>
                 </div>
-            `)}
+            `, 'sleep')}
         </div>
     `;
 }
@@ -876,7 +920,7 @@ function renderHrvCard(day) {
                     <span class="metric-label">Slope</span>
                     <span class="metric-value">${day.hrv_rmssd_slope !== null ? (day.hrv_rmssd_slope > 0 ? '+' : '') + day.hrv_rmssd_slope.toFixed(2) : '-'}</span>
                 </div>
-            `)}
+            `, 'hrv')}
         </div>
     `;
 }
@@ -909,7 +953,7 @@ function renderSpo2Card(day) {
                     <span class="metric-label">Dips &lt;94%</span>
                     <span class="metric-value ${dipsClass}">${day.spo2_dips_below_94 ?? '-'}</span>
                 </div>
-            `)}
+            `, 'spo2')}
         </div>
     `;
 }
@@ -942,7 +986,7 @@ function renderHeartRateCard(day) {
                     <span class="metric-label">Max 24h</span>
                     <span class="metric-value">${formatNum(day.hr_max_24h)} bpm</span>
                 </div>
-            `)}
+            `, 'heart-rate')}
         </div>
     `;
 }
@@ -973,7 +1017,7 @@ function renderBodyBatteryCard(day) {
                     <span class="metric-label">Daily Min</span>
                     <span class="metric-value">${formatNum(day.bb_daily_min)}</span>
                 </div>
-            `)}
+            `, 'body-battery')}
         </div>
     `;
 }
@@ -1008,7 +1052,7 @@ function renderStressCard(day) {
                     <span class="metric-label">High Stress</span>
                     <span class="metric-value">${day.high_stress_minutes ?? '-'} min</span>
                 </div>
-            `)}
+            `, 'stress')}
         </div>
     `;
 }
@@ -1036,7 +1080,7 @@ function renderActivityCard(day) {
                     <span class="metric-label">Avg HR</span>
                     <span class="metric-value">${formatNum(day.training_avg_hr)} bpm</span>
                 </div>
-            `)}
+            `, 'training-fallback')}
         </div>
     ` : '';
 
@@ -1078,7 +1122,7 @@ function renderActivityCard(day) {
                     <span class="metric-value">+${formatNum(day.walk_peak_45min_hr_delta)} bpm</span>
                 </div>
                 ` : ''}
-            `)}
+            `, 'activity')}
         </div>
         ${trainingCards}
     `;
@@ -1090,6 +1134,7 @@ function renderActivitySessionCard(session) {
     const hasMaxHr = session.max_hr !== null && session.max_hr !== undefined;
     const hasAvgHr = session.avg_hr !== null && session.avg_hr !== undefined;
     const durationText = `${formatNum(session.duration_min)} min`;
+    const detailsKey = `session-${session.activity_type}`;
     const primaryValue = hasDistance
         ? (session.distance_meters / 1000).toFixed(1)
         : hasMaxHr
@@ -1152,7 +1197,7 @@ function renderActivitySessionCard(session) {
                     <span class="metric-value">${formatNum(session.calories)}</span>
                 </div>
                 ` : ''}
-            `)}
+            `, detailsKey)}
         </div>
     `;
 }
@@ -1181,7 +1226,7 @@ function renderLightCard(day) {
                     <span class="metric-label">Solar Noon</span>
                     <span class="metric-value">${formatClockMinutes(day.solar_noon_minutes_after_midnight)}</span>
                 </div>
-            `)}
+            `, 'light')}
         </div>
     `;
 }
@@ -1229,7 +1274,7 @@ function renderPollenCard(day) {
                     <span class="metric-value">grains/m3</span>
                 </div>
                 ${rows}
-            `)}
+            `, 'pollen')}
         </div>
     `;
 }
@@ -1290,7 +1335,7 @@ function renderWeatherCard(day) {
                     <span class="metric-label">Cloud cover</span>
                     <span class="metric-value">${formatWeatherValue(day.cloud_cover_avg, '%')}</span>
                 </div>
-            `)}
+            `, 'weather')}
         </div>
     `;
 }
@@ -1325,6 +1370,7 @@ function renderDayDetail(day) {
             ${renderPollenCard(day)}
             ${renderWeatherCard(day)}
         `;
+        _bindMetricDetailToggles(metricsGrid);
     });
 }
 

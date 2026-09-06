@@ -289,9 +289,9 @@ def test_daily_metric_details_are_collapsed_by_default():
         "sleep_efficiency": 91,
     })
 
-    assert '<details class="metric-details">' in html
+    assert '<details class="metric-details" data-details-key="sleep">' in html
     assert '<summary class="metric-details-summary">Details</summary>' in html
-    assert '<details class="metric-details" open>' not in html
+    assert '<details class="metric-details" open' not in html
     assert "Duration" in html
 
 
