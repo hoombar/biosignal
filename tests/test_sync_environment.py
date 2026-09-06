@@ -366,6 +366,8 @@ class TestOpenMeteoWeatherProvider:
                         "temperature_2m": "°C",
                         "relative_humidity_2m": "%",
                         "precipitation": "mm",
+                        "surface_pressure": "hPa",
+                        "weather_code": "wmo code",
                     },
                     "hourly": {
                         "time": ["2026-05-01T00:00", "2026-05-01T01:00", "2026-05-01T02:00"],
@@ -377,6 +379,8 @@ class TestOpenMeteoWeatherProvider:
                         "rain": [0.0, 1.0, 0.5],
                         "wind_speed_10m": [10.0, 12.0, 20.0],
                         "cloud_cover": [50, 75, 100],
+                        "surface_pressure": [1010.0, 1012.0, 1014.0],
+                        "weather_code": [1.0, 61.0, 61.0],
                     },
                 }
 
@@ -409,8 +413,47 @@ class TestOpenMeteoWeatherProvider:
         assert by_key["rain_sum"].value == 1.5
         assert by_key["wind_speed_10m_max"].value == 20.0
         assert by_key["cloud_cover_avg"].value == 75.0
+        assert by_key["surface_pressure_avg"].value == 1012.0
+        assert by_key["surface_pressure_min"].value == 1010.0
+        assert by_key["surface_pressure_max"].value == 1014.0
+        assert by_key["surface_pressure_avg"].unit == "hPa"
+        assert by_key["weather_code_mode"].value == 61.0
         assert {metric.category for metric in metrics} == {"Weather"}
         assert by_key["temperature_2m_avg"].raw_metadata["provider_params"] == captured["params"]
+
+    @pytest.mark.asyncio
+    async def test_weather_code_mode_tie_breaks_to_lowest_code(self):
+        class FakeResponse:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {
+                    "latitude": 51.5,
+                    "longitude": -0.1,
+                    "timezone": "Europe/London",
+                    "hourly": {
+                        "time": ["2026-05-01T00:00", "2026-05-01T01:00", "2026-05-01T02:00", "2026-05-01T03:00"],
+                        "weather_code": [3.0, 1.0, 3.0, 1.0],
+                    },
+                }
+
+        class FakeClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def get(self, url, params):
+                return FakeResponse()
+
+        provider = OpenMeteoWeatherProvider(client_factory=lambda: FakeClient())
+
+        metrics = await provider.daily_metrics(date(2026, 5, 1), ZoneInfo("Europe/London"), 51.5074, -0.1278)
+
+        by_key = {metric.metric_key: metric for metric in metrics}
+        assert by_key["weather_code_mode"].value == 1.0
 
     @pytest.mark.asyncio
     async def test_omits_all_null_weather_series(self):

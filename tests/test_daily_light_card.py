@@ -392,6 +392,38 @@ def test_daily_weather_card_uses_unit_preferences():
     assert "31 km/h" not in html
 
 
+def test_daily_weather_card_renders_pressure_and_condition_rows():
+    html = render_weather_card({
+        "temperature_2m_min": 12.2,
+        "temperature_2m_max": 24.8,
+        "surface_pressure_avg": 1012.3,
+        "weather_code_mode": 61.0,
+    })
+
+    assert "Pressure" in html
+    assert "1012 hPa" in html
+    assert "Conditions" in html
+    assert "Slight rain" in html
+
+
+def test_daily_weather_card_condition_only_day_is_not_empty_state():
+    html = render_weather_card({
+        "temperature_2m_avg": None,
+        "weather_code_mode": 0.0,
+    })
+
+    assert "No data" not in html
+    assert "Conditions" in html
+    assert "Clear sky" in html
+
+
+def test_daily_weather_card_unknown_condition_code_falls_back_to_code():
+    html = render_weather_card({"weather_code_mode": 42.0})
+
+    assert "Conditions" in html
+    assert "Code 42" in html
+
+
 def test_daily_weather_card_renders_empty_state_without_synced_data():
     html = render_weather_card({
         "temperature_2m_min": None,

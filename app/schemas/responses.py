@@ -438,6 +438,10 @@ class DailySummary(BaseModel):
     rain_sum: float | None = None
     wind_speed_10m_max: float | None = None
     cloud_cover_avg: float | None = None
+    surface_pressure_avg: float | None = None
+    surface_pressure_min: float | None = None
+    surface_pressure_max: float | None = None
+    weather_code_mode: float | None = None
     # Habit features (dynamic list)
     habits: list[Habit] = []
     supplements: list[SupplementDailyEntry] = []

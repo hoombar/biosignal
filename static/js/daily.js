@@ -1279,6 +1279,46 @@ function renderPollenCard(day) {
     `;
 }
 
+const WMO_WEATHER_CODE_LABELS = {
+    0: 'Clear sky',
+    1: 'Mainly clear',
+    2: 'Partly cloudy',
+    3: 'Overcast',
+    45: 'Fog',
+    48: 'Depositing rime fog',
+    51: 'Light drizzle',
+    53: 'Moderate drizzle',
+    55: 'Dense drizzle',
+    56: 'Light freezing drizzle',
+    57: 'Dense freezing drizzle',
+    61: 'Slight rain',
+    63: 'Moderate rain',
+    65: 'Heavy rain',
+    66: 'Light freezing rain',
+    67: 'Heavy freezing rain',
+    71: 'Slight snow fall',
+    73: 'Moderate snow fall',
+    75: 'Heavy snow fall',
+    77: 'Snow grains',
+    80: 'Slight rain showers',
+    81: 'Moderate rain showers',
+    82: 'Violent rain showers',
+    85: 'Slight snow showers',
+    86: 'Heavy snow showers',
+    95: 'Thunderstorm',
+    96: 'Thunderstorm with slight hail',
+    99: 'Thunderstorm with heavy hail',
+};
+
+function weatherCodeLabel(code) {
+    if (code === null || code === undefined) return null;
+    const key = Math.round(code);
+    if (!Object.prototype.hasOwnProperty.call(WMO_WEATHER_CODE_LABELS, key)) {
+        return `Code ${key}`;
+    }
+    return WMO_WEATHER_CODE_LABELS[key];
+}
+
 function hasWeatherData(day) {
     return [
         day.temperature_2m_avg,
@@ -1293,6 +1333,8 @@ function hasWeatherData(day) {
         day.rain_sum,
         day.wind_speed_10m_max,
         day.cloud_cover_avg,
+        day.surface_pressure_avg,
+        day.weather_code_mode,
     ].some(value => value !== null && value !== undefined);
 }
 
@@ -1315,6 +1357,14 @@ function renderWeatherCard(day) {
                 <span class="metric-unit">${hasData ? '' : 'No data'}</span>
             </div>
             ${renderMetricDetails(`
+                <div class="metric-row">
+                    <span class="metric-label">Conditions</span>
+                    <span class="metric-value">${weatherCodeLabel(day.weather_code_mode) ?? '-'}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Pressure</span>
+                    <span class="metric-value">${day.surface_pressure_avg !== null && day.surface_pressure_avg !== undefined ? `${Math.round(day.surface_pressure_avg)} hPa` : '-'}</span>
+                </div>
                 <div class="metric-row">
                     <span class="metric-label">Feels max</span>
                     <span class="metric-value">${formatWeatherValue(convertWeatherTemperature(day.apparent_temperature_max), tempUnit)}</span>

@@ -146,6 +146,10 @@ FEATURE_METADATA = {
     "rain_sum": {"description": "Daily total rain", "unit": "mm", "category": "Weather"},
     "wind_speed_10m_max": {"description": "Daily maximum wind speed at 10m", "unit": "km/h", "category": "Weather"},
     "cloud_cover_avg": {"description": "Daily average cloud cover", "unit": "%", "category": "Weather"},
+    "surface_pressure_avg": {"description": "Daily average surface pressure", "unit": "hPa", "category": "Weather"},
+    "surface_pressure_min": {"description": "Daily minimum surface pressure", "unit": "hPa", "category": "Weather"},
+    "surface_pressure_max": {"description": "Daily maximum surface pressure", "unit": "hPa", "category": "Weather"},
+    "weather_code_mode": {"description": "Most frequent WMO weather condition code for the day", "unit": "code", "category": "Weather"},
 
     # Gym features
     "gym_had_session": {"description": "Gym session logged", "unit": "boolean", "category": "Gym"},

@@ -264,6 +264,19 @@ class TestExportFeatures:
 class TestExportMetadata:
 
     @pytest.mark.asyncio
+    async def test_metadata_includes_surface_pressure_and_condition(self, async_session):
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get("/api/export/metadata")
+
+        assert resp.status_code == 200
+        features = resp.json()["features"]
+        assert "surface_pressure_avg" in features
+        assert "surface_pressure_min" in features
+        assert "surface_pressure_max" in features
+        assert "weather_code_mode" in features
+
+    @pytest.mark.asyncio
     async def test_metadata_returns_feature_definitions(self, async_session):
         """Metadata endpoint returns feature definitions."""
         app = _make_test_app(async_session)

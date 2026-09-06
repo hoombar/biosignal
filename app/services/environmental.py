@@ -186,6 +186,8 @@ class OpenMeteoWeatherProvider:
         "rain",
         "wind_speed_10m",
         "cloud_cover",
+        "surface_pressure",
+        "weather_code",
     )
 
     def __init__(self, client_factory=None):
@@ -282,6 +284,20 @@ class OpenMeteoWeatherProvider:
         cloud_cover = values_for("cloud_cover")
         if cloud_cover:
             add_metric("cloud_cover_avg", sum(cloud_cover) / len(cloud_cover), "%", "cloud_cover")
+
+        surface_pressure = values_for("surface_pressure")
+        if surface_pressure:
+            add_metric("surface_pressure_avg", sum(surface_pressure) / len(surface_pressure), "hPa", "surface_pressure")
+            add_metric("surface_pressure_min", min(surface_pressure), "hPa", "surface_pressure")
+            add_metric("surface_pressure_max", max(surface_pressure), "hPa", "surface_pressure")
+
+        weather_codes = values_for("weather_code")
+        if weather_codes:
+            counts: dict[int, int] = {}
+            for code in weather_codes:
+                counts[int(code)] = counts.get(int(code), 0) + 1
+            mode_code = min(counts, key=lambda code: (-counts[code], code))
+            add_metric("weather_code_mode", float(mode_code), "code", "weather_code")
 
         return metrics
 
