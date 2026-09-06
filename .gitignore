@@ -49,6 +49,9 @@ htmlcov/
 *.swo
 *~
 
+# Agent tooling caches
+.od-skills/
+
 # OS
 .DS_Store
 ._*
