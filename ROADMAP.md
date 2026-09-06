@@ -36,18 +36,22 @@ restored, and context range editing was recorded as done.
 - [ ] Add on-load catch-up sync for small recent Garmin and environment gaps,
   with a clear banner or automatic yesterday sync. Prompt before large gaps.
 
-- [ ] Complete weather metric coverage: add surface pressure and weather
-  condition summaries to the existing Open-Meteo weather sync. The rest of
-  the original weather item (temperature, apparent temperature, humidity,
-  dew point, precipitation, wind, cloud cover) already syncs with Daily UI,
-  export, and test coverage.
+### Done
+
+- [x] Complete weather metric coverage: surface pressure (avg/min/max) and a
+  WMO weather condition code mode now sync from Open-Meteo, surface in the
+  Daily weather card, and appear in export metadata. No migration was needed
+  since environmental metrics are stored as metric-key rows (completed
+  2026-09-06).
 
 ## Daily View
 
-- [ ] Persist expanded/collapsed preferences for Daily metric detail sections
+### Done
+
+- [x] Persist expanded/collapsed preferences for Daily metric detail sections
   so the page reopens the way the user left it, while keeping cards collapsed
-  by default with summary values for scannability. Current: detail state is
-  not remembered between visits.
+  by default with summary values for scannability. Implemented via
+  localStorage keyed per card; covered by JS tests (completed 2026-09-06).
 
 ## Context And Activity
 
