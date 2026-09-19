@@ -344,6 +344,18 @@ def test_daily_pollen_card_renders_empty_state_without_synced_data():
     assert '<span class="metric-value">-</span>' in html
 
 
+def test_daily_pollen_card_renders_sustained_exposure_windows():
+    html = render_pollen_card({
+        "grass_pollen_avg": 12.5,
+        "grass_pollen_max": 22,
+        "overall_pollen_prior_3d_avg": 35.5,
+        "overall_pollen_prior_7d_avg": 28.0,
+    })
+
+    assert "Prior 3d / 7d mean" in html
+    assert "35.5 / 28 grains/m3" in html
+
+
 def test_daily_weather_card_renders_temperature_humidity_and_rain():
     html = render_weather_card({
         "temperature_2m_min": 12.2,
@@ -390,6 +402,20 @@ def test_daily_weather_card_uses_unit_preferences():
     assert "83°F" in html
     assert "19 mph" in html
     assert "31 km/h" not in html
+
+
+def test_daily_weather_card_renders_sustained_day_and_night_heat():
+    html = render_weather_card({
+        "temperature_daytime_max_prior_3d_avg": 28.2,
+        "temperature_daytime_max_prior_7d_avg": 25.6,
+        "temperature_overnight_mean_prior_3d_avg": 19.7,
+        "temperature_overnight_mean_prior_7d_avg": 17.3,
+    })
+
+    assert "Day max, prior 3d / 7d" in html
+    assert "28°C / 26°C" in html
+    assert "Night mean, prior 3d / 7d" in html
+    assert "20°C / 17°C" in html
 
 
 def test_daily_weather_card_renders_pressure_and_condition_rows():

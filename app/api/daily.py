@@ -244,13 +244,71 @@ def _compute_notable_days(features_list: list[dict]) -> list[NotableDay]:
             value=float(best_rhr[1]),
         ))
 
-    # Deduplicate by date (keep first occurrence if same date appears for
-    # multiple metrics)
-    seen_dates: set[str] = set()
-    unique: list[NotableDay] = []
-    for c in candidates:
-        if c.date not in seen_dates:
-            seen_dates.add(c.date)
-            unique.append(c)
+    exposure_groups: list[list[NotableDay]] = []
+    pollen_days = sorted(
+        (
+            (f["date"], f["overall_pollen_prior_3d_avg"])
+            for f in features_list
+            if f.get("overall_pollen_prior_3d_avg") is not None
+        ),
+        key=lambda item: item[1],
+        reverse=True,
+    )
+    if pollen_days:
+        exposure_groups.append([
+            NotableDay(
+                date=day,
+                description=f"Highest prior 3-day pollen burden: {value:g} grains/m3",
+                metric="overall_pollen_prior_3d_avg",
+                value=float(value),
+            )
+            for day, value in pollen_days
+        ])
 
-    return unique[:5]
+    heat_days = sorted(
+        (
+            (
+                f["date"],
+                f["temperature_overnight_mean_prior_3d_avg"],
+                f.get("temperature_daytime_max_prior_3d_avg"),
+            )
+            for f in features_list
+            if f.get("temperature_overnight_mean_prior_3d_avg") is not None
+        ),
+        key=lambda item: item[1],
+        reverse=True,
+    )
+    if heat_days:
+        exposure_groups.append([
+            NotableDay(
+                date=day,
+                description=(
+                    f"Highest prior 3-day heat: {overnight:g}°C overnight"
+                    + (f", {daytime:g}°C daytime max" if daytime is not None else "")
+                ),
+                metric="temperature_overnight_mean_prior_3d_avg",
+                value=float(overnight),
+            )
+            for day, overnight, daytime in heat_days
+        ])
+
+    # Reserve distinct dates for exposure first, then fill the remaining
+    # five-item budget with the existing recovery extrema.
+    seen_dates: set[str] = set()
+    exposure: list[NotableDay] = []
+    for group in exposure_groups:
+        selected = next((item for item in group if item.date not in seen_dates), None)
+        if selected is not None:
+            seen_dates.add(selected.date)
+            exposure.append(selected)
+
+    recovery: list[NotableDay] = []
+    for c in candidates:
+        if c.date in seen_dates:
+            continue
+        seen_dates.add(c.date)
+        recovery.append(c)
+        if len(recovery) == 5 - len(exposure):
+            break
+
+    return recovery + exposure

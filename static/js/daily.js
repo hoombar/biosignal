@@ -1257,6 +1257,16 @@ function renderPollenCard(day) {
                     <span class="metric-value">No data</span>
                 </div>
     `;
+    const hasSustainedPollen = [
+        day.overall_pollen_prior_3d_avg,
+        day.overall_pollen_prior_7d_avg,
+    ].some(value => value !== null && value !== undefined);
+    const sustainedRow = hasSustainedPollen ? `
+                <div class="metric-row">
+                    <span class="metric-label">Prior 3d / 7d mean</span>
+                    <span class="metric-value">${formatPollenValue(day.overall_pollen_prior_3d_avg)} / ${formatPollenValue(day.overall_pollen_prior_7d_avg)} grains/m3</span>
+                </div>
+    ` : '';
 
     return `
         <div class="metric-card">
@@ -1273,6 +1283,7 @@ function renderPollenCard(day) {
                     <span class="metric-label">Avg / Max</span>
                     <span class="metric-value">grains/m3</span>
                 </div>
+                ${sustainedRow}
                 ${rows}
             `, 'pollen')}
         </div>
@@ -1324,6 +1335,10 @@ function hasWeatherData(day) {
         day.temperature_2m_avg,
         day.temperature_2m_min,
         day.temperature_2m_max,
+        day.temperature_daytime_max_prior_3d_avg,
+        day.temperature_daytime_max_prior_7d_avg,
+        day.temperature_overnight_mean_prior_3d_avg,
+        day.temperature_overnight_mean_prior_7d_avg,
         day.apparent_temperature_avg,
         day.apparent_temperature_max,
         day.relative_humidity_2m_avg,
@@ -1368,6 +1383,14 @@ function renderWeatherCard(day) {
                 <div class="metric-row">
                     <span class="metric-label">Feels max</span>
                     <span class="metric-value">${formatWeatherValue(convertWeatherTemperature(day.apparent_temperature_max), tempUnit)}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Day max, prior 3d / 7d</span>
+                    <span class="metric-value">${formatWeatherValue(convertWeatherTemperature(day.temperature_daytime_max_prior_3d_avg), tempUnit)} / ${formatWeatherValue(convertWeatherTemperature(day.temperature_daytime_max_prior_7d_avg), tempUnit)}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Night mean, prior 3d / 7d</span>
+                    <span class="metric-value">${formatWeatherValue(convertWeatherTemperature(day.temperature_overnight_mean_prior_3d_avg), tempUnit)} / ${formatWeatherValue(convertWeatherTemperature(day.temperature_overnight_mean_prior_7d_avg), tempUnit)}</span>
                 </div>
                 <div class="metric-row">
                     <span class="metric-label">Humidity</span>

@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.api.daily import router
+from app.api.daily import _compute_notable_days, router
 from app.core.database import get_db
 from app.models.database import ContextEvent, SleepSession, HeartRateSample, DailyHabit
 
@@ -414,6 +414,39 @@ class TestNotableDaysEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data == []
+
+    def test_reserves_notable_slots_for_sustained_pollen_and_heat(self):
+        features = [
+            {
+                "date": f"2025-03-{day:02d}",
+                "sleep_score": sleep,
+                "hrv_overnight_avg": hrv,
+                "bb_wakeup": 50 + day,
+                "resting_hr": 70 - day,
+                "overall_pollen_prior_3d_avg": pollen,
+                "temperature_overnight_mean_prior_3d_avg": overnight,
+                "temperature_daytime_max_prior_3d_avg": daytime,
+            }
+            for day, sleep, hrv, pollen, overnight, daytime in (
+                (1, 95, 40, 10, 10, 20),
+                (2, 30, 45, 20, 11, 21),
+                (3, 70, 90, 30, 12, 22),
+                (4, 72, 50, 100, 13, 23),
+                (5, 74, 55, 40, 25, 35),
+            )
+        ]
+
+        notable = _compute_notable_days(features)
+
+        assert len(notable) == 5
+        assert len({item.date for item in notable}) == 5
+        by_metric = {item.metric: item for item in notable}
+        assert by_metric["overall_pollen_prior_3d_avg"].date == "2025-03-04"
+        assert "100 grains/m3" in by_metric["overall_pollen_prior_3d_avg"].description
+        heat = by_metric["temperature_overnight_mean_prior_3d_avg"]
+        assert heat.date == "2025-03-05"
+        assert "25°C overnight" in heat.description
+        assert "35°C daytime max" in heat.description
 
 
 class TestHabitsApiShape:
