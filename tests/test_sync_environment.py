@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -349,6 +349,148 @@ class TestOpenMeteoPollenProvider:
 
 
 class TestOpenMeteoWeatherProvider:
+    @pytest.mark.asyncio
+    async def test_computes_complete_daytime_and_following_overnight_temperature_windows(self):
+        start = datetime(2026, 5, 1)
+        timestamps = [start + timedelta(hours=offset) for offset in range(30)]
+        values = [float(timestamp.hour) for timestamp in timestamps]
+        captured = {}
+
+        class FakeResponse:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {
+                    "latitude": 51.5,
+                    "longitude": -0.1,
+                    "timezone": "Europe/London",
+                    "hourly_units": {"temperature_2m": "°C"},
+                    "hourly": {
+                        "time": [timestamp.isoformat(timespec="minutes") for timestamp in timestamps],
+                        "temperature_2m": values,
+                    },
+                }
+
+        class FakeClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def get(self, url, params):
+                captured["params"] = params
+                return FakeResponse()
+
+        provider = OpenMeteoWeatherProvider(client_factory=lambda: FakeClient())
+
+        metrics = await provider.daily_metrics(
+            date(2026, 5, 1), ZoneInfo("Europe/London"), 51.5074, -0.1278
+        )
+
+        by_key = {metric.metric_key: metric for metric in metrics}
+        assert captured["params"]["end_date"] == "2026-05-02"
+        assert by_key["temperature_2m_avg"].value == pytest.approx(11.5)
+        assert by_key["temperature_2m_daytime_max"].value == 21.0
+        assert by_key["temperature_2m_overnight_mean"].value == pytest.approx(7.5)
+        assert by_key["temperature_2m_daytime_max"].raw_metadata["window"] == "06:00-22:00"
+        assert by_key["temperature_2m_overnight_mean"].raw_metadata["window"] == "22:00-06:00"
+        assert by_key["temperature_2m_overnight_mean"].raw_metadata["observation_count"] == 8
+
+    @pytest.mark.asyncio
+    async def test_omits_heat_window_summary_when_an_hour_is_missing(self):
+        start = datetime(2026, 5, 1)
+        timestamps = [
+            start + timedelta(hours=offset)
+            for offset in range(30)
+            if offset != 23
+        ]
+
+        class FakeResponse:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {
+                    "timezone": "Europe/London",
+                    "hourly": {
+                        "time": [timestamp.isoformat(timespec="minutes") for timestamp in timestamps],
+                        "temperature_2m": [float(timestamp.hour) for timestamp in timestamps],
+                    },
+                }
+
+        class FakeClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def get(self, url, params):
+                return FakeResponse()
+
+        metrics = await OpenMeteoWeatherProvider(
+            client_factory=lambda: FakeClient()
+        ).daily_metrics(date(2026, 5, 1), ZoneInfo("Europe/London"), 51.5074, -0.1278)
+
+        keys = {metric.metric_key for metric in metrics}
+        assert "temperature_2m_daytime_max" in keys
+        assert "temperature_2m_overnight_mean" not in keys
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("target_date", "expected_count"),
+        [(date(2026, 3, 28), 7), (date(2026, 10, 24), 9)],
+    )
+    async def test_overnight_window_accounts_for_dst(
+        self, target_date, expected_count
+    ):
+        tz = ZoneInfo("Europe/London")
+        start = datetime.combine(target_date, datetime.min.time(), tzinfo=tz).replace(hour=22)
+        end = datetime.combine(
+            target_date + timedelta(days=1), datetime.min.time(), tzinfo=tz
+        ).replace(hour=6)
+        current = start.astimezone(ZoneInfo("UTC"))
+        timestamps = []
+        while current < end.astimezone(ZoneInfo("UTC")):
+            timestamps.append(current.astimezone(tz).replace(tzinfo=None))
+            current += timedelta(hours=1)
+
+        class FakeResponse:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {
+                    "timezone": tz.key,
+                    "hourly": {
+                        "time": [timestamp.isoformat(timespec="minutes") for timestamp in timestamps],
+                        "temperature_2m": [12.0] * len(timestamps),
+                    },
+                }
+
+        class FakeClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def get(self, url, params):
+                return FakeResponse()
+
+        metrics = await OpenMeteoWeatherProvider(
+            client_factory=lambda: FakeClient()
+        ).daily_metrics(target_date, tz, 51.5074, -0.1278)
+
+        overnight = next(
+            metric for metric in metrics
+            if metric.metric_key == "temperature_2m_overnight_mean"
+        )
+        assert overnight.value == 12.0
+        assert overnight.raw_metadata["observation_count"] == expected_count
+
     @pytest.mark.asyncio
     async def test_parses_hourly_response_into_weather_metrics(self):
         captured = {}

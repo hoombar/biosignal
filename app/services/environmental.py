@@ -1,5 +1,6 @@
 """Environmental data providers and normalization."""
 
+from collections import Counter
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 import math
@@ -206,7 +207,7 @@ class OpenMeteoWeatherProvider:
             "hourly": ",".join(self.weather_variables),
             "timezone": tz.key,
             "start_date": target_date.isoformat(),
-            "end_date": target_date.isoformat(),
+            "end_date": (target_date + timedelta(days=1)).isoformat(),
         }
 
         async with self.client_factory() as client:
@@ -218,8 +219,36 @@ class OpenMeteoWeatherProvider:
         hourly_units = payload.get("hourly_units") or {}
         metrics: list[EnvironmentalMetricValue] = []
 
+        timestamps = [datetime.fromisoformat(value) for value in hourly.get("time", [])]
+
         def values_for(variable: str) -> list[float]:
-            return [float(value) for value in hourly.get(variable, []) if value is not None]
+            return [
+                float(value)
+                for timestamp, value in zip(timestamps, hourly.get(variable, []), strict=False)
+                if timestamp.date() == target_date and value is not None
+            ]
+
+        def complete_window_values(
+            variable: str,
+            start: datetime,
+            end: datetime,
+        ) -> list[float] | None:
+            expected: list[str] = []
+            current = start.astimezone(ZoneInfo("UTC"))
+            end_utc = end.astimezone(ZoneInfo("UTC"))
+            while current < end_utc:
+                expected.append(current.astimezone(tz).replace(tzinfo=None).isoformat(timespec="minutes"))
+                current += timedelta(hours=1)
+
+            observed: list[tuple[str, float]] = []
+            for timestamp, value in zip(timestamps, hourly.get(variable, []), strict=False):
+                timestamp_key = timestamp.isoformat(timespec="minutes")
+                if timestamp_key in expected and value is not None:
+                    observed.append((timestamp_key, float(value)))
+
+            if Counter(timestamp for timestamp, _ in observed) != Counter(expected):
+                return None
+            return [value for _, value in observed]
 
         metadata_base = {
             "provider_url": self.base_url,
@@ -229,10 +258,17 @@ class OpenMeteoWeatherProvider:
             "timezone": payload.get("timezone"),
         }
 
-        def add_metric(metric_key: str, value: float, unit: str, variable: str) -> None:
+        def add_metric(
+            metric_key: str,
+            value: float,
+            unit: str,
+            variable: str,
+            extra_metadata: dict | None = None,
+        ) -> None:
             metadata = {
                 **metadata_base,
                 "hourly_unit": hourly_units.get(variable, unit),
+                **(extra_metadata or {}),
             }
             metrics.append(EnvironmentalMetricValue(
                 source=self.source,
@@ -248,6 +284,34 @@ class OpenMeteoWeatherProvider:
             add_metric("temperature_2m_avg", sum(temperature) / len(temperature), "degC", "temperature_2m")
             add_metric("temperature_2m_min", min(temperature), "degC", "temperature_2m")
             add_metric("temperature_2m_max", max(temperature), "degC", "temperature_2m")
+
+        daytime_start = datetime.combine(target_date, time(6), tzinfo=tz)
+        daytime_end = datetime.combine(target_date, time(22), tzinfo=tz)
+        daytime_temperature = complete_window_values(
+            "temperature_2m", daytime_start, daytime_end
+        )
+        if daytime_temperature is not None:
+            add_metric(
+                "temperature_2m_daytime_max",
+                max(daytime_temperature),
+                "degC",
+                "temperature_2m",
+                {"window": "06:00-22:00", "observation_count": len(daytime_temperature)},
+            )
+
+        overnight_start = datetime.combine(target_date, time(22), tzinfo=tz)
+        overnight_end = datetime.combine(target_date + timedelta(days=1), time(6), tzinfo=tz)
+        overnight_temperature = complete_window_values(
+            "temperature_2m", overnight_start, overnight_end
+        )
+        if overnight_temperature is not None:
+            add_metric(
+                "temperature_2m_overnight_mean",
+                sum(overnight_temperature) / len(overnight_temperature),
+                "degC",
+                "temperature_2m",
+                {"window": "22:00-06:00", "observation_count": len(overnight_temperature)},
+            )
 
         apparent_temperature = values_for("apparent_temperature")
         if apparent_temperature:
