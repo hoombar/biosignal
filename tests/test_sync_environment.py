@@ -350,6 +350,39 @@ class TestOpenMeteoPollenProvider:
 
 class TestOpenMeteoWeatherProvider:
     @pytest.mark.asyncio
+    async def test_supports_historical_archive_endpoint(self):
+        captured = {}
+
+        class FakeResponse:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"hourly": {}}
+
+        class FakeClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def get(self, url, params):
+                captured["url"] = url
+                return FakeResponse()
+
+        provider = OpenMeteoWeatherProvider(
+            client_factory=lambda: FakeClient(),
+            base_url=OpenMeteoWeatherProvider.archive_url,
+        )
+
+        await provider.daily_metrics(
+            date(2025, 1, 1), ZoneInfo("Europe/London"), 51.5074, -0.1278
+        )
+
+        assert captured["url"] == "https://archive-api.open-meteo.com/v1/archive"
+
+    @pytest.mark.asyncio
     async def test_computes_complete_daytime_and_following_overnight_temperature_windows(self):
         start = datetime(2026, 5, 1)
         timestamps = [start + timedelta(hours=offset) for offset in range(30)]

@@ -75,6 +75,15 @@ Environmental sync uses the configured latitude/longitude as the user's home
 location. Daylight metrics are computed locally; pollen and weather metrics are
 fetched from Open-Meteo.
 
+After upgrading an installation with existing history, backfill the pollen and
+day/night heat inputs used by sustained-exposure analysis. With no arguments,
+the command starts seven days before the earliest tracked record and ends
+yesterday; `--from` and `--to` accept explicit ISO dates.
+
+```bash
+python -m scripts.backfill_environment_exposure
+```
+
 ## Habit Tracking
 
 Habits are logged natively in biosignal — no external service required. Two types are supported:

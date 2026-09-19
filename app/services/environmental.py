@@ -178,6 +178,7 @@ class OpenMeteoWeatherProvider:
 
     source = "open_meteo_weather"
     base_url = "https://api.open-meteo.com/v1/forecast"
+    archive_url = "https://archive-api.open-meteo.com/v1/archive"
     weather_variables = (
         "temperature_2m",
         "apparent_temperature",
@@ -191,8 +192,9 @@ class OpenMeteoWeatherProvider:
         "weather_code",
     )
 
-    def __init__(self, client_factory=None):
+    def __init__(self, client_factory=None, base_url: str | None = None):
         self.client_factory = client_factory or (lambda: httpx.AsyncClient(timeout=20.0))
+        self.base_url = base_url or type(self).base_url
 
     async def daily_metrics(
         self,
