@@ -12,13 +12,15 @@ import io
 import json
 import zipfile
 import pytest
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.export import router
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.database import EnvironmentalMetric, SleepSession, DailyHabit, HabitDisplayConfig, SupplementLog, SupplementPlanVersion
+from app.services.environmental import location_key
 
 
 def _make_test_app(session):
@@ -34,6 +36,13 @@ def _make_test_app(session):
 
 def utc_dt(year, month, day, hour=0, minute=0):
     return datetime(year, month, day, hour, minute)
+
+
+def configured_environment_location_key() -> str:
+    settings = get_settings()
+    if settings.environment_latitude is None or settings.environment_longitude is None:
+        return "51.5074,-0.1278"
+    return location_key(settings.environment_latitude, settings.environment_longitude)
 
 
 class TestExportFeatures:
@@ -218,7 +227,7 @@ class TestExportFeatures:
             date=date(2025, 1, 28),
             source="open_meteo_weather",
             metric_key="temperature_2m_avg",
-            location_key="51.5074,-0.1278",
+            location_key=configured_environment_location_key(),
             value=18.5,
             unit="degC",
             category="Weather",
@@ -242,7 +251,7 @@ class TestExportFeatures:
             date=date(2025, 1, 28),
             source="open_meteo_weather",
             metric_key="wind_speed_10m_max",
-            location_key="51.5074,-0.1278",
+            location_key=configured_environment_location_key(),
             value=31.0,
             unit="km/h",
             category="Weather",
@@ -260,6 +269,46 @@ class TestExportFeatures:
         row = list(reader)[0]
         assert row["wind_speed_10m_max"] == "31.0"
 
+    @pytest.mark.asyncio
+    async def test_json_export_includes_sustained_exposure_features(self, async_session):
+        target_date = date(2025, 1, 28)
+        rows = []
+        for offset, pollen, daytime, overnight in (
+            (3, 10.0, 24.0, 14.0),
+            (2, 20.0, 27.0, 16.0),
+            (1, 30.0, 30.0, 18.0),
+        ):
+            for metric_key, value, unit, category in (
+                ("grass_pollen_avg", pollen, "grains/m3", "Pollen"),
+                ("temperature_2m_daytime_max", daytime, "degC", "Weather"),
+                ("temperature_2m_overnight_mean", overnight, "degC", "Weather"),
+            ):
+                rows.append(EnvironmentalMetric(
+                    date=target_date - timedelta(days=offset),
+                    source="open_meteo",
+                    metric_key=metric_key,
+                    location_key=configured_environment_location_key(),
+                    value=value,
+                    unit=unit,
+                    category=category,
+                ))
+        async_session.add_all(rows)
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get(
+                "/api/export",
+                params={"format": "json", "start": target_date, "end": target_date},
+            )
+
+        assert resp.status_code == 200
+        row = resp.json()["data"][0]
+        assert row["grass_pollen_prior_3d_avg"] == 20.0
+        assert row["overall_pollen_prior_3d_avg"] == 20.0
+        assert row["temperature_daytime_max_prior_3d_avg"] == 27.0
+        assert row["temperature_overnight_mean_prior_3d_avg"] == 16.0
+
 
 class TestExportMetadata:
 
@@ -275,6 +324,19 @@ class TestExportMetadata:
         assert "surface_pressure_min" in features
         assert "surface_pressure_max" in features
         assert "weather_code_mode" in features
+
+    @pytest.mark.asyncio
+    async def test_metadata_includes_sustained_pollen_and_heat_features(self, async_session):
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get("/api/export/metadata")
+
+        assert resp.status_code == 200
+        features = resp.json()["features"]
+        assert features["grass_pollen_prior_3d_avg"]["category"] == "Pollen"
+        assert features["overall_pollen_prior_7d_avg"]["unit"] == "grains/m3"
+        assert features["temperature_daytime_max_prior_3d_avg"]["category"] == "Weather"
+        assert features["temperature_overnight_mean_prior_7d_avg"]["unit"] == "degC"
 
     @pytest.mark.asyncio
     async def test_metadata_returns_feature_definitions(self, async_session):

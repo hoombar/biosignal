@@ -7,7 +7,7 @@ after stripping tzinfo from epoch ms conversions.
 
 import pytest
 import pytest_asyncio
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from app.models.database import (
@@ -42,6 +42,103 @@ TZ = ZoneInfo("Europe/London")  # UTC+0 in January, so UTC == local
 
 
 class TestEnvironmentalFeatures:
+
+    @pytest.mark.asyncio
+    async def test_computes_prior_3_and_7_day_sustained_exposure_features(
+        self, async_session
+    ):
+        target_date = date(2025, 1, 28)
+        rows = []
+        for offset in range(1, 8):
+            exposure_date = target_date - timedelta(days=8 - offset)
+            for metric_key, value, unit, category in (
+                ("grass_pollen_avg", float(offset), "grains/m3", "Pollen"),
+                ("birch_pollen_avg", float(offset * 2), "grains/m3", "Pollen"),
+                ("temperature_2m_daytime_max", float(20 + offset), "degC", "Weather"),
+                ("temperature_2m_overnight_mean", float(10 + offset), "degC", "Weather"),
+            ):
+                rows.append(EnvironmentalMetric(
+                    date=exposure_date,
+                    source="open_meteo",
+                    metric_key=metric_key,
+                    location_key="51.5074,-0.1278",
+                    value=value,
+                    unit=unit,
+                    category=category,
+                ))
+        rows.extend([
+            EnvironmentalMetric(
+                date=target_date,
+                source="open_meteo_air_quality",
+                metric_key="grass_pollen_avg",
+                location_key="51.5074,-0.1278",
+                value=1000,
+                unit="grains/m3",
+                category="Pollen",
+            ),
+            EnvironmentalMetric(
+                date=target_date - timedelta(days=1),
+                source="open_meteo_air_quality",
+                metric_key="grass_pollen_avg",
+                location_key="40.0000,-0.1278",
+                value=1000,
+                unit="grains/m3",
+                category="Pollen",
+            ),
+        ])
+        async_session.add_all(rows)
+        await async_session.commit()
+
+        result = await compute_environmental_features(
+            async_session,
+            target_date,
+            TZ,
+            latitude=51.5074,
+            longitude=-0.1278,
+        )
+
+        assert result["grass_pollen_prior_3d_avg"] == 6.0
+        assert result["grass_pollen_prior_7d_avg"] == 4.0
+        assert result["birch_pollen_prior_3d_avg"] == 12.0
+        assert result["overall_pollen_prior_3d_avg"] == 18.0
+        assert result["overall_pollen_prior_7d_avg"] == 12.0
+        assert result["temperature_daytime_max_prior_3d_avg"] == 26.0
+        assert result["temperature_daytime_max_prior_7d_avg"] == 24.0
+        assert result["temperature_overnight_mean_prior_3d_avg"] == 16.0
+        assert result["temperature_overnight_mean_prior_7d_avg"] == 14.0
+        assert result["grass_pollen_avg"] == 1000
+
+    @pytest.mark.asyncio
+    async def test_requires_every_day_in_each_sustained_exposure_window(
+        self, async_session
+    ):
+        target_date = date(2025, 1, 28)
+        async_session.add_all([
+            EnvironmentalMetric(
+                date=target_date - timedelta(days=offset),
+                source="open_meteo_air_quality",
+                metric_key="grass_pollen_avg",
+                location_key="51.5074,-0.1278",
+                value=float(offset),
+                unit="grains/m3",
+                category="Pollen",
+            )
+            for offset in (1, 2, 3, 4, 6, 7)
+        ])
+        await async_session.commit()
+
+        result = await compute_environmental_features(
+            async_session,
+            target_date,
+            TZ,
+            latitude=51.5074,
+            longitude=-0.1278,
+        )
+
+        assert result["grass_pollen_prior_3d_avg"] == 2.0
+        assert "grass_pollen_prior_7d_avg" not in result
+        assert result["overall_pollen_prior_3d_avg"] == 2.0
+        assert "overall_pollen_prior_7d_avg" not in result
 
     @pytest.mark.asyncio
     async def test_returns_empty_without_location(self, async_session):

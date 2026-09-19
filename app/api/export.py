@@ -136,6 +136,8 @@ FEATURE_METADATA = {
     "temperature_2m_avg": {"description": "Daily average outdoor temperature at 2m", "unit": "degC", "category": "Weather"},
     "temperature_2m_min": {"description": "Daily minimum outdoor temperature at 2m", "unit": "degC", "category": "Weather"},
     "temperature_2m_max": {"description": "Daily maximum outdoor temperature at 2m", "unit": "degC", "category": "Weather"},
+    "temperature_2m_daytime_max": {"description": "Maximum outdoor temperature from 06:00 to 22:00 local time", "unit": "degC", "category": "Weather"},
+    "temperature_2m_overnight_mean": {"description": "Mean outdoor temperature from 22:00 to 06:00 local time", "unit": "degC", "category": "Weather"},
     "apparent_temperature_avg": {"description": "Daily average apparent temperature", "unit": "degC", "category": "Weather"},
     "apparent_temperature_max": {"description": "Daily maximum apparent temperature", "unit": "degC", "category": "Weather"},
     "relative_humidity_2m_avg": {"description": "Daily average relative humidity at 2m", "unit": "%", "category": "Weather"},
@@ -164,6 +166,31 @@ FEATURE_METADATA = {
     "gym_template_name": {"description": "Gym template used", "unit": "text", "category": "Gym"},
 
 }
+
+for _species in ("alder", "birch", "grass", "mugwort", "olive", "ragweed"):
+    for _window in (3, 7):
+        FEATURE_METADATA[f"{_species}_pollen_prior_{_window}d_avg"] = {
+            "description": f"Mean daily {_species} pollen over the prior {_window} complete days",
+            "unit": "grains/m3",
+            "category": "Pollen",
+        }
+
+for _window in (3, 7):
+    FEATURE_METADATA[f"overall_pollen_prior_{_window}d_avg"] = {
+        "description": f"Mean daily sum of reported pollen species over the prior {_window} complete days",
+        "unit": "grains/m3",
+        "category": "Pollen",
+    }
+    FEATURE_METADATA[f"temperature_daytime_max_prior_{_window}d_avg"] = {
+        "description": f"Mean 06:00-22:00 maximum temperature over the prior {_window} complete days",
+        "unit": "degC",
+        "category": "Weather",
+    }
+    FEATURE_METADATA[f"temperature_overnight_mean_prior_{_window}d_avg"] = {
+        "description": f"Mean 22:00-06:00 temperature over the prior {_window} complete nights",
+        "unit": "degC",
+        "category": "Weather",
+    }
 
 
 async def _build_feature_metadata(db: AsyncSession) -> dict[str, dict]:

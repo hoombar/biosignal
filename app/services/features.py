@@ -37,6 +37,8 @@ logger = logging.getLogger(__name__)
 WALK_30MIN_STEP_THRESHOLD = 1250
 WALK_45MIN_STEP_THRESHOLD = 3000
 WALK_HR_DELTA_THRESHOLD = 20
+POLLEN_SPECIES = ("alder", "birch", "grass", "mugwort", "olive", "ragweed")
+SUSTAINED_EXPOSURE_WINDOWS = (3, 7)
 
 
 def _datetime_in_tz(dt: datetime, tz: ZoneInfo) -> datetime:
@@ -668,12 +670,17 @@ async def compute_environmental_features(
     loc_key = location_key(latitude, longitude)
     existing = await session.execute(
         select(EnvironmentalMetric)
-        .where(EnvironmentalMetric.date == target_date)
+        .where(
+            EnvironmentalMetric.date >= target_date - timedelta(days=max(SUSTAINED_EXPOSURE_WINDOWS)),
+            EnvironmentalMetric.date <= target_date,
+            EnvironmentalMetric.location_key == loc_key,
+        )
     )
     rows = existing.scalars().all()
-    features = {row.metric_key: row.value for row in rows}
-    location_rows = [row for row in rows if row.location_key == loc_key]
-    has_astronomy = any(row.source == AstronomyProvider.source for row in location_rows)
+    target_rows = [row for row in rows if row.date == target_date]
+    features = {row.metric_key: row.value for row in target_rows}
+    features.update(_compute_sustained_exposure_features(rows, target_date))
+    has_astronomy = any(row.source == AstronomyProvider.source for row in target_rows)
     if has_astronomy:
         return features
 
@@ -706,6 +713,59 @@ async def compute_environmental_features(
 
     await session.flush()
     features.update({metric.metric_key: metric.value for metric in metrics})
+    return features
+
+
+def _compute_sustained_exposure_features(
+    rows: list[EnvironmentalMetric], target_date: date
+) -> dict[str, float]:
+    """Compute complete prior-day pollen and heat windows for an outcome date."""
+    by_date: dict[date, dict[str, float]] = {}
+    for row in rows:
+        by_date.setdefault(row.date, {})[row.metric_key] = row.value
+
+    features: dict[str, float] = {}
+    for window_days in SUSTAINED_EXPOSURE_WINDOWS:
+        dates = [
+            target_date - timedelta(days=offset)
+            for offset in range(window_days, 0, -1)
+        ]
+
+        for species in POLLEN_SPECIES:
+            source_key = f"{species}_pollen_avg"
+            values = [by_date.get(day, {}).get(source_key) for day in dates]
+            complete_values = [value for value in values if value is not None]
+            if len(complete_values) == window_days:
+                features[f"{species}_pollen_prior_{window_days}d_avg"] = round(
+                    sum(complete_values) / window_days, 4
+                )
+
+        daily_overall: list[float] = []
+        for day in dates:
+            species_values = [
+                by_date.get(day, {}).get(f"{species}_pollen_avg")
+                for species in POLLEN_SPECIES
+            ]
+            available = [value for value in species_values if value is not None]
+            if not available:
+                break
+            daily_overall.append(sum(available))
+        if len(daily_overall) == window_days:
+            features[f"overall_pollen_prior_{window_days}d_avg"] = round(
+                sum(daily_overall) / window_days, 4
+            )
+
+        for source_key, feature_prefix in (
+            ("temperature_2m_daytime_max", "temperature_daytime_max"),
+            ("temperature_2m_overnight_mean", "temperature_overnight_mean"),
+        ):
+            values = [by_date.get(day, {}).get(source_key) for day in dates]
+            complete_values = [value for value in values if value is not None]
+            if len(complete_values) == window_days:
+                features[f"{feature_prefix}_prior_{window_days}d_avg"] = round(
+                    sum(complete_values) / window_days, 4
+                )
+
     return features
 
 
