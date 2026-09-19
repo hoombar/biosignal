@@ -20,8 +20,12 @@ restored, and context range editing was recorded as done.
   user feedback.
 - [ ] Add feedback for surfaced correlation suggestions: interesting,
   obvious, not useful, or hidden. Retain the underlying correlations.
-- [ ] Model sustained environmental exposure, including multi-day pollen and
-  heat windows, rather than only point-in-time highs. Original driver
+- [x] Model sustained environmental exposure with complete prior 3-day and
+  7-day pollen and heat windows rather than only point-in-time highs. Pollen
+  retains per-species burdens plus an overall burden; heat keeps daytime
+  maximum and 22:00-06:00 overnight mean separate. Results appear in analysis,
+  Trends, Daily cards, exports, and notable days, with an idempotent historical
+  backfill command (completed 2026-09-19). Original driver
   (2026-07-02): sustained high pollen across 80+ hours, or heat holding
   around 28 C for five days with nights not cooling down, signals
   differently than brief spikes.
@@ -122,8 +126,6 @@ implemented in September 2026.
   hidden habits, or a separate reviewable signal type.
 - [ ] Decide whether correlation feedback is global per metric pair, per
   target, or per surfaced snapshot instance.
-- [ ] Decide how sustained exposure windows should be represented: rolling
-  windows, daily aggregates, event-like context ranges, or all three.
 - [ ] Decide whether finished gym sessions should become read-only (toggles,
   ratings, adjust fields, and substitutions are currently still editable
   after finishing).
