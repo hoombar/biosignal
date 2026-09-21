@@ -31,14 +31,23 @@ restored, and context range editing was recorded as done.
   differently than brief spikes.
 - [ ] Add forecasts and proactive insights after sync gaps, weather, context
   baselines, and signal relevance are reliable.
+- [ ] Add exposure-aware multivariate analysis so direct indoor measurements
+  can be considered alongside outdoor weather proxies rather than relying only
+  on pairwise correlations.
 
 ## Environment And Sync
 
-- [ ] Add a local sensor source abstraction, starting with bedroom temperature
-  and humidity from Home Assistant. Attribute readings to sleep windows when
-  useful while retaining general observations.
+- [x] Add Home Assistant local sensor ingestion with encrypted UI-managed
+  credentials, entity discovery, timestamped observations, incremental daily
+  sync and on-demand backfill. Bedroom temperature and humidity are attributed
+  to exact Garmin sleep windows and surface in Daily, Trends, correlations and
+  exports (completed 2026-09-20).
 - [ ] Add on-load catch-up sync for small recent Garmin and environment gaps,
   with a clear banner or automatic yesterday sync. Prompt before large gaps.
+- [ ] Add a UI-configurable, versioned derived-signal rule engine for combining
+  local sensors with typed conditions, duration windows, gates, missing-data
+  policies and reviewable inferred observations. Initial example: seated versus
+  standing desk time gated by office presence.
 
 ### Done
 
@@ -118,8 +127,8 @@ implemented in September 2026.
 
 - [ ] Decide whether weather belongs in daily summaries, hourly samples, or
   both.
-- [ ] Decide whether bedroom temperature belongs in sleep-window summaries,
-  full time-series samples, or both.
+- [x] Store bedroom temperature as full timestamped observations and derive
+  sleep-window summaries from the recorded Garmin sleep interval.
 - [ ] Decide whether context exclusions apply to all correlations, only
   baseline/anomaly features, or are selectable in the UI.
 - [ ] Decide whether inferred walks should become context events, observations,

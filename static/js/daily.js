@@ -1413,6 +1413,62 @@ function renderWeatherCard(day) {
     `;
 }
 
+function renderBedroomEnvironmentCard(day) {
+    const temperature = day.bedroom_temperature_sleep_avg;
+    const humidity = day.bedroom_humidity_sleep_avg;
+    const temperatureCoverage = day.bedroom_temperature_sleep_coverage_pct;
+    const humidityCoverage = day.bedroom_humidity_sleep_coverage_pct;
+    const hasExposure = temperature !== null && temperature !== undefined;
+    const tempUnit = weatherTemperatureUnitLabel();
+    const displayTemperature = hasExposure
+        ? `${convertWeatherTemperature(temperature).toFixed(1)}${tempUnit}`
+        : '-';
+    const delta = day.bedroom_outdoor_sleep_temperature_delta;
+    let comparison = '-';
+    if (delta !== null && delta !== undefined) {
+        const magnitude = Math.abs(delta) * (weatherPreferences.weather_temperature_unit === 'fahrenheit' ? 9 / 5 : 1);
+        comparison = `${magnitude.toFixed(1)}${tempUnit} ${delta < 0 ? 'cooler' : delta > 0 ? 'warmer' : 'the same'} than outside`;
+    }
+    return `
+        <div class="metric-card">
+            <div class="card-header weather">
+                <span class="card-icon">&#127968;</span>
+                <span class="card-title">Bedroom environment</span>
+            </div>
+            <div class="primary-metric">
+                <span class="metric-value">${displayTemperature}</span>
+                <span class="metric-unit">${hasExposure ? 'sleep average' : 'No reliable sleep-window data'}</span>
+            </div>
+            ${renderMetricDetails(`
+                <div class="metric-row">
+                    <span class="metric-label">Temperature min / max</span>
+                    <span class="metric-value">${formatWeatherValue(convertWeatherTemperature(day.bedroom_temperature_sleep_min), tempUnit, 1)} / ${formatWeatherValue(convertWeatherTemperature(day.bedroom_temperature_sleep_max), tempUnit, 1)}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Humidity average</span>
+                    <span class="metric-value">${humidity !== null && humidity !== undefined ? `${Math.round(humidity)}%` : '-'}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Humidity min / max</span>
+                    <span class="metric-value">${formatWeatherValue(day.bedroom_humidity_sleep_min, '%')} / ${formatWeatherValue(day.bedroom_humidity_sleep_max, '%')}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Compared with outside overnight</span>
+                    <span class="metric-value">${comparison}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Temperature coverage</span>
+                    <span class="metric-value">${temperatureCoverage !== null && temperatureCoverage !== undefined ? `${Math.round(temperatureCoverage)}% coverage` : '-'}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Humidity coverage</span>
+                    <span class="metric-value">${humidityCoverage !== null && humidityCoverage !== undefined ? `${Math.round(humidityCoverage)}% coverage` : '-'}</span>
+                </div>
+            `, 'bedroom-environment')}
+        </div>
+    `;
+}
+
 function renderDayDetail(day) {
     if (!day) return;
 
@@ -1442,6 +1498,7 @@ function renderDayDetail(day) {
             ${renderLightCard(day)}
             ${renderPollenCard(day)}
             ${renderWeatherCard(day)}
+            ${renderBedroomEnvironmentCard(day)}
         `;
         _bindMetricDetailToggles(metricsGrid);
     });

@@ -9,6 +9,9 @@ from app.models.database import (
     AppSetting,
     ContextEvent,
     HeartRateSample,
+    HomeAssistantConnection,
+    HomeAssistantEntity,
+    HomeAssistantObservation,
     Habit,
     DailyHabit,
 )
@@ -17,6 +20,25 @@ from app.services.full_export import EXCLUDED_TABLES, INCLUDED_TABLES, build_ful
 
 @pytest.mark.asyncio
 async def test_full_export_contains_analysis_data_and_manifest(async_session):
+    connection = HomeAssistantConnection(
+        name="Home",
+        base_url="http://private-home-assistant.local:8123",
+        encrypted_token="encrypted-secret-token",
+        enabled=True,
+    )
+    async_session.add(connection)
+    await async_session.flush()
+    entity = HomeAssistantEntity(
+        connection_id=connection.id,
+        entity_id="sensor.bedroom_temperature",
+        display_name="Bedroom temperature",
+        device_class="temperature",
+        source_unit="°C",
+        role="bedroom_temperature",
+        enabled=True,
+    )
+    async_session.add(entity)
+    await async_session.flush()
     async_session.add_all([
         HeartRateSample(timestamp=datetime(2025, 1, 2, 8), heart_rate=60),
         Habit(name="Coffee", habit_type="binary", source="manual"),
@@ -24,6 +46,13 @@ async def test_full_export_contains_analysis_data_and_manifest(async_session):
         ContextEvent(
             title="Holiday", start_date=date(2025, 1, 2), end_date=date(2025, 1, 3),
             category="travel", tags=["trip"],
+        ),
+        HomeAssistantObservation(
+            entity_id=entity.id,
+            observed_at=datetime(2025, 1, 2, 22),
+            state="19.5",
+            numeric_value=19.5,
+            source_unit="°C",
         ),
     ])
     await async_session.commit()
@@ -34,6 +63,7 @@ async def test_full_export_contains_analysis_data_and_manifest(async_session):
             manifest = json.loads(bundle.read("manifest.json"))
             assert manifest["format_version"] == 1
             assert "heart_rate_samples" in manifest["included_tables"]
+            assert "home_assistant_observations" in manifest["included_tables"]
             assert "raw_garmin_responses" in manifest["excluded_tables"]
             assert "daily_summary_cache" in manifest["excluded_tables"]
             assert manifest["date_range"] == {"start": "2025-01-02", "end": "2025-01-03"}
@@ -50,6 +80,13 @@ async def test_full_export_contains_analysis_data_and_manifest(async_session):
             settings = json.loads(bundle.read("data/app_settings.jsonl").decode())
             assert settings["key"] == "preferences"
             assert settings["value"] == {"weather_temperature_unit": "celsius"}
+            connections = bundle.read("data/home_assistant_connections.jsonl").decode()
+            assert "encrypted-secret-token" not in connections
+            assert "private-home-assistant.local" not in connections
+            observations = json.loads(
+                bundle.read("data/home_assistant_observations.jsonl").decode()
+            )
+            assert observations["numeric_value"] == 19.5
     finally:
         archive.close()
 

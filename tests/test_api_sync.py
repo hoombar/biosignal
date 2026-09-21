@@ -53,6 +53,7 @@ class TestSyncStatus:
         services = {service["service"]: service for service in data["services"]}
         assert services["garmin"]["status"] == "never_synced"
         assert services["environment"]["status"] == "never_synced"
+        assert services["home_assistant"]["status"] == "never_synced"
         assert "habitsync_status" not in data
         assert "habitsync_last_sync" not in data
 
@@ -91,6 +92,7 @@ class TestSyncStatus:
         services = {service["service"]: service for service in data["services"]}
         assert services["garmin"]["label"] == "Garmin"
         assert services["environment"]["label"] == "Environment / Weather"
+        assert services["home_assistant"]["label"] == "Home Assistant"
 
 
 class TestSyncPostEndpoints:

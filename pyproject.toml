@@ -17,6 +17,7 @@ dependencies = [
     "python-multipart>=0.0.7",
     "numpy>=1.26",
     "scipy>=1.12",
+    "cryptography>=44.0",
 ]
 
 [project.optional-dependencies]

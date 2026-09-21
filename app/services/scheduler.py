@@ -4,12 +4,16 @@ import logging
 from datetime import date, datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from sqlalchemy import select
+from zoneinfo import ZoneInfo
 
 from app.core.config import get_settings
 from app.core.database import async_session_maker
 from app.services.garmin import GarminClient
 from app.services.sync import SyncService
 from app.models.sync_log import SyncLog
+from app.models.database import HomeAssistantConnection
+from app.services.home_assistant import HomeAssistantSyncService
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +114,49 @@ async def run_scheduled_environment_sync():
             await session.commit()
 
 
+async def run_scheduled_home_assistant_sync():
+    """Import new history for each enabled Home Assistant connection."""
+    settings = get_settings()
+    logger.info("Starting scheduled Home Assistant sync job")
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(HomeAssistantConnection)
+            .where(HomeAssistantConnection.enabled.is_(True))
+            .order_by(HomeAssistantConnection.id)
+        )
+        connections = list(result.scalars())
+        service = HomeAssistantSyncService()
+        for connection in connections:
+            started_at = datetime.utcnow()
+            try:
+                details = await service.sync_connection(session, connection.id)
+                session.add(
+                    SyncLog(
+                        sync_type="home_assistant",
+                        date_synced=datetime.now(ZoneInfo(settings.tz)).date(),
+                        started_at=started_at,
+                        completed_at=datetime.utcnow(),
+                        status="success",
+                        details=details,
+                    )
+                )
+                await session.commit()
+            except Exception as exc:
+                logger.error("Scheduled Home Assistant sync failed for connection %s: %s", connection.id, exc)
+                await session.rollback()
+                session.add(
+                    SyncLog(
+                        sync_type="home_assistant",
+                        date_synced=datetime.now(ZoneInfo(settings.tz)).date(),
+                        started_at=started_at,
+                        completed_at=datetime.utcnow(),
+                        status="failed",
+                        error_message=str(exc),
+                    )
+                )
+                await session.commit()
+
+
 def start_scheduler():
     """Start the APScheduler."""
     global scheduler
@@ -123,7 +170,11 @@ def start_scheduler():
 
     scheduler.add_job(
         run_scheduled_sync,
-        CronTrigger(hour=settings.sync_hour, minute=settings.sync_minute_garmin),
+        CronTrigger(
+            hour=settings.sync_hour,
+            minute=settings.sync_minute_garmin,
+            timezone=ZoneInfo(settings.tz),
+        ),
         id="daily_sync",
         name="Daily Garmin sync",
         replace_existing=True,
@@ -131,9 +182,25 @@ def start_scheduler():
 
     scheduler.add_job(
         run_scheduled_environment_sync,
-        CronTrigger(hour=settings.sync_hour, minute=settings.sync_minute_environment),
+        CronTrigger(
+            hour=settings.sync_hour,
+            minute=settings.sync_minute_environment,
+            timezone=ZoneInfo(settings.tz),
+        ),
         id="daily_environment_sync",
         name="Daily environment sync",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        run_scheduled_home_assistant_sync,
+        CronTrigger(
+            hour=settings.sync_hour,
+            minute=settings.sync_minute_home_assistant,
+            timezone=ZoneInfo(settings.tz),
+        ),
+        id="daily_home_assistant_sync",
+        name="Daily Home Assistant sync",
         replace_existing=True,
     )
 
@@ -142,7 +209,9 @@ def start_scheduler():
         "Scheduler started - Garmin sync at "
         f"{settings.sync_hour}:{settings.sync_minute_garmin:02d}; "
         "environment sync at "
-        f"{settings.sync_hour}:{settings.sync_minute_environment:02d}"
+        f"{settings.sync_hour}:{settings.sync_minute_environment:02d}; "
+        "Home Assistant sync at "
+        f"{settings.sync_hour}:{settings.sync_minute_home_assistant:02d}"
     )
 
 

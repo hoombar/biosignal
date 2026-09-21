@@ -13,7 +13,7 @@ from app.core.config import get_settings
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 PRIOR_HEAD = "a1d2e3f4b5c6"
-CURRENT_HEAD = "ab12cd34ef56"
+CURRENT_HEAD = "d4e5f6a7b8c9"
 
 
 def _run_alembic(args: list[str], db_path: str) -> None:
@@ -82,5 +82,8 @@ async def test_startup_migrations_upgrade_database_to_head(monkeypatch, temp_db_
     assert "gym_activities" in tables
     assert "gym_session_logs" in tables
     assert "gym_session_activity_logs" in tables
+    assert "home_assistant_connections" in tables
+    assert "home_assistant_entities" in tables
+    assert "home_assistant_observations" in tables
     assert "substitution_activity_id" in gym_activity_columns
     assert "substitution_name_snapshot" in gym_activity_columns

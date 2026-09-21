@@ -153,6 +153,17 @@ FEATURE_METADATA = {
     "surface_pressure_max": {"description": "Daily maximum surface pressure", "unit": "hPa", "category": "Weather"},
     "weather_code_mode": {"description": "Most frequent WMO weather condition code for the day", "unit": "code", "category": "Weather"},
 
+    # Home Assistant bedroom exposure features
+    "bedroom_temperature_sleep_avg": {"description": "Duration-weighted bedroom temperature during the recorded sleep interval", "unit": "degC", "category": "Home Environment"},
+    "bedroom_temperature_sleep_min": {"description": "Minimum bedroom temperature during the recorded sleep interval", "unit": "degC", "category": "Home Environment"},
+    "bedroom_temperature_sleep_max": {"description": "Maximum bedroom temperature during the recorded sleep interval", "unit": "degC", "category": "Home Environment"},
+    "bedroom_temperature_sleep_range": {"description": "Bedroom temperature range during the recorded sleep interval", "unit": "degC", "category": "Home Environment"},
+    "bedroom_humidity_sleep_avg": {"description": "Duration-weighted bedroom humidity during the recorded sleep interval", "unit": "%", "category": "Home Environment"},
+    "bedroom_humidity_sleep_min": {"description": "Minimum bedroom humidity during the recorded sleep interval", "unit": "%", "category": "Home Environment"},
+    "bedroom_humidity_sleep_max": {"description": "Maximum bedroom humidity during the recorded sleep interval", "unit": "%", "category": "Home Environment"},
+    "bedroom_humidity_sleep_range": {"description": "Bedroom humidity range during the recorded sleep interval", "unit": "%", "category": "Home Environment"},
+    "bedroom_outdoor_sleep_temperature_delta": {"description": "Bedroom sleep temperature minus outdoor overnight mean", "unit": "degC", "category": "Home Environment"},
+
     # Gym features
     "gym_had_session": {"description": "Gym session logged", "unit": "boolean", "category": "Gym"},
     "gym_session_completed": {"description": "Gym session marked finished", "unit": "boolean", "category": "Gym"},

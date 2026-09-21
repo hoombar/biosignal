@@ -18,7 +18,8 @@ from app.models.database import (
     EnvironmentalMetric, GymActivity, GymSessionActivityLog, GymSessionLog,
     GymSessionTemplate, GymTemplateActivity, Habit, HabitDisplayConfig,
     HeartRateSample, HrvSample, SleepSession, Spo2Sample, StepsSample,
-    StressSample, SupplementLog, SupplementPlanVersion,
+    StressSample, SupplementLog, SupplementPlanVersion, HomeAssistantConnection,
+    HomeAssistantEntity, HomeAssistantObservation,
 )
 from app.services.habit_semantics import habit_activation, normalized_habit_value
 
@@ -30,6 +31,7 @@ INCLUDED_TABLES = [
     "habit_display_config", "gym_session_templates", "gym_activities",
     "gym_template_activities", "gym_session_logs", "gym_session_activity_logs",
     "app_settings", "context_events", "supplement_plan_versions", "supplement_logs",
+    "home_assistant_connections", "home_assistant_entities", "home_assistant_observations",
 ]
 EXCLUDED_TABLES = [
     "raw_garmin_responses", "sync_log", "daily_summary_cache", "credentials_and_tokens",
@@ -57,6 +59,12 @@ _TABLES = {
     "context_events": (ContextEvent, set()),
     "supplement_plan_versions": (SupplementPlanVersion, set()),
     "supplement_logs": (SupplementLog, set()),
+    "home_assistant_connections": (
+        HomeAssistantConnection,
+        {"base_url", "encrypted_token"},
+    ),
+    "home_assistant_entities": (HomeAssistantEntity, set()),
+    "home_assistant_observations": (HomeAssistantObservation, set()),
 }
 
 _DATE_COLUMNS = {
@@ -73,6 +81,7 @@ _DATE_COLUMNS = {
     "gym_session_logs": ("date",),
     "supplement_logs": ("date",),
     "context_events": ("start_date", "end_date"),
+    "home_assistant_observations": ("observed_at",),
 }
 
 

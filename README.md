@@ -66,6 +66,8 @@ TZ=Europe/London          # Your timezone
 SYNC_HOUR=6               # Daily sync time (24h format)
 SYNC_MINUTE_GARMIN=0      # Garmin sync minute
 SYNC_MINUTE_ENVIRONMENT=5 # Environment sync minute
+SYNC_MINUTE_HOME_ASSISTANT=10 # Home Assistant sync minute
+INTEGRATION_ENCRYPTION_KEY=... # Fernet key for UI-configured integration tokens
 ENVIRONMENT_LATITUDE=51.5074   # Optional: home latitude for environment/weather metrics
 ENVIRONMENT_LONGITUDE=-0.1278  # Optional: home longitude for environment/weather metrics
 DEBUG=false               # Enable debug logging
@@ -74,6 +76,24 @@ DEBUG=false               # Enable debug logging
 Environmental sync uses the configured latitude/longitude as the user's home
 location. Daylight metrics are computed locally; pollen and weather metrics are
 fetched from Open-Meteo.
+
+Home Assistant connections are configured under **Settings → Sync**. Generate
+the required server-side credential encryption key once and keep it stable
+across restarts and restores:
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Set the result as `INTEGRATION_ENCRYPTION_KEY`, then enter the Home Assistant
+URL and long-lived access token in Settings. Biosignal discovers temperature
+and humidity entities, retains their timestamped history, and computes bedroom
+conditions over the exact Garmin sleep interval. The default daily import runs
+at 06:10 with a one-hour overlap from the last successful import. On-demand
+backfill is limited by each Home Assistant instance's Recorder retention.
+To preserve historical attribution in this first release, an imported
+connection or sensor assignment cannot be replaced or removed after observations
+exist; additional supported sensor roles can still be added.
 
 After upgrading an installation with existing history, backfill the pollen and
 day/night heat inputs used by sustained-exposure analysis. With no arguments,
@@ -126,6 +146,14 @@ Set `HABITSYNC_URL` and `HABITSYNC_API_KEY` in the environment for the duration 
 - `POST /api/sync/environment` - Manual deterministic environment sync
 - `POST /api/sync/all` - Back-compat alias for `/api/sync/garmin`
 - `GET /api/sync/status` - Last sync status
+
+### Home Assistant
+- `GET /api/home-assistant/connection` - Connection status without credentials
+- `PUT /api/home-assistant/connection` - Test and save an encrypted connection
+- `GET /api/home-assistant/entities/discover` - Discover sensor entities
+- `GET /api/home-assistant/entities` - Selected entities
+- `PUT /api/home-assistant/entities` - Assign bedroom sensor roles
+- `POST /api/home-assistant/sync` - Incremental sync or on-demand backfill
 
 ### Habits
 - `GET /api/habits/list` - Active habits with id, type, and display config

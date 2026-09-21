@@ -34,11 +34,12 @@ const CATEGORY_DOT_COLORS = {
     'Light':        '#facc15',
     'Pollen':       '#84cc16',
     'Weather':      '#38bdf8',
+    'Home Environment': '#22c55e',
     'Habits':       '#e879f9',
     'Supplements':  '#14b8a6',
 };
 
-const CATEGORY_ORDER = ['Sleep', 'HRV', 'SpO2', 'Heart Rate', 'Body Battery', 'Stress', 'Activity', 'Light', 'Pollen', 'Weather', 'Habits', 'Supplements'];
+const CATEGORY_ORDER = ['Sleep', 'HRV', 'SpO2', 'Heart Rate', 'Body Battery', 'Stress', 'Activity', 'Light', 'Pollen', 'Weather', 'Home Environment', 'Habits', 'Supplements'];
 const TARGET_STORAGE_KEY = 'biosignal_correlation_target';
 const LEGACY_HABIT_STORAGE_KEY = 'biosignal_target_habit';
 

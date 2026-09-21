@@ -25,8 +25,10 @@ class Settings(BaseSettings):
     sync_hour: int = 6
     sync_minute_garmin: int = 0
     sync_minute_environment: int = 5
+    sync_minute_home_assistant: int = 10
     debug: bool = False
     automation_api_key: str | None = None
+    integration_encryption_key: str | None = None
     auto_migrate_on_startup: bool = True
 
     # Optional location for environmental metrics

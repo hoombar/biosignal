@@ -2,6 +2,9 @@
 from app.models.database import (
     RawGarminResponse,
     EnvironmentalMetric,
+    HomeAssistantConnection,
+    HomeAssistantEntity,
+    HomeAssistantObservation,
     HeartRateSample,
     BodyBatterySample,
     StressSample,
@@ -26,6 +29,9 @@ from app.models.sync_log import SyncLog
 __all__ = [
     "RawGarminResponse",
     "EnvironmentalMetric",
+    "HomeAssistantConnection",
+    "HomeAssistantEntity",
+    "HomeAssistantObservation",
     "HeartRateSample",
     "BodyBatterySample",
     "StressSample",

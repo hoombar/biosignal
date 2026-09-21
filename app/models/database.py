@@ -60,6 +60,70 @@ class EnvironmentalMetric(Base):
     )
 
 
+class HomeAssistantConnection(Base):
+    """A configured Home Assistant API connection."""
+
+    __tablename__ = "home_assistant_connections"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False)
+    base_url = Column(String, nullable=False)
+    encrypted_token = Column(Text, nullable=False)
+    enabled = Column(Boolean, nullable=False, default=True)
+    ha_timezone = Column(String, nullable=True)
+    last_successful_sync_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class HomeAssistantEntity(Base):
+    """A selected Home Assistant entity and its Biosignal role."""
+
+    __tablename__ = "home_assistant_entities"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    connection_id = Column(
+        Integer, ForeignKey("home_assistant_connections.id", ondelete="CASCADE"), nullable=False
+    )
+    entity_id = Column(String, nullable=False)
+    display_name = Column(String, nullable=False)
+    device_class = Column(String, nullable=True)
+    source_unit = Column(String, nullable=True)
+    role = Column(String, nullable=True, index=True)
+    enabled = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "connection_id", "entity_id", name="uix_home_assistant_connection_entity"
+        ),
+    )
+
+
+class HomeAssistantObservation(Base):
+    """A timestamped state from a selected Home Assistant entity."""
+
+    __tablename__ = "home_assistant_observations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    entity_id = Column(
+        Integer, ForeignKey("home_assistant_entities.id", ondelete="CASCADE"), nullable=False
+    )
+    observed_at = Column(DateTime, nullable=False)
+    state = Column(Text, nullable=False)
+    numeric_value = Column(Float, nullable=True)
+    source_unit = Column(String, nullable=True)
+    fetched_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "entity_id", "observed_at", name="uix_home_assistant_entity_observed_at"
+        ),
+        Index("ix_home_assistant_observation_entity_time", "entity_id", "observed_at"),
+    )
+
+
 class HeartRateSample(Base):
     """Heart rate samples at ~15 minute intervals."""
 

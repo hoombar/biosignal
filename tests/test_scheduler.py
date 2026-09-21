@@ -13,9 +13,10 @@ def test_settings_parses_environment_sync_minute(monkeypatch):
     settings = Settings(_env_file=None)
 
     assert settings.sync_minute_environment == 5
+    assert settings.sync_minute_home_assistant == 10
 
 
-def test_scheduler_registers_garmin_and_environment_jobs(monkeypatch):
+def test_scheduler_registers_garmin_environment_and_home_assistant_jobs(monkeypatch):
     class FakeScheduler:
         def __init__(self):
             self.jobs = []
@@ -42,6 +43,7 @@ def test_scheduler_registers_garmin_and_environment_jobs(monkeypatch):
         sync_hour=7,
         sync_minute_garmin=12,
         sync_minute_environment=34,
+        sync_minute_home_assistant=45,
         _env_file=None,
     )
 
@@ -53,13 +55,21 @@ def test_scheduler_registers_garmin_and_environment_jobs(monkeypatch):
 
     try:
         assert fake_scheduler.started is True
-        assert [job["id"] for job in fake_scheduler.jobs] == ["daily_sync", "daily_environment_sync"]
+        assert [job["id"] for job in fake_scheduler.jobs] == [
+            "daily_sync",
+            "daily_environment_sync",
+            "daily_home_assistant_sync",
+        ]
         garmin_trigger = fake_scheduler.jobs[0]["trigger"]
         environment_trigger = fake_scheduler.jobs[1]["trigger"]
+        home_assistant_trigger = fake_scheduler.jobs[2]["trigger"]
         assert str(garmin_trigger.fields[5]) == "7"
         assert str(garmin_trigger.fields[6]) == "12"
         assert str(environment_trigger.fields[5]) == "7"
         assert str(environment_trigger.fields[6]) == "34"
+        assert str(home_assistant_trigger.fields[5]) == "7"
+        assert str(home_assistant_trigger.fields[6]) == "45"
+        assert str(home_assistant_trigger.timezone) == "Europe/London"
     finally:
         scheduler_module.scheduler = None
 

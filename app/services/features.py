@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date, datetime, time, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 from zoneinfo import ZoneInfo
 import numpy as np
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +25,8 @@ from app.models.database import (
     Habit,
     GymSessionActivityLog,
     GymSessionLog,
+    HomeAssistantEntity,
+    HomeAssistantObservation,
     SupplementLog,
     SupplementPlanVersion,
 )
@@ -39,6 +41,7 @@ WALK_45MIN_STEP_THRESHOLD = 3000
 WALK_HR_DELTA_THRESHOLD = 20
 POLLEN_SPECIES = ("alder", "birch", "grass", "mugwort", "olive", "ragweed")
 SUSTAINED_EXPOSURE_WINDOWS = (3, 7)
+HOME_ASSISTANT_SLEEP_MIN_COVERAGE = 0.8
 
 
 def _datetime_in_tz(dt: datetime, tz: ZoneInfo) -> datetime:
@@ -135,6 +138,106 @@ async def compute_sleep_features(
         if time_in_bed > 0:
             features["sleep_efficiency"] = (total / time_in_bed) * 100
 
+    return features
+
+
+def _canonical_sensor_value(value: float, unit: str | None, role: str) -> float:
+    """Normalize supported Home Assistant values to Biosignal analysis units."""
+    if role == "bedroom_temperature" and unit in {"°F", "F", "degF"}:
+        return (value - 32) * 5 / 9
+    return value
+
+
+async def _sleep_sensor_summary(
+    session: AsyncSession,
+    entity: HomeAssistantEntity,
+    start: datetime,
+    end: datetime,
+) -> dict:
+    previous = await session.scalar(
+        select(HomeAssistantObservation)
+        .where(HomeAssistantObservation.entity_id == entity.id)
+        .where(HomeAssistantObservation.observed_at <= start)
+        .order_by(HomeAssistantObservation.observed_at.desc())
+        .limit(1)
+    )
+    result = await session.execute(
+        select(HomeAssistantObservation)
+        .where(HomeAssistantObservation.entity_id == entity.id)
+        .where(HomeAssistantObservation.observed_at > start)
+        .where(HomeAssistantObservation.observed_at < end)
+        .order_by(HomeAssistantObservation.observed_at)
+    )
+    changes = list(result.scalars())
+
+    duration = (end - start).total_seconds()
+    if duration <= 0:
+        return {}
+
+    valid_seconds = 0.0
+    weighted_total = 0.0
+    values: list[float] = []
+    current_time = start
+    current = previous
+    for change in [*changes, None]:
+        next_time = change.observed_at if change is not None else end
+        if current is not None and current.numeric_value is not None and next_time > current_time:
+            seconds = (next_time - current_time).total_seconds()
+            value = _canonical_sensor_value(
+                current.numeric_value,
+                current.source_unit or entity.source_unit,
+                entity.role or "",
+            )
+            valid_seconds += seconds
+            weighted_total += value * seconds
+            values.append(value)
+        current_time = next_time
+        current = change
+
+    coverage = valid_seconds / duration
+    summary = {"coverage_pct": round(coverage * 100, 2)}
+    if coverage < HOME_ASSISTANT_SLEEP_MIN_COVERAGE or not values:
+        return summary
+    summary.update(
+        {
+            "avg": weighted_total / valid_seconds,
+            "min": min(values),
+            "max": max(values),
+            "range": max(values) - min(values),
+        }
+    )
+    return summary
+
+
+async def compute_home_assistant_features(
+    session: AsyncSession,
+    target_date: date,
+    tz: ZoneInfo,
+) -> dict:
+    """Derive bedroom exposure features over the exact recorded sleep interval."""
+    sleep = await session.scalar(select(SleepSession).where(SleepSession.date == target_date))
+    if not sleep or not sleep.sleep_start or not sleep.sleep_end:
+        return {}
+
+    result = await session.execute(
+        select(HomeAssistantEntity)
+        .where(HomeAssistantEntity.enabled.is_(True))
+        .where(
+            HomeAssistantEntity.role.in_(("bedroom_temperature", "bedroom_humidity"))
+        )
+        .order_by(HomeAssistantEntity.id)
+    )
+    entities_by_role = {}
+    for entity in result.scalars():
+        entities_by_role.setdefault(entity.role, entity)
+
+    features = {}
+    for role, entity in entities_by_role.items():
+        summary = await _sleep_sensor_summary(
+            session, entity, sleep.sleep_start, sleep.sleep_end
+        )
+        for key, value in summary.items():
+            features[f"{role}_sleep_{key}"] = value
     return features
 
 
@@ -983,7 +1086,7 @@ async def compute_daily_features(
     """
     tz = ZoneInfo(timezone)
     settings = get_settings()
-    features = {"date": target_date.isoformat()}
+    features: dict[str, Any] = {"date": target_date.isoformat()}
 
     environmental_features = await compute_environmental_features(
         session,
@@ -998,6 +1101,15 @@ async def compute_daily_features(
     # Compute each category
     sleep_features = await compute_sleep_features(session, target_date, tz)
     features.update(sleep_features)
+
+    home_assistant_features = await compute_home_assistant_features(session, target_date, tz)
+    features.update(home_assistant_features)
+    indoor_sleep_temperature = features.get("bedroom_temperature_sleep_avg")
+    outdoor_overnight_temperature = features.get("temperature_2m_overnight_mean")
+    if indoor_sleep_temperature is not None and outdoor_overnight_temperature is not None:
+        features["bedroom_outdoor_sleep_temperature_delta"] = (
+            float(indoor_sleep_temperature) - float(outdoor_overnight_temperature)
+        )
 
     hrv_features = await compute_hrv_features(session, target_date, tz)
     features.update(hrv_features)

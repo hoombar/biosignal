@@ -462,6 +462,18 @@ class DailySummary(BaseModel):
     surface_pressure_min: float | None = None
     surface_pressure_max: float | None = None
     weather_code_mode: float | None = None
+    # Home Assistant bedroom exposure features
+    bedroom_temperature_sleep_avg: float | None = None
+    bedroom_temperature_sleep_min: float | None = None
+    bedroom_temperature_sleep_max: float | None = None
+    bedroom_temperature_sleep_range: float | None = None
+    bedroom_temperature_sleep_coverage_pct: float | None = None
+    bedroom_humidity_sleep_avg: float | None = None
+    bedroom_humidity_sleep_min: float | None = None
+    bedroom_humidity_sleep_max: float | None = None
+    bedroom_humidity_sleep_range: float | None = None
+    bedroom_humidity_sleep_coverage_pct: float | None = None
+    bedroom_outdoor_sleep_temperature_delta: float | None = None
     # Habit features (dynamic list)
     habits: list[Habit] = []
     supplements: list[SupplementDailyEntry] = []

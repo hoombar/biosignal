@@ -40,6 +40,67 @@
         <span id="manual-sync-status" class="save-status"></span>
     </div>
 
+    <div class="settings-backup" id="home-assistant-settings">
+        <div class="settings-backup-header">
+            <h3>Home Assistant</h3>
+            <p class="settings-desc">Import selected local sensor history each morning at 06:10, after Garmin and weather sync.</p>
+        </div>
+        <form id="home-assistant-form" class="preferences-form">
+            <label class="supplement-field">
+                <span>Connection name</span>
+                <input type="text" id="home-assistant-name" class="settings-input" value="Home" required>
+            </label>
+            <label class="supplement-field">
+                <span>Home Assistant URL</span>
+                <input type="url" id="home-assistant-url" class="settings-input" placeholder="http://homeassistant.local:8123" required>
+            </label>
+            <label class="supplement-field">
+                <span>Long-lived access token</span>
+                <input type="password" id="home-assistant-token" class="settings-input" autocomplete="new-password" placeholder="Leave blank to keep the saved token">
+            </label>
+            <div class="settings-actions">
+                <button type="submit" class="btn-primary">Connect and save</button>
+                <span id="home-assistant-connection-status" class="save-status"></span>
+            </div>
+        </form>
+
+        <div class="settings-backup-header">
+            <h3>Bedroom sensors</h3>
+            <p class="settings-desc">Discover Home Assistant entities, then assign temperature and humidity sensors to the bedroom sleep environment.</p>
+        </div>
+        <div class="settings-actions">
+            <button type="button" class="btn-secondary" id="home-assistant-discover">Discover entities</button>
+            <span id="home-assistant-discovery-status" class="save-status"></span>
+        </div>
+        <div class="preferences-form">
+            <label class="supplement-field">
+                <span>Bedroom temperature</span>
+                <select id="home-assistant-temperature" class="settings-input"><option value="">Not selected</option></select>
+            </label>
+            <label class="supplement-field">
+                <span>Bedroom humidity</span>
+                <select id="home-assistant-humidity" class="settings-input"><option value="">Not selected</option></select>
+            </label>
+            <div class="settings-actions">
+                <button type="button" class="btn-primary" id="home-assistant-save-entities">Save sensors</button>
+                <span id="home-assistant-entity-status" class="save-status"></span>
+            </div>
+        </div>
+
+        <div class="settings-backup-header">
+            <h3>Sensor history</h3>
+            <p class="settings-desc">Sync from the last successful import, or choose a start date for an on-demand backfill.</p>
+        </div>
+        <div class="service-sync-actions">
+            <label class="service-sync-date">
+                <span>Backfill from</span>
+                <input type="date" id="home-assistant-backfill-date" class="settings-input">
+            </label>
+            <button type="button" class="btn-primary" id="home-assistant-sync">Sync now</button>
+            <span id="home-assistant-sync-status" class="save-status"></span>
+        </div>
+    </div>
+
     <div class="settings-backup service-backfill">
         <div class="settings-backup-header">
             <h3>Historical Backfill</h3>
@@ -1163,4 +1224,5 @@
 </script>
 <script src="/static/js/gym-settings.js"></script>
 <script src="/static/js/full-export.js"></script>
+<script src="/static/js/home-assistant-settings.js"></script>
 {% endblock %}

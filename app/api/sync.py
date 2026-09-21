@@ -303,6 +303,14 @@ async def sync_status(db: AsyncSession = Depends(get_db)):
     )
     environment_log = environment_result.scalar_one_or_none()
 
+    home_assistant_result = await db.execute(
+        select(SyncLog)
+        .where(SyncLog.sync_type == "home_assistant")
+        .order_by(desc(SyncLog.completed_at))
+        .limit(1)
+    )
+    home_assistant_log = home_assistant_result.scalar_one_or_none()
+
     services = [
         ServiceSyncStatus(
             service="garmin",
@@ -319,6 +327,16 @@ async def sync_status(db: AsyncSession = Depends(get_db)):
             status=environment_log.status if environment_log else "never_synced",
             last_sync_date=environment_log.date_synced.isoformat() if environment_log else None,
             error=environment_log.error_message if environment_log else None,
+        ),
+        ServiceSyncStatus(
+            service="home_assistant",
+            label="Home Assistant",
+            last_sync=home_assistant_log.completed_at if home_assistant_log else None,
+            status=home_assistant_log.status if home_assistant_log else "never_synced",
+            last_sync_date=(
+                home_assistant_log.date_synced.isoformat() if home_assistant_log else None
+            ),
+            error=home_assistant_log.error_message if home_assistant_log else None,
         ),
     ]
 

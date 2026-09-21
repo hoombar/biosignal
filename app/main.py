@@ -15,6 +15,7 @@ from app.api import (
     garmin_auth,
     gym,
     habits,
+    home_assistant,
     raw,
     settings,
     supplements,
@@ -66,6 +67,7 @@ app.include_router(export.router)
 app.include_router(garmin_auth.router)
 app.include_router(gym.router)
 app.include_router(habits.router)
+app.include_router(home_assistant.router)
 app.include_router(settings.router)
 app.include_router(supplements.router)
 app.include_router(automation.router)
