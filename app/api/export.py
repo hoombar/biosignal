@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.config import get_settings
-from app.models.database import Habit
+from app.models.database import Habit, HomeAssistantEntity
 from app.services.habit_config import list_habit_display_entries
 from app.services.supplements import list_supplement_items
 from app.services.features import compute_features_range
@@ -153,17 +153,6 @@ FEATURE_METADATA = {
     "surface_pressure_max": {"description": "Daily maximum surface pressure", "unit": "hPa", "category": "Weather"},
     "weather_code_mode": {"description": "Most frequent WMO weather condition code for the day", "unit": "code", "category": "Weather"},
 
-    # Home Assistant bedroom exposure features
-    "bedroom_temperature_sleep_avg": {"description": "Duration-weighted bedroom temperature during the recorded sleep interval", "unit": "degC", "category": "Home Environment"},
-    "bedroom_temperature_sleep_min": {"description": "Minimum bedroom temperature during the recorded sleep interval", "unit": "degC", "category": "Home Environment"},
-    "bedroom_temperature_sleep_max": {"description": "Maximum bedroom temperature during the recorded sleep interval", "unit": "degC", "category": "Home Environment"},
-    "bedroom_temperature_sleep_range": {"description": "Bedroom temperature range during the recorded sleep interval", "unit": "degC", "category": "Home Environment"},
-    "bedroom_humidity_sleep_avg": {"description": "Duration-weighted bedroom humidity during the recorded sleep interval", "unit": "%", "category": "Home Environment"},
-    "bedroom_humidity_sleep_min": {"description": "Minimum bedroom humidity during the recorded sleep interval", "unit": "%", "category": "Home Environment"},
-    "bedroom_humidity_sleep_max": {"description": "Maximum bedroom humidity during the recorded sleep interval", "unit": "%", "category": "Home Environment"},
-    "bedroom_humidity_sleep_range": {"description": "Bedroom humidity range during the recorded sleep interval", "unit": "%", "category": "Home Environment"},
-    "bedroom_outdoor_sleep_temperature_delta": {"description": "Bedroom sleep temperature minus outdoor overnight mean", "unit": "degC", "category": "Home Environment"},
-
     # Gym features
     "gym_had_session": {"description": "Gym session logged", "unit": "boolean", "category": "Gym"},
     "gym_session_completed": {"description": "Gym session marked finished", "unit": "boolean", "category": "Gym"},
@@ -238,11 +227,28 @@ async def _build_feature_metadata(db: AsyncSession) -> dict[str, dict]:
             "category": "Supplements",
         }
 
+    entities = (await db.execute(
+        select(HomeAssistantEntity)
+        .where(HomeAssistantEntity.enabled.is_(True))
+        .order_by(HomeAssistantEntity.display_name, HomeAssistantEntity.entity_id)
+    )).scalars().all()
+    for entity in entities:
+        unit = entity.source_unit or ""
+        if unit.strip().lower() in {"°f", "f", "degf", "fahrenheit"}:
+            unit = "degC"
+        features[f"home_assistant:{entity.entity_id}"] = {
+            "description": entity.display_name,
+            "unit": unit,
+            "category": "Home Assistant",
+            "entity_id": entity.entity_id,
+            "device_class": entity.device_class,
+        }
+
     return features
 
 
-def _with_flattened_habit_values(features: dict) -> dict:
-    """Add stable habit_* numeric columns while preserving nested habit data."""
+def _with_flattened_values(features: dict) -> dict:
+    """Add stable numeric columns while preserving nested daily data."""
     row = dict(features)
     for habit in row.get("habits", []) or []:
         name = habit.get("name")
@@ -254,6 +260,10 @@ def _with_flattened_habit_values(features: dict) -> dict:
         {key: value for key, value in habit.items() if key != "value_state"}
         for habit in row.get("habits", []) or []
     ]
+    for metric in row.get("home_assistant_metrics", []) or []:
+        selector = metric.get("selector")
+        if selector:
+            row[selector] = metric.get("value")
     return row
 
 
@@ -298,7 +308,7 @@ async def export_features(
         end_date,
         timezone=settings.tz
     )
-    export_rows = [_with_flattened_habit_values(row) for row in features_list]
+    export_rows = [_with_flattened_values(row) for row in features_list]
 
     if format == "json":
         return {
@@ -309,6 +319,9 @@ async def export_features(
             },
             "count": len(export_rows)
         }
+
+    for row in export_rows:
+        row.pop("home_assistant_metrics", None)
 
     # CSV format
     if not export_rows:
@@ -330,7 +343,7 @@ async def export_features(
     ordered_columns = ["date"]
 
     # Add known columns by category
-    for category in ["Sleep", "HRV", "SpO2", "Heart Rate", "Body Battery", "Stress", "Activity", "Gym", "Light", "Pollen", "Weather", "Habits", "Supplements"]:
+    for category in ["Sleep", "HRV", "SpO2", "Heart Rate", "Body Battery", "Stress", "Activity", "Gym", "Light", "Pollen", "Weather", "Home Assistant", "Habits", "Supplements"]:
         for col, meta in metadata.items():
             if meta["category"] == category and col in all_columns:
                 ordered_columns.append(col)

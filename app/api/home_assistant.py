@@ -2,7 +2,7 @@
 
 from datetime import date, datetime, time, timezone
 import logging
-from typing import Literal, NoReturn
+from typing import NoReturn
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -29,9 +29,6 @@ from app.services.secrets import decrypt_secret, encrypt_secret
 
 router = APIRouter(prefix="/api/home-assistant", tags=["home-assistant"])
 logger = logging.getLogger(__name__)
-
-HomeAssistantRole = Literal["bedroom_temperature", "bedroom_humidity"]
-
 
 class ConnectionInput(BaseModel):
     name: str = Field(min_length=1, max_length=100)
@@ -63,7 +60,7 @@ class EntitySelection(BaseModel):
     display_name: str = Field(min_length=1, max_length=255)
     device_class: str | None = None
     source_unit: str | None = None
-    role: HomeAssistantRole
+    role: str | None = None
 
 
 class EntitySelections(BaseModel):
@@ -257,28 +254,15 @@ async def get_entities(db: AsyncSession = Depends(get_db)):
 @router.put("/entities", response_model=list[EntityResponse])
 async def put_entities(body: EntitySelections, db: AsyncSession = Depends(get_db)):
     connection = await _get_connection(db)
-    roles = [entity.role for entity in body.entities]
-    if len(roles) != len(set(roles)):
-        raise HTTPException(status_code=422, detail="Each Home Assistant role can be selected once")
     entity_ids = [entity.entity_id for entity in body.entities]
     if len(entity_ids) != len(set(entity_ids)):
         raise HTTPException(status_code=422, detail="Each Home Assistant entity can be selected once")
-    for entity in body.entities:
-        expected_class = "temperature" if entity.role == "bedroom_temperature" else "humidity"
-        if entity.device_class != expected_class:
-            raise HTTPException(
-                status_code=422,
-                detail=f"{entity.role} requires a {expected_class} entity",
-            )
-
     result = await db.execute(
         select(HomeAssistantEntity).where(HomeAssistantEntity.connection_id == connection.id)
     )
     existing = {entity.entity_id: entity for entity in result.scalars()}
-    current_selection = {
-        (entity.entity_id, entity.role) for entity in existing.values() if entity.enabled
-    }
-    requested_selection = {(entity.entity_id, entity.role) for entity in body.entities}
+    current_selection = {entity.entity_id for entity in existing.values() if entity.enabled}
+    requested_selection = set(entity_ids)
     if not current_selection.issubset(requested_selection) and await _observation_count(
         db, connection.id
     ):
@@ -302,7 +286,7 @@ async def put_entities(body: EntitySelections, db: AsyncSession = Depends(get_db
         entity.display_name = item.display_name
         entity.device_class = item.device_class
         entity.source_unit = item.source_unit
-        entity.role = item.role
+        entity.role = None
         entity.enabled = True
         selected.append(entity)
 

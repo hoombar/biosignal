@@ -19,7 +19,7 @@ converted to strings.
 
 The archive includes normalized Garmin measurements, sleep and activity data,
 selected Home Assistant entity metadata, timestamped sensor observations, and
-computed bedroom sleep-environment features. Home Assistant base URLs and
+computed duration-weighted daily entity metrics. Home Assistant base URLs and
 encrypted access tokens are excluded.
 
 The archive contains sensitive personal and health information. Treat it as

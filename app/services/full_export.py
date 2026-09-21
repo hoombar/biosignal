@@ -260,7 +260,7 @@ async def build_full_export(session: AsyncSession) -> BinaryIO:
                     member.write((json.dumps(_safe_row_to_dict(row, excluded, replacements), sort_keys=True) + "\n").encode())
 
         if start_date and end_date:
-            from app.api.export import FEATURE_METADATA
+            from app.api.export import _build_feature_metadata
             from app.services.features import compute_features_range
 
             with archive.open("analysis/daily_features.jsonl", "w") as member:
@@ -275,7 +275,8 @@ async def build_full_export(session: AsyncSession) -> BinaryIO:
                 "analysis/daily_habit_matrix.jsonl",
                 "".join(json.dumps(row, sort_keys=True) + "\n" for row in matrix),
             )
-            archive.writestr("analysis/feature_metadata.json", json.dumps(FEATURE_METADATA, indent=2, sort_keys=True) + "\n")
+            feature_metadata = await _build_feature_metadata(session)
+            archive.writestr("analysis/feature_metadata.json", json.dumps(feature_metadata, indent=2, sort_keys=True) + "\n")
         else:
             archive.writestr("analysis/daily_features.jsonl", "")
             archive.writestr("analysis/daily_habit_matrix.jsonl", "")

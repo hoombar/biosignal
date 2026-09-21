@@ -41,7 +41,6 @@ WALK_45MIN_STEP_THRESHOLD = 3000
 WALK_HR_DELTA_THRESHOLD = 20
 POLLEN_SPECIES = ("alder", "birch", "grass", "mugwort", "olive", "ragweed")
 SUSTAINED_EXPOSURE_WINDOWS = (3, 7)
-HOME_ASSISTANT_SLEEP_MIN_COVERAGE = 0.8
 
 
 def _datetime_in_tz(dt: datetime, tz: ZoneInfo) -> datetime:
@@ -141,35 +140,26 @@ async def compute_sleep_features(
     return features
 
 
-def _canonical_sensor_value(value: float, unit: str | None, role: str) -> float:
-    """Normalize supported Home Assistant values to Biosignal analysis units."""
-    if role == "bedroom_temperature" and unit in {"°F", "F", "degF"}:
+def _canonical_sensor_value(value: float, unit: str | None) -> float:
+    """Normalize Home Assistant temperatures to Celsius for analysis."""
+    if unit and unit.strip().lower() in {"°f", "f", "degf", "fahrenheit"}:
         return (value - 32) * 5 / 9
     return value
 
 
-async def _sleep_sensor_summary(
-    session: AsyncSession,
+def _home_assistant_numeric_value(observation: HomeAssistantObservation) -> float | None:
+    if observation.numeric_value is not None:
+        return observation.numeric_value
+    return {"off": 0.0, "on": 1.0}.get(observation.state.lower())
+
+
+def _sensor_summary(
     entity: HomeAssistantEntity,
     start: datetime,
     end: datetime,
+    previous: HomeAssistantObservation | None,
+    changes: list[HomeAssistantObservation],
 ) -> dict:
-    previous = await session.scalar(
-        select(HomeAssistantObservation)
-        .where(HomeAssistantObservation.entity_id == entity.id)
-        .where(HomeAssistantObservation.observed_at <= start)
-        .order_by(HomeAssistantObservation.observed_at.desc())
-        .limit(1)
-    )
-    result = await session.execute(
-        select(HomeAssistantObservation)
-        .where(HomeAssistantObservation.entity_id == entity.id)
-        .where(HomeAssistantObservation.observed_at > start)
-        .where(HomeAssistantObservation.observed_at < end)
-        .order_by(HomeAssistantObservation.observed_at)
-    )
-    changes = list(result.scalars())
-
     duration = (end - start).total_seconds()
     if duration <= 0:
         return {}
@@ -181,12 +171,12 @@ async def _sleep_sensor_summary(
     current = previous
     for change in [*changes, None]:
         next_time = change.observed_at if change is not None else end
-        if current is not None and current.numeric_value is not None and next_time > current_time:
+        numeric_value = _home_assistant_numeric_value(current) if current is not None else None
+        if current is not None and numeric_value is not None and next_time > current_time:
             seconds = (next_time - current_time).total_seconds()
             value = _canonical_sensor_value(
-                current.numeric_value,
+                numeric_value,
                 current.source_unit or entity.source_unit,
-                entity.role or "",
             )
             valid_seconds += seconds
             weighted_total += value * seconds
@@ -195,18 +185,12 @@ async def _sleep_sensor_summary(
         current = change
 
     coverage = valid_seconds / duration
-    summary = {"coverage_pct": round(coverage * 100, 2)}
-    if coverage < HOME_ASSISTANT_SLEEP_MIN_COVERAGE or not values:
-        return summary
-    summary.update(
-        {
-            "avg": weighted_total / valid_seconds,
-            "min": min(values),
-            "max": max(values),
-            "range": max(values) - min(values),
-        }
-    )
-    return summary
+    return {
+        "value": weighted_total / valid_seconds if valid_seconds else None,
+        "min": min(values) if values else None,
+        "max": max(values) if values else None,
+        "coverage_pct": round(coverage * 100, 2),
+    }
 
 
 async def compute_home_assistant_features(
@@ -214,31 +198,68 @@ async def compute_home_assistant_features(
     target_date: date,
     tz: ZoneInfo,
 ) -> dict:
-    """Derive bedroom exposure features over the exact recorded sleep interval."""
-    sleep = await session.scalar(select(SleepSession).where(SleepSession.date == target_date))
-    if not sleep or not sleep.sleep_start or not sleep.sleep_end:
-        return {}
-
+    """Summarize selected entities over the app-timezone local day."""
+    start = datetime.combine(target_date, time.min, tzinfo=tz).astimezone(timezone.utc).replace(tzinfo=None)
+    end = datetime.combine(
+        target_date + timedelta(days=1), time.min, tzinfo=tz
+    ).astimezone(timezone.utc).replace(tzinfo=None)
     result = await session.execute(
         select(HomeAssistantEntity)
         .where(HomeAssistantEntity.enabled.is_(True))
-        .where(
-            HomeAssistantEntity.role.in_(("bedroom_temperature", "bedroom_humidity"))
-        )
         .order_by(HomeAssistantEntity.id)
     )
-    entities_by_role = {}
-    for entity in result.scalars():
-        entities_by_role.setdefault(entity.role, entity)
+    entities = list(result.scalars())
+    if not entities:
+        return {"home_assistant_metrics": []}
 
-    features = {}
-    for role, entity in entities_by_role.items():
-        summary = await _sleep_sensor_summary(
-            session, entity, sleep.sleep_start, sleep.sleep_end
+    entity_ids = [entity.id for entity in entities]
+    previous_times = (
+        select(
+            HomeAssistantObservation.entity_id.label("entity_id"),
+            func.max(HomeAssistantObservation.observed_at).label("observed_at"),
         )
-        for key, value in summary.items():
-            features[f"{role}_sleep_{key}"] = value
-    return features
+        .where(HomeAssistantObservation.entity_id.in_(entity_ids))
+        .where(HomeAssistantObservation.observed_at <= start)
+        .group_by(HomeAssistantObservation.entity_id)
+        .subquery()
+    )
+    previous_rows = list((await session.execute(
+        select(HomeAssistantObservation).join(
+            previous_times,
+            (HomeAssistantObservation.entity_id == previous_times.c.entity_id)
+            & (HomeAssistantObservation.observed_at == previous_times.c.observed_at),
+        )
+    )).scalars())
+    previous_by_entity = {row.entity_id: row for row in previous_rows}
+    change_rows = list((await session.execute(
+        select(HomeAssistantObservation)
+        .where(HomeAssistantObservation.entity_id.in_(entity_ids))
+        .where(HomeAssistantObservation.observed_at > start)
+        .where(HomeAssistantObservation.observed_at < end)
+        .order_by(HomeAssistantObservation.entity_id, HomeAssistantObservation.observed_at)
+    )).scalars())
+    changes_by_entity: dict[int, list[HomeAssistantObservation]] = {}
+    for row in change_rows:
+        changes_by_entity.setdefault(row.entity_id, []).append(row)
+
+    metrics = []
+    for entity in entities:
+        summary = _sensor_summary(
+            entity, start, end, previous_by_entity.get(entity.id),
+            changes_by_entity.get(entity.id, []),
+        )
+        unit = entity.source_unit
+        if unit and unit.strip().lower() in {"°f", "f", "degf", "fahrenheit"}:
+            unit = "degC"
+        metrics.append({
+            "selector": f"home_assistant:{entity.entity_id}",
+            "entity_id": entity.entity_id,
+            "display_name": entity.display_name,
+            "unit": unit,
+            "device_class": entity.device_class,
+            **summary,
+        })
+    return {"home_assistant_metrics": metrics}
 
 
 async def compute_hrv_features(
@@ -1104,12 +1125,6 @@ async def compute_daily_features(
 
     home_assistant_features = await compute_home_assistant_features(session, target_date, tz)
     features.update(home_assistant_features)
-    indoor_sleep_temperature = features.get("bedroom_temperature_sleep_avg")
-    outdoor_overnight_temperature = features.get("temperature_2m_overnight_mean")
-    if indoor_sleep_temperature is not None and outdoor_overnight_temperature is not None:
-        features["bedroom_outdoor_sleep_temperature_delta"] = (
-            float(indoor_sleep_temperature) - float(outdoor_overnight_temperature)
-        )
 
     hrv_features = await compute_hrv_features(session, target_date, tz)
     features.update(hrv_features)

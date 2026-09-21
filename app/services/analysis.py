@@ -58,6 +58,13 @@ def _get_supplement_value(features: dict, supplement_name: str) -> float | None:
     return None
 
 
+def _get_home_assistant_value(features: dict, selector: str) -> float | None:
+    for metric in features.get("home_assistant_metrics", []):
+        if metric.get("selector") == selector:
+            return _to_numeric(metric.get("value"))
+    return None
+
+
 def _flatten_habits(features: dict, exclude_habit: str | None = None) -> dict:
     """Flatten habits list into individual feature fields."""
     result = {}
@@ -86,6 +93,8 @@ def _parse_correlation_target(
             return "habit", target[6:]
         if target.startswith("supplement:"):
             return "supplement", target[11:]
+        if target.startswith("home_assistant:"):
+            return "home_assistant", target
         return "metric", target
 
     if target_habit:
@@ -100,6 +109,8 @@ def _get_target_value(features: dict, target_kind: str, target_name: str) -> flo
         return _get_habit_value(features, target_name)
     if target_kind == "supplement":
         return _get_supplement_value(features, target_name)
+    if target_kind == "home_assistant":
+        return _get_home_assistant_value(features, target_name)
     return _to_numeric(features.get(target_name))
 
 
@@ -108,6 +119,8 @@ def _target_selector(target_kind: str, target_name: str) -> str:
         return f"habit:{target_name}"
     if target_kind == "supplement":
         return f"supplement:{target_name}"
+    if target_kind == "home_assistant":
+        return target_name
     return target_name
 
 
@@ -116,6 +129,8 @@ def _target_feature_name(target_kind: str, target_name: str) -> str:
         return f"habit_{target_name}"
     if target_kind == "supplement":
         return f"supplement_{target_name}"
+    if target_kind == "home_assistant":
+        return target_name
     return target_name
 
 
@@ -284,6 +299,8 @@ def _feature_value(features: dict, key: str) -> float | None:
         return max(values) if values else None
     if key.startswith("supplement_"):
         return _get_supplement_value(features, key[11:])
+    if key.startswith("home_assistant:"):
+        return _get_home_assistant_value(features, key)
     if key == "overall_pollen_avg":
         values = [
             _to_numeric(value)
@@ -795,6 +812,7 @@ async def compute_correlations(
                 "habits",
                 "supplements",
                 "supplement_items",
+                "home_assistant_metrics",
                 "contexts",
                 "baseline_excluded",
                 "context_categories",
@@ -806,6 +824,9 @@ async def compute_correlations(
         for item in f.get("supplement_items", []):
             if not (target_kind == "supplement" and item["key"] == target_name):
                 all_supplement_names.add(supplement_feature_name(item["name"]))
+        for metric in f.get("home_assistant_metrics", []):
+            if metric.get("selector") and _to_numeric(metric.get("value")) is not None:
+                all_feature_names.add(metric["selector"])
 
     feature_names = list(all_feature_names) + list(all_habit_names) + list(all_supplement_names)
 
@@ -817,6 +838,8 @@ async def compute_correlations(
             continue
         if target_kind == "supplement" and feature_name == f"supplement_{target_name}":
             continue
+        if target_kind == "home_assistant" and feature_name == target_name:
+            continue
 
         # Extract feature values - check if it's a habit or regular feature
         if feature_name.startswith("habit_"):
@@ -825,6 +848,8 @@ async def compute_correlations(
         elif feature_name.startswith("supplement_"):
             supplement_name = feature_name[11:]
             feature_values = [_get_supplement_value(f, supplement_name) for f in target_features]
+        elif feature_name.startswith("home_assistant:"):
+            feature_values = [_get_home_assistant_value(f, feature_name) for f in target_features]
         else:
             feature_values = [_to_numeric(f.get(feature_name)) for f in target_features]
 
@@ -856,6 +881,9 @@ async def compute_correlations(
             supplement_name = feature_name[11:]
             pos_values = [_get_supplement_value(f, supplement_name) for f in positive_days]
             neg_values = [_get_supplement_value(f, supplement_name) for f in negative_days]
+        elif feature_name.startswith("home_assistant:"):
+            pos_values = [_get_home_assistant_value(f, feature_name) for f in positive_days]
+            neg_values = [_get_home_assistant_value(f, feature_name) for f in negative_days]
         else:
             pos_values = [_to_numeric(f.get(feature_name)) for f in positive_days]
             neg_values = [_to_numeric(f.get(feature_name)) for f in negative_days]

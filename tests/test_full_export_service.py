@@ -87,6 +87,8 @@ async def test_full_export_contains_analysis_data_and_manifest(async_session):
                 bundle.read("data/home_assistant_observations.jsonl").decode()
             )
             assert observations["numeric_value"] == 19.5
+            feature_metadata = json.loads(bundle.read("analysis/feature_metadata.json"))
+            assert "home_assistant:sensor.bedroom_temperature" in feature_metadata
     finally:
         archive.close()
 

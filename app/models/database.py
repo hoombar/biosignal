@@ -77,7 +77,7 @@ class HomeAssistantConnection(Base):
 
 
 class HomeAssistantEntity(Base):
-    """A selected Home Assistant entity and its Biosignal role."""
+    """A selected Home Assistant entity."""
 
     __tablename__ = "home_assistant_entities"
 

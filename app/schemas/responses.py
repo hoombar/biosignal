@@ -116,6 +116,18 @@ class ContextDailyEntry(BaseModel):
     notes: str | None = None
 
 
+class HomeAssistantDailyMetric(BaseModel):
+    selector: str
+    entity_id: str
+    display_name: str
+    value: float | None = None
+    unit: str | None = None
+    device_class: str | None = None
+    min: float | None = None
+    max: float | None = None
+    coverage_pct: float
+
+
 ActivityType = Literal["strength", "cardio", "mobility"]
 ActivityRating = Literal["easy", "normal", "hard"]
 
@@ -462,18 +474,7 @@ class DailySummary(BaseModel):
     surface_pressure_min: float | None = None
     surface_pressure_max: float | None = None
     weather_code_mode: float | None = None
-    # Home Assistant bedroom exposure features
-    bedroom_temperature_sleep_avg: float | None = None
-    bedroom_temperature_sleep_min: float | None = None
-    bedroom_temperature_sleep_max: float | None = None
-    bedroom_temperature_sleep_range: float | None = None
-    bedroom_temperature_sleep_coverage_pct: float | None = None
-    bedroom_humidity_sleep_avg: float | None = None
-    bedroom_humidity_sleep_min: float | None = None
-    bedroom_humidity_sleep_max: float | None = None
-    bedroom_humidity_sleep_range: float | None = None
-    bedroom_humidity_sleep_coverage_pct: float | None = None
-    bedroom_outdoor_sleep_temperature_delta: float | None = None
+    home_assistant_metrics: list[HomeAssistantDailyMetric] = Field(default_factory=list)
     # Habit features (dynamic list)
     habits: list[Habit] = []
     supplements: list[SupplementDailyEntry] = []

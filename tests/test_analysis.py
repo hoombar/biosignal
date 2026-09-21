@@ -50,6 +50,40 @@ async def _seed_day(session, day_offset: int, sleep_hours: float, slump: bool):
 class TestComputeCorrelations:
 
     @pytest.mark.asyncio
+    async def test_home_assistant_metric_can_be_target_and_predictor(self, async_session):
+        features = []
+        for i in range(6):
+            features.append({
+                "date": _make_date(i).isoformat(),
+                "sleep_hours": float(i + 1),
+                "home_assistant_metrics": [{
+                    "selector": "home_assistant:sensor.office_co2",
+                    "entity_id": "sensor.office_co2",
+                    "display_name": "Office CO2",
+                    "value": float((i + 1) * 100),
+                    "unit": "ppm",
+                    "device_class": "carbon_dioxide",
+                    "min": float((i + 1) * 90),
+                    "max": float((i + 1) * 110),
+                    "coverage_pct": 100.0,
+                }],
+            })
+
+        as_target = await compute_correlations(
+            async_session, target="home_assistant:sensor.office_co2",
+            min_days=5, features_list=features,
+        )
+        as_predictor = await compute_correlations(
+            async_session, target="sleep_hours", min_days=5, features_list=features,
+        )
+
+        assert any(row["metric"] == "sleep_hours" for row in as_target)
+        assert any(
+            row["metric"] == "home_assistant:sensor.office_co2"
+            for row in as_predictor
+        )
+
+    @pytest.mark.asyncio
     async def test_removed_supplement_keeps_historical_not_taken_days(self, async_session):
         """A removed item should remain zero on later logged snapshots."""
         original_plan = SupplementPlanVersion(

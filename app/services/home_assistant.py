@@ -188,7 +188,7 @@ class HomeAssistantSyncService:
                     try:
                         numeric_value = float(state)
                     except (TypeError, ValueError):
-                        numeric_value = None
+                        numeric_value = {"off": 0.0, "on": 1.0}.get(str(state).lower())
                     source_unit = (item.get("attributes") or {}).get(
                         "unit_of_measurement", entity.source_unit
                     )

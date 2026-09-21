@@ -105,11 +105,10 @@ async def test_discovery_and_entity_selection(async_session, monkeypatch):
             json={
                 "entities": [
                     {
-                        "entity_id": "sensor.bedroom_temperature",
-                        "display_name": "Bedroom temperature",
-                        "device_class": "temperature",
-                        "source_unit": "°C",
-                        "role": "bedroom_temperature",
+                        "entity_id": "sensor.greenhouse_soil_moisture",
+                        "display_name": "Greenhouse soil moisture",
+                        "device_class": "moisture",
+                        "source_unit": "%",
                     }
                 ]
             },
@@ -118,9 +117,11 @@ async def test_discovery_and_entity_selection(async_session, monkeypatch):
     assert discovered.status_code == 200
     assert discovered.json()[0]["entity_id"] == "sensor.bedroom_temperature"
     assert saved.status_code == 200
-    assert saved.json()[0]["role"] == "bedroom_temperature"
+    assert saved.json()[0]["entity_id"] == "sensor.greenhouse_soil_moisture"
+    assert saved.json()[0]["role"] is None
     entity = await async_session.scalar(select(HomeAssistantEntity))
     assert entity.enabled is True
+    assert entity.role is None
 
 
 def test_backfill_date_starts_at_midnight_in_app_timezone(monkeypatch):
@@ -272,8 +273,8 @@ async def test_entity_selection_rejects_duplicate_ids(async_session):
             "/api/home-assistant/entities",
             json={
                 "entities": [
-                    {**duplicate, "role": "bedroom_temperature"},
-                    {**duplicate, "role": "bedroom_humidity"},
+                    duplicate,
+                    duplicate,
                 ]
             },
         )

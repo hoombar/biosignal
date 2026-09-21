@@ -86,14 +86,16 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 ```
 
 Set the result as `INTEGRATION_ENCRYPTION_KEY`, then enter the Home Assistant
-URL and long-lived access token in Settings. Biosignal discovers temperature
-and humidity entities, retains their timestamped history, and computes bedroom
-conditions over the exact Garmin sleep interval. The default daily import runs
+URL and long-lived access token in Settings. Biosignal discovers arbitrary
+`sensor` and `binary_sensor` entities, retains timestamped history for the
+selected entities, and computes duration-weighted local-day values for Daily,
+Trends, correlations, and exports. Binary on/off states are represented as 1/0,
+and Fahrenheit temperature sensors are normalized to Celsius. The default daily import runs
 at 06:10 with a one-hour overlap from the last successful import. On-demand
 backfill is limited by each Home Assistant instance's Recorder retention.
 To preserve historical attribution in this first release, an imported
-connection or sensor assignment cannot be replaced or removed after observations
-exist; additional supported sensor roles can still be added.
+connection or selected entity cannot be replaced or removed after observations
+exist; additional entities can still be selected.
 
 After upgrading an installation with existing history, backfill the pollen and
 day/night heat inputs used by sustained-exposure analysis. With no arguments,
@@ -152,7 +154,7 @@ Set `HABITSYNC_URL` and `HABITSYNC_API_KEY` in the environment for the duration 
 - `PUT /api/home-assistant/connection` - Test and save an encrypted connection
 - `GET /api/home-assistant/entities/discover` - Discover sensor entities
 - `GET /api/home-assistant/entities` - Selected entities
-- `PUT /api/home-assistant/entities` - Assign bedroom sensor roles
+- `PUT /api/home-assistant/entities` - Save selected sensor and binary sensor entities
 - `POST /api/home-assistant/sync` - Incremental sync or on-demand backfill
 
 ### Habits

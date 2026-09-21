@@ -65,24 +65,17 @@
         </form>
 
         <div class="settings-backup-header">
-            <h3>Bedroom sensors</h3>
-            <p class="settings-desc">Discover Home Assistant entities, then assign temperature and humidity sensors to the bedroom sleep environment.</p>
+            <h3>Entities</h3>
+            <p class="settings-desc">Discover Home Assistant sensor and binary sensor entities, then select any entities to sync.</p>
         </div>
         <div class="settings-actions">
             <button type="button" class="btn-secondary" id="home-assistant-discover">Discover entities</button>
             <span id="home-assistant-discovery-status" class="save-status"></span>
         </div>
         <div class="preferences-form">
-            <label class="supplement-field">
-                <span>Bedroom temperature</span>
-                <select id="home-assistant-temperature" class="settings-input"><option value="">Not selected</option></select>
-            </label>
-            <label class="supplement-field">
-                <span>Bedroom humidity</span>
-                <select id="home-assistant-humidity" class="settings-input"><option value="">Not selected</option></select>
-            </label>
+            <div id="home-assistant-entities" class="gym-settings-list"></div>
             <div class="settings-actions">
-                <button type="button" class="btn-primary" id="home-assistant-save-entities">Save sensors</button>
+                <button type="button" class="btn-primary" id="home-assistant-save-entities">Save entities</button>
                 <span id="home-assistant-entity-status" class="save-status"></span>
             </div>
         </div>

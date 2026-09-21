@@ -39,9 +39,9 @@ restored, and context range editing was recorded as done.
 
 - [x] Add Home Assistant local sensor ingestion with encrypted UI-managed
   credentials, entity discovery, timestamped observations, incremental daily
-  sync and on-demand backfill. Bedroom temperature and humidity are attributed
-  to exact Garmin sleep windows and surface in Daily, Trends, correlations and
-  exports (completed 2026-09-20).
+  sync and on-demand backfill. Any selected sensor or binary sensor is summarized
+  over app-timezone local days and surfaces in Daily, Trends, correlations and
+  exports (completed 2026-09-21).
 - [ ] Add on-load catch-up sync for small recent Garmin and environment gaps,
   with a clear banner or automatic yesterday sync. Prompt before large gaps.
 - [ ] Add a UI-configurable, versioned derived-signal rule engine for combining
@@ -127,8 +127,8 @@ implemented in September 2026.
 
 - [ ] Decide whether weather belongs in daily summaries, hourly samples, or
   both.
-- [x] Store bedroom temperature as full timestamped observations and derive
-  sleep-window summaries from the recorded Garmin sleep interval.
+- [x] Store selected Home Assistant entities as full timestamped observations
+  and derive generic duration-weighted local-day summaries.
 - [ ] Decide whether context exclusions apply to all correlations, only
   baseline/anomaly features, or are selectable in the UI.
 - [ ] Decide whether inferred walks should become context events, observations,

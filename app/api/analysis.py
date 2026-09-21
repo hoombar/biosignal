@@ -7,7 +7,7 @@ from app.core.database import get_db
 from app.core.config import get_settings
 from app.services.habit_config import list_habit_display_entries
 from app.services.supplements import list_supplement_items
-from app.api.export import FEATURE_METADATA
+from app.api.export import _build_feature_metadata
 from app.schemas.responses import (
     CorrelationResult,
     CorrelationSnapshotResult,
@@ -35,7 +35,8 @@ async def get_correlation_targets(db: AsyncSession = Depends(get_db)):
     """
     targets: list[CorrelationTargetOption] = []
 
-    for key, meta in sorted(FEATURE_METADATA.items(), key=lambda kv: kv[0]):
+    metadata = await _build_feature_metadata(db)
+    for key, meta in sorted(metadata.items(), key=lambda kv: kv[0]):
         category = meta.get("category", "Other")
         unit = meta.get("unit", "")
         if category == "Habits":
@@ -44,7 +45,7 @@ async def get_correlation_targets(db: AsyncSession = Depends(get_db)):
             continue
         targets.append(CorrelationTargetOption(
             target=key,
-            label=key.replace("_", " "),
+            label=meta.get("description") or key.replace("_", " "),
             kind="metric",
             category=category,
         ))

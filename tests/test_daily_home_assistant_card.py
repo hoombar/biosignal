@@ -1,49 +1,38 @@
 from tests.test_daily_light_card import render_daily_card
 
 
-def test_bedroom_environment_card_renders_sleep_exposure_and_comparison():
+def test_home_assistant_card_renders_arbitrary_daily_metrics():
     html = render_daily_card(
-        "renderBedroomEnvironmentCard",
-        {
-            "bedroom_temperature_sleep_avg": 18.625,
-            "bedroom_temperature_sleep_min": 18.0,
-            "bedroom_temperature_sleep_max": 20.0,
-            "bedroom_temperature_sleep_coverage_pct": 100.0,
-            "bedroom_humidity_sleep_avg": 55.0,
-            "bedroom_humidity_sleep_min": 50.0,
-            "bedroom_humidity_sleep_max": 60.0,
-            "bedroom_humidity_sleep_coverage_pct": 100.0,
-            "bedroom_outdoor_sleep_temperature_delta": -5.0,
-        },
+        "renderHomeAssistantCard",
+        {"home_assistant_metrics": [
+            {
+                "selector": "home_assistant:sensor.greenhouse_soil",
+                "entity_id": "sensor.greenhouse_soil",
+                "display_name": "Greenhouse soil",
+                "value": 42.25,
+                "unit": "%",
+                "device_class": "moisture",
+                "min": 38.0,
+                "max": 47.0,
+                "coverage_pct": 87.5,
+            },
+            {
+                "selector": "home_assistant:binary_sensor.window",
+                "entity_id": "binary_sensor.window",
+                "display_name": "Window",
+                "value": 0.5,
+                "unit": None,
+                "device_class": "window",
+                "min": 0.0,
+                "max": 1.0,
+                "coverage_pct": 100.0,
+            },
+        ]},
     )
 
-    assert "Bedroom environment" in html
-    assert "18.6" in html
-    assert "55%" in html
-    assert "5.0" in html
-    assert "cooler than outside" in html
-
-
-def test_bedroom_environment_card_shows_low_coverage_without_exposure_value():
-    html = render_daily_card(
-        "renderBedroomEnvironmentCard",
-        {"bedroom_temperature_sleep_coverage_pct": 62.5},
-    )
-
-    assert "No reliable sleep-window data" in html
-    assert "63% coverage" in html
-
-
-def test_bedroom_environment_card_does_not_hide_low_temperature_coverage():
-    html = render_daily_card(
-        "renderBedroomEnvironmentCard",
-        {
-            "bedroom_temperature_sleep_coverage_pct": 20,
-            "bedroom_humidity_sleep_coverage_pct": 100,
-        },
-    )
-
-    assert "Temperature coverage" in html
-    assert "20%" in html
-    assert "Humidity coverage" in html
-    assert "100%" in html
+    assert "Home Assistant" in html
+    assert "Greenhouse soil" in html
+    assert "42.3%" in html
+    assert "38" in html and "47" in html
+    assert "88% coverage" in html
+    assert "Window" in html

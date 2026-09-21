@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 from app.api.export import router
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.models.database import EnvironmentalMetric, SleepSession, DailyHabit, HabitDisplayConfig, SupplementLog, SupplementPlanVersion
+from app.models.database import EnvironmentalMetric, HomeAssistantConnection, HomeAssistantEntity, HomeAssistantObservation, SleepSession, DailyHabit, HabitDisplayConfig, SupplementLog, SupplementPlanVersion
 from app.services.environmental import location_key
 
 
@@ -311,6 +311,64 @@ class TestExportFeatures:
 
 
 class TestExportMetadata:
+
+    @pytest.mark.asyncio
+    async def test_metadata_includes_selected_home_assistant_entities(self, async_session):
+        connection = HomeAssistantConnection(
+            name="Home", base_url="http://homeassistant.local:8123",
+            encrypted_token="encrypted", enabled=True,
+        )
+        async_session.add(connection)
+        await async_session.flush()
+        async_session.add(HomeAssistantEntity(
+            connection_id=connection.id, entity_id="sensor.air_quality",
+            display_name="Air quality", device_class="aqi", source_unit="AQI",
+            role=None, enabled=True,
+        ))
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get("/api/export/metadata")
+
+        metadata = resp.json()["features"]["home_assistant:sensor.air_quality"]
+        assert metadata == {
+            "description": "Air quality",
+            "unit": "AQI",
+            "category": "Home Assistant",
+            "entity_id": "sensor.air_quality",
+            "device_class": "aqi",
+        }
+
+    @pytest.mark.asyncio
+    async def test_csv_flattens_home_assistant_daily_values(self, async_session):
+        connection = HomeAssistantConnection(
+            name="Home", base_url="http://homeassistant.local:8123",
+            encrypted_token="encrypted", enabled=True,
+        )
+        async_session.add(connection)
+        await async_session.flush()
+        entity = HomeAssistantEntity(
+            connection_id=connection.id, entity_id="sensor.air_quality",
+            display_name="Air quality", device_class="aqi", source_unit="AQI",
+            role=None, enabled=True,
+        )
+        async_session.add(entity)
+        await async_session.flush()
+        async_session.add(HomeAssistantObservation(
+            entity_id=entity.id, observed_at=datetime(2025, 1, 27, 23),
+            state="40", numeric_value=40, source_unit="AQI",
+        ))
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get("/api/export", params={
+                "format": "csv", "start": "2025-01-28", "end": "2025-01-28"
+            })
+
+        row = list(csv.DictReader(io.StringIO(resp.text)))[0]
+        assert row["home_assistant:sensor.air_quality"] == "40.0"
 
     @pytest.mark.asyncio
     async def test_metadata_includes_surface_pressure_and_condition(self, async_session):

@@ -34,12 +34,12 @@ const CATEGORY_DOT_COLORS = {
     'Light':        '#facc15',
     'Pollen':       '#84cc16',
     'Weather':      '#38bdf8',
-    'Home Environment': '#22c55e',
+    'Home Assistant': '#22c55e',
     'Habits':       '#e879f9',
     'Supplements':  '#14b8a6',
 };
 
-const CATEGORY_ORDER = ['Sleep', 'HRV', 'SpO2', 'Heart Rate', 'Body Battery', 'Stress', 'Activity', 'Light', 'Pollen', 'Weather', 'Home Environment', 'Habits', 'Supplements'];
+const CATEGORY_ORDER = ['Sleep', 'HRV', 'SpO2', 'Heart Rate', 'Body Battery', 'Stress', 'Activity', 'Light', 'Pollen', 'Weather', 'Home Assistant', 'Habits', 'Supplements'];
 const TARGET_STORAGE_KEY = 'biosignal_correlation_target';
 const LEGACY_HABIT_STORAGE_KEY = 'biosignal_target_habit';
 
@@ -546,7 +546,9 @@ function buildCheckboxHtml(key, meta) {
         ? getHabitLabel(key.slice(6))
         : key.startsWith('supplement:')
             ? targetLabel(key)
-        : key.replace(/_/g, ' ');
+        : key.startsWith('home_assistant:')
+            ? meta.description
+            : key.replace(/_/g, ' ');
     const title = meta.description + (meta.unit && meta.unit !== 'habit' ? ` (${meta.unit})` : '');
     const domId = keyToId(key);
     const safeKey = key.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
@@ -587,6 +589,14 @@ function onMetricToggle(key, checked) {
 
 // ─── Data helpers ─────────────────────────────────────────────────────────────
 function getMetricValues(key) {
+    if (key.startsWith('home_assistant:')) {
+        return trendsData.map(d => {
+            const metric = (d.home_assistant_metrics || []).find(item => item.selector === key);
+            if (!metric || metric.value === null || metric.value === undefined) return null;
+            const value = Number(metric.value);
+            return isNaN(value) ? null : value;
+        });
+    }
     if (key.startsWith('habit:')) {
         const habitName = key.slice(6);
         return trendsData.map(d => {

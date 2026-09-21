@@ -13,7 +13,7 @@ def test_settings_exposes_home_assistant_connection_and_entity_controls():
     assert 'id="home-assistant-url"' in html
     assert 'id="home-assistant-token"' in html
     assert 'id="home-assistant-discover"' in html
-    assert 'id="home-assistant-temperature"' in html
-    assert 'id="home-assistant-humidity"' in html
+    assert 'id="home-assistant-entities"' in html
+    assert "Bedroom sensors" not in html
     assert 'id="home-assistant-backfill-date"' in html
     assert '/static/js/home-assistant-settings.js' in html

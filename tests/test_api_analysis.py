@@ -7,7 +7,15 @@ from fastapi.testclient import TestClient
 
 from app.api.analysis import router
 from app.core.database import get_db
-from app.models.database import SleepSession, DailyHabit, HabitDisplayConfig, SupplementLog, SupplementPlanVersion
+from app.models.database import (
+    DailyHabit,
+    HabitDisplayConfig,
+    HomeAssistantConnection,
+    HomeAssistantEntity,
+    SleepSession,
+    SupplementLog,
+    SupplementPlanVersion,
+)
 from tests.conftest import log_habit
 
 
@@ -234,6 +242,33 @@ class TestCorrelationTargetsApi:
         assert "daylight_minutes" in targets
         assert "grass_pollen_avg" in targets
         assert "habit:pm_slump" in targets
+
+    @pytest.mark.asyncio
+    async def test_includes_home_assistant_targets_with_display_metadata(self, async_session):
+        connection = HomeAssistantConnection(
+            name="Home", base_url="http://homeassistant.local:8123",
+            encrypted_token="encrypted", enabled=True,
+        )
+        async_session.add(connection)
+        await async_session.flush()
+        async_session.add(HomeAssistantEntity(
+            connection_id=connection.id, entity_id="sensor.office_co2",
+            display_name="Office CO2", device_class="carbon_dioxide",
+            source_unit="ppm", role=None, enabled=True,
+        ))
+        await async_session.commit()
+
+        app = _make_test_app(async_session)
+        with TestClient(app) as client:
+            resp = client.get("/api/correlation-targets")
+
+        by_target = {row["target"]: row for row in resp.json()}
+        assert by_target["home_assistant:sensor.office_co2"] == {
+            "target": "home_assistant:sensor.office_co2",
+            "label": "Office CO2",
+            "kind": "metric",
+            "category": "Home Assistant",
+        }
 
     @pytest.mark.asyncio
     async def test_includes_individual_supplement_targets(self, async_session):

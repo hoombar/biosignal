@@ -8,8 +8,7 @@
     const connectionStatus = document.getElementById('home-assistant-connection-status');
     const discoverButton = document.getElementById('home-assistant-discover');
     const discoveryStatus = document.getElementById('home-assistant-discovery-status');
-    const temperatureSelect = document.getElementById('home-assistant-temperature');
-    const humiditySelect = document.getElementById('home-assistant-humidity');
+    const entitiesContainer = document.getElementById('home-assistant-entities');
     const saveEntitiesButton = document.getElementById('home-assistant-save-entities');
     const entityStatus = document.getElementById('home-assistant-entity-status');
     const syncButton = document.getElementById('home-assistant-sync');
@@ -28,34 +27,25 @@
         return body.detail || `HTTP ${response.status}`;
     }
 
-    function renderOptions(select, entities, selectedId) {
-        select.innerHTML = '<option value="">Not selected</option>';
-        entities.forEach(entity => {
-            const option = document.createElement('option');
-            option.value = entity.entity_id;
-            option.textContent = `${entity.display_name} (${entity.entity_id})`;
-            option.selected = entity.entity_id === selectedId;
-            select.appendChild(option);
-        });
-    }
-
     function renderEntitySelectors() {
-        const selectedTemperature = selectedEntities.find(entity => entity.role === 'bedroom_temperature');
-        const selectedHumidity = selectedEntities.find(entity => entity.role === 'bedroom_humidity');
         const combined = [...discoveredEntities];
         selectedEntities.forEach(entity => {
             if (!combined.some(item => item.entity_id === entity.entity_id)) combined.push(entity);
         });
-        renderOptions(
-            temperatureSelect,
-            combined.filter(entity => entity.device_class === 'temperature'),
-            selectedTemperature?.entity_id
-        );
-        renderOptions(
-            humiditySelect,
-            combined.filter(entity => entity.device_class === 'humidity'),
-            selectedHumidity?.entity_id
-        );
+        entitiesContainer.innerHTML = '';
+        combined.forEach(entity => {
+            const label = document.createElement('label');
+            label.className = 'archived-toggle';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = entity.entity_id;
+            checkbox.checked = selectedEntities.some(item => item.entity_id === entity.entity_id);
+            label.appendChild(checkbox);
+            label.appendChild(document.createTextNode(
+                ` ${entity.display_name} (${entity.entity_id})${entity.unit || entity.source_unit ? ` · ${entity.unit || entity.source_unit}` : ''}`
+            ));
+            entitiesContainer.appendChild(label);
+        });
     }
 
     async function load() {
@@ -113,22 +103,16 @@
     });
 
     saveEntitiesButton.addEventListener('click', async () => {
-        const entities = [];
-        for (const [select, role] of [
-            [temperatureSelect, 'bedroom_temperature'],
-            [humiditySelect, 'bedroom_humidity'],
-        ]) {
-            if (!select.value) continue;
+        const entities = Array.from(entitiesContainer.querySelectorAll('input:checked')).map(input => {
             const source = [...discoveredEntities, ...selectedEntities]
-                .find(entity => entity.entity_id === select.value);
-            entities.push({
+                .find(entity => entity.entity_id === input.value);
+            return {
                 entity_id: source.entity_id,
                 display_name: source.display_name,
                 device_class: source.device_class,
                 source_unit: source.unit ?? source.source_unit,
-                role,
-            });
-        }
+            };
+        });
         const response = await fetch('/api/home-assistant/entities', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -139,7 +123,8 @@
             return;
         }
         selectedEntities = await response.json();
-        setStatus(entityStatus, 'Sensors saved');
+        renderEntitySelectors();
+        setStatus(entityStatus, 'Entities saved');
     });
 
     syncButton.addEventListener('click', async () => {

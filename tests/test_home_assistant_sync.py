@@ -141,6 +141,42 @@ async def test_history_sync_is_idempotent_and_advances_watermark(async_session):
     assert len(requests) == 2
 
 
+@pytest.mark.asyncio
+async def test_sync_converts_binary_on_off_to_numeric(async_session):
+    def handler(request: httpx.Request):
+        return httpx.Response(200, json=[[
+            {"state": "off", "last_changed": "2026-09-20T00:00:00+00:00"},
+            {"state": "on", "last_changed": "2026-09-20T12:00:00+00:00"},
+        ]])
+
+    connection = HomeAssistantConnection(
+        name="Home", base_url="http://homeassistant.local:8123",
+        encrypted_token="encrypted-token", enabled=True,
+    )
+    async_session.add(connection)
+    await async_session.flush()
+    entity = HomeAssistantEntity(
+        connection_id=connection.id, entity_id="binary_sensor.window",
+        display_name="Window", device_class="window", role=None, enabled=True,
+    )
+    async_session.add(entity)
+    await async_session.commit()
+
+    service = HomeAssistantSyncService(
+        client_factory=_client_factory(handler), decrypt_token=lambda value: "token"
+    )
+    await service.sync_connection(
+        async_session, connection.id,
+        start=datetime(2026, 9, 20, tzinfo=timezone.utc),
+        end=datetime(2026, 9, 21, tzinfo=timezone.utc),
+    )
+
+    rows = list((await async_session.execute(
+        select(HomeAssistantObservation).order_by(HomeAssistantObservation.observed_at)
+    )).scalars())
+    assert [row.numeric_value for row in rows] == [0.0, 1.0]
+
+
 def test_client_rejects_urls_with_embedded_credentials():
     with pytest.raises(ValueError, match="URL"):
         HomeAssistantClient("http://admin:password@homeassistant.local:8123", "token")
